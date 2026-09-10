@@ -1,0 +1,42 @@
+.godot/
+bin/
+obj/
+*.user
+*.swp
+
+game/shots/
+game/out/
+game/blend/
+game/assets/*
+!game/assets/starship_proc.glb
+!game/assets/starship_proc.glb.import
+!game/assets/textures/
+*.blend
+*.blend1
+
+# готовая модель Block 3 V4: 128 МБ, лежит рядом с проектом, в историю не нужна
+starship_model/
+
+.env
+orchestrator/.env
+orchestrator/runs/
+orchestrator/__pycache__/
+__pycache__/
+*.pyc
+.venv/
+
+chat/
+345/
+
+# Сторонний симулятор, по которому шёл разбор физики (PHYSICS_GAP.md). Это целый чужой
+# проект на 127 файлов, а не наш материал: держать его в своей истории незачем, всё
+# существенное вынесено в PHYSICS_GAP.md. Если понадобится снова — качается заново.
+another_simmilar_game/
+
+# Чужие материалы, по которым сверялись: фотографии площадки и схемы полёта SpaceX.
+# Свои снимки игры в bugs/ остаются, эти — нет.
+launch_pad/
+bugs/02-flight-profile.png
+bugs/03-flight-timeline.png
+
+.claude/

@@ -1,0 +1,13 @@
+game/.godot/
+game/bin/
+game/obj/
+game/out/
+game/tests/SimCheck/bin/
+game/tests/SimCheck/obj/
+game/blend/
+chat/
+game/assets/
+another_simmilar_game/
+launch_pad/
+bugs_flaps/
+starship_model/
