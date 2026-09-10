@@ -1,0 +1,24 @@
+# Чужие материалы и откуда они
+
+## Модель Starship
+
+`game/assets/starship.glb` собрана из модели
+[SpaceX Starship Block 3](https://sketchfab.com/3d-models/spacex-starship-block-3-6f6c6f88a3eb4b4d822fdca66733fbb2)
+автора **Clarence365** (Sketchfab), лицензия **CC Attribution (CC BY 4.0)**.
+
+Из неё берутся корпуса обеих ступеней, решётчатые рули, закрылки, поле плиток и колокола
+двигателей; башня, руки, каретка, стартовый стол и площадка строятся параметрически.
+Разбирает исходник `game/tools/import_v3.py`, собирает `game/tools/build_model.py`.
+
+`game/assets/starship_proc.glb` — полностью самодельная сборка того же аппарата из
+примитивов (`build_model.py --proc`), 117 тысяч полигонов. Игра берёт её, если детальной
+модели рядом нет.
+
+## Всё остальное
+
+Текстуры в `game/assets/textures/` рисуются скриптами `game/tools/make_*.py`.
+Код, физика и документация — свои, лицензия [MIT](LICENSE).
+
+Числа для модели физики взяты из открытых источников: стандартная атмосфера USSA-76,
+опубликованные характеристики Raptor, трансляции пусков SpaceX. Разбор источников и
+сверка — в [PHYSICS.md](PHYSICS.md) и [PROGRESS.md](PROGRESS.md).

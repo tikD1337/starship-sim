@@ -8,6 +8,12 @@ game/shots/
 game/out/
 game/blend/
 game/assets/*
+!game/assets/starship.glb
+!game/assets/starship.glb.import
+!game/assets/starship_*.png
+!game/assets/starship_*.png.import
+!game/assets/starship_*.jpg
+!game/assets/starship_*.jpg.import
 !game/assets/starship_proc.glb
 !game/assets/starship_proc.glb.import
 !game/assets/textures/
