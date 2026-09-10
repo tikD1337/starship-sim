@@ -7,7 +7,7 @@ public partial class Main : Node {
     private static readonly string[] Flags = {
         "--free", "--cockpit", "--full", "--noshadow", "--noglow", "--shot", "--t", "--dbg",
         "--dist", "--deploy", "--pitch", "--yaw", "--cam", "--focus", "--tab",
-        "--mission", "--anom", "--seed", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape",
+        "--mission", "--anom", "--seed", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
     };
     private SimState _sim;
     private StackView _stack;
@@ -120,6 +120,7 @@ public partial class Main : Node {
     }
     private void Apply(CliArgs a) {
         foreach (string bad in a.Unknown(Flags)) GD.Print("ARG_UNKNOWN " + bad);
+        _script = a.Str("--script", _script);
         string key = a.Str("--mission", _missionKey);
         if (System.Array.IndexOf(Mission.Keys, key) < 0) key = _missionKey;
         StartFlight(key, a.Has("--anom"), (uint)a.Int("--seed", (int)_seed));
@@ -132,6 +133,12 @@ public partial class Main : Node {
         if (a.Has("--debugcam")) _rig.Cur = CamRig.Kind.Free;
         if (a.Has("--dbg")) _rigWorld.SetDbg(a.Int("--dbg", 0));
         if (a.Has("--tab")) _ui.SetTab(a.Int("--tab", 0));
+        if (a.Has("--pgrp")) _ui.SelectGroup(a.Int("--pgrp", 0));
+        if (a.Has("--pset"))
+            foreach (string one in a.Str("--pset").Split(';')) {
+                string[] kv = one.Split('=');
+                if (kv.Length == 2) _ui.SetParam(_sim.FocusVeh(), kv[0], kv[1]);
+            }
         _rig.Yaw = a.Flt("--yaw", 0.9f);
         _rig.Pitch = a.Flt("--pitch", 0.14f);
         _rig.Dist = a.Flt("--dist", 300f);

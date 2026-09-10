@@ -160,7 +160,7 @@ public sealed class ConsoleFull {
         _paramBody.AddThemeConstantOverride("separation", 2);
         scroll.AddChild(_paramBody);
     }
-    private void SelectGroup(int idx) {
+    public void SelectGroup(int idx) {
         _group = idx;
         for (int i = 0; i < _groupTabs.Count; i++) {
             _groupTabs[i].AddThemeColorOverride("font_color", i == idx ? Accent : Dim);
@@ -201,14 +201,21 @@ public sealed class ConsoleFull {
             }
         }
     }
-    private void Apply(ParamRow r, string text) {
-        if (_focus == null) return;
+    public void SetParam(Vehicle v, string key, string text) {
+        foreach (ParamGroup g in ParamDefs.Groups)
+            foreach (ParamSection sec in g.Sections)
+                foreach (ParamRow r in sec.Rows)
+                    if (r.Key == key) { Apply(v, r, text); return; }
+    }
+    private void Apply(ParamRow r, string text) => Apply(_focus, r, text);
+    private void Apply(Vehicle v, ParamRow r, string text) {
+        if (v == null) return;
         if (!double.TryParse(text.Replace(',', '.'), System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out double x)) return;
         x = Math.Clamp(x, r.Lo, r.Hi);
-        if (r.Scope == Scope.Vehicle) r.SetVeh?.Invoke(_focus, x);
+        if (r.Scope == Scope.Vehicle) r.SetVeh?.Invoke(v, x);
         else if (r.Scope == Scope.Engine)
-            foreach (PEngine e in _focus.Eng) r.Set?.Invoke(e.P, x);
+            foreach (PEngine e in v.Eng) r.Set?.Invoke(e.P, x);
         _sim?.LogMsg($"Параметр «{r.Label}» → {x:0.###}", 1);
     }
     private void Row(VBoxContainer parent, string key, string label, int labW = 150, int fs = 11,
@@ -508,7 +515,12 @@ public sealed class ConsoleFull {
             if (r.Scope == Scope.ReadOnly) {
                 x = r.FromVehicle != null ? r.FromVehicle(v)
                     : (r.FromEngine != null && v.Eng.Count > 0 ? r.FromEngine(v.Eng[0]) : 0);
-                if (lv != null) Txt(lv, x.ToString(Fmt[r.Digits]));
+                if (lv != null) {
+                    Txt(lv, x.ToString(Fmt[r.Digits]));
+                    string zone = ParamDefs.ZoneOf(r, x);
+                    Col(lv, zone == "crit" ? Bad : zone == "warn" ? Warn : Val);
+                    if (zone.Length > 0 && lv.TooltipText != r.Note) lv.TooltipText = r.Note;
+                }
             }
             else if (ed != null && !ed.HasFocus()) {
                 x = r.Scope == Scope.Vehicle ? (r.GetVeh?.Invoke(v) ?? 0)

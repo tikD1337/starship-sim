@@ -305,6 +305,7 @@ internal static class Program {
         int sCut = 0;
         var cuts = new List<string>();
         double errMax = 0, errSum = 0, errT = 0; int omSign = 0, flips = 0;
+        double tbMax = 0, vbMax = 0, wrMax = 0, pcMin = 1e9, pfMin = 1e9, poMin = 1e9, copvMin = 1e9;
         int i = 0;
         for (; i < 1400000; i++) {
             if ((b.Landed || b.Crashed) && (s.Landed || s.Crashed)) break;
@@ -377,6 +378,20 @@ internal static class Program {
                     + $" vh={s.VHor:F1} dr={sim.Downrange(s):F0} th={(s.Th*Const.R2D):F1}"
                     + $" tc={(s.ThCmd*Const.R2D):F1} n={s.NRun} thr={s.Throttle:F2}"
                     + $" a={(s.Alpha*Const.R2D):F0} q={(s.Q/1000):F1}");
+            if (i % 100 == 0)
+                foreach (Vehicle v in sim.Veh) {
+                    if (v.Tanks == null) continue;
+                    pfMin = Math.Min(pfMin, v.Tanks.F.P / 1000);
+                    poMin = Math.Min(poMin, v.Tanks.O.P / 1000);
+                    if (v.Tanks.Copv0 > 0) copvMin = Math.Min(copvMin, v.Tanks.Copv / v.Tanks.Copv0 * 100);
+                    foreach (Engine e in v.Eng) {
+                        if (!e.On) continue;
+                        tbMax = Math.Max(tbMax, e.Pf.T);
+                        vbMax = Math.Max(vbMax, Math.Max(e.Pf.Vib, e.Po.Vib));
+                        wrMax = Math.Max(wrMax, Math.Max(e.Pf.Wear, e.Po.Wear));
+                        pcMin = Math.Min(pcMin, e.Pc);
+                    }
+                }
             if (i % every != 0) continue;
             Row(sb, i.ToString(Inv), F(sim.T),
                 b.Mode, F(b.Alt), F(sim.Downrange(b)), F(b.Speed), F(b.Prop), F(b.Th), F(b.Q),
@@ -397,6 +412,8 @@ internal static class Program {
         Console.Error.WriteLine($"BURN bBurn={burnT:F1}s bHold={holdT:F1}s sBurn={sBurnT:F1}s " +
                                 $"bTouch={Math.Abs(bTouch):F2}m/s sTouch={Math.Abs(sTouch):F2}m/s");
         Console.Error.WriteLine($"FLIP sVhMax={sVhFlip:F1}m/s sHover={sHoverT:F1}s sTiltMax={sTiltMax:F1}deg");
+        Console.Error.WriteLine($"ZONE tb={tbMax:F0}K vib={vbMax:F2}g wear={wrMax:F3} pc={pcMin:F1}MPa "
+                              + $"pf={pfMin:F0}kPa po={poMin:F0}kPa copv={copvMin:F1}%");
         Console.Error.WriteLine("CUTS " + (cuts.Count > 0 ? string.Join(" ", cuts) : "нет"));
         Console.Error.WriteLine($"SPIN bOmMax={omMax:F1}deg/s bTurnTotal={omSum:F0}deg bTiltMax={devMax:F0}deg " +
                                 $"flips={flips} errMax={errMax:F0}deg errAvg={(errT > 0 ? errSum / errT : 0):F1}deg " +
