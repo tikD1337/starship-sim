@@ -46,3 +46,17 @@ bugs/02-flight-profile.png
 bugs/03-flight-timeline.png
 
 .claude/
+
+# Рабочие заметки: журнал, реестр ошибок, справочники по устройству. Нужны в работе,
+# но в опубликованном репозитории им делать нечего.
+/HANDOFF.md
+/MODEL.md
+/PHYSICS.md
+/PHYSICS_GAP.md
+/PORT.md
+/PROGRESS.md
+/REVIEW.md
+/SCENE.md
+/SIM.md
+/bugs.md
+/ask-physics.md
