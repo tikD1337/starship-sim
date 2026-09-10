@@ -7,8 +7,21 @@
 ## Как запустить
 
 **Проще всего** — взять готовый архив во вкладке
-[Releases](https://github.com/tikD1337/starship-sim/releases): распаковать, запустить
-`Starship.exe`. Ничего ставить не нужно, Windows 64-бит.
+[Releases](https://github.com/tikD1337/starship-sim/releases). Ставить ничего не нужно,
+Godot и .NET внутри; из требований только видеокарта с Vulkan.
+
+| система | файл | как запускать |
+|---|---|---|
+| Windows 64-бит | `Starship-win64.zip` | распаковать, запустить `Starship.exe` |
+| Linux x86_64 | `Starship-linux-x86_64.zip` | `chmod +x Starship.x86_64 && ./Starship.x86_64` |
+| macOS, Intel и Apple Silicon | `Starship-macos-universal.zip` | сперва снять карантин, см. ниже |
+
+Сборка для macOS не подписана у Apple, поэтому система сначала откажется её открывать.
+Лечится одной командой в папке, куда распаковали:
+
+```bash
+xattr -dr com.apple.quarantine Starship.app
+```
 
 Если хотите собирать сами, нужны две вещи:
 

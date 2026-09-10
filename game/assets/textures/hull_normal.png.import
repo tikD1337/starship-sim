@@ -4,15 +4,16 @@ importer="texture"
 type="CompressedTexture2D"
 uid="uid://b1n4uk6y4slf6"
 path.s3tc="res://.godot/imported/hull_normal.png-c8bed58277593571e2402f254710f63f.s3tc.ctex"
+path.etc2="res://.godot/imported/hull_normal.png-c8bed58277593571e2402f254710f63f.etc2.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/textures/hull_normal.png"
-dest_files=["res://.godot/imported/hull_normal.png-c8bed58277593571e2402f254710f63f.s3tc.ctex"]
+dest_files=["res://.godot/imported/hull_normal.png-c8bed58277593571e2402f254710f63f.s3tc.ctex", "res://.godot/imported/hull_normal.png-c8bed58277593571e2402f254710f63f.etc2.ctex"]
 
 [params]
 
