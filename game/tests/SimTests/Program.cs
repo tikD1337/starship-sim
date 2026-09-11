@@ -47,6 +47,7 @@ internal static partial class Program {
         UiNumbers();
         UiThemes();
         UiEngineLayout();
+        UiParams();
         Console.WriteLine();
         Console.WriteLine($"итог: пройдено {_ok}, провалов {_fail}, ждут заданий {_todo}");
         return _fail == 0 ? 0 : 1;

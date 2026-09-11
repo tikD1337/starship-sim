@@ -76,4 +76,34 @@ internal static partial class Program {
              Math.Abs(R(b[2]) - 40) < 1e-9 && Math.Abs(R(b[3]) - 108) < 1e-9
              && Math.Abs(R(b[12]) - 108) < 1e-9 && Math.Abs(R(b[13]) - 180) < 1e-9);
     }
+    private static void UiParams() {
+        Head("Интерфейс: параметры и шкалы зон");
+        ParamRow tb = ParamDefs.Row("_tb");
+        var z = ParamDefs.Bands(tb, 314);
+        Near("подшипники: жёлтая с 550 K из 700", z.W0, 550.0 / 700, 1e-9);
+        Near("подшипники: красная с 650 K", z.C0, 650.0 / 700, 1e-9);
+        True("подшипники: жёлтая упирается в красную, красная до конца", z.W1 == z.C0 && z.C1 == 1);
+        Near("подшипники: отметка 314 K", z.Mark, 314.0 / 700, 1e-9);
+        var p = ParamDefs.Bands(ParamDefs.Row("_pf"), 350);
+        True("наддув горючего: красная от нуля до 200 кПа", p.C0 == 0 && Math.Abs(p.C1 - 0.4) < 1e-9,
+             $"{N(p.C0)}…{N(p.C1)}");
+        True("наддув горючего: жёлтая 200–280 кПа", Math.Abs(p.W0 - 0.4) < 1e-9 && Math.Abs(p.W1 - 0.56) < 1e-9,
+             $"{N(p.W0)}…{N(p.W1)}");
+        Near("наддув горючего: отметка 350 кПа", p.Mark, 0.7, 1e-9);
+        True("отметка не вылезает за шкалу", ParamDefs.Bands(tb, 9000).Mark == 1 && ParamDefs.Bands(tb, -5).Mark == 0);
+        string miss = "";
+        foreach (ParamGroup g in ParamDefs.Groups)
+            foreach (ParamSection s in g.Sections)
+                foreach (ParamRow r in s.Rows)
+                    if (!double.IsNaN(r.Crit) && !(r.Max > 0)) miss += r.Key + " ";
+        True("у каждой строки с зонами есть шкала", miss.Length == 0, miss);
+        True("наддув правится у всей ступени", ParamDefs.Row("pTankF").Stage && ParamDefs.Row("pTankOx").Stage);
+        True("обороты — у одного двигателя", !ParamDefs.Row("rpmSet").Stage);
+        True("неизвестный ключ — пусто", ParamDefs.Row("нет такого") == null);
+        foreach (ParamGroup g in ParamDefs.Groups) {
+            int k = ParamDefs.Split(g);
+            True($"«{g.Name}»: обе колонки не пустые", k > 0 && k < g.Sections.Count,
+                 $"вторая с раздела {k} из {g.Sections.Count}");
+        }
+    }
 }
