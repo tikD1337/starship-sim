@@ -8,6 +8,8 @@ public sealed class Perf {
     private readonly double[] _part = new double[5];
     private int _n, _warm, _i, _slow, _gc0;
     private ulong _mark;
+    private readonly System.Collections.Generic.List<Rid> _rids = new();
+    private double _gpu;
     public Perf(Node host) { _host = host; }
     public bool Spin, Cold, KeepVsync;
     public void Arm(int frames) {
@@ -16,6 +18,12 @@ public sealed class Perf {
         _n = Math.Max(frames, 30);
         _ms = new double[_n];
         _i = 0;
+        _gpu = 0;
+        _rids.Clear();
+        _rids.Add(_host.GetViewport().GetViewportRid());
+        foreach (Node n in _host.GetTree().Root.FindChildren("*", "SubViewport", true, false))
+            _rids.Add(((SubViewport)n).GetViewportRid());
+        foreach (Rid r in _rids) RenderingServer.ViewportSetMeasureRenderTime(r, true);
     }
     public void Mark() => _mark = Time.GetTicksUsec();
     public void Add(Part p) {
@@ -31,6 +39,7 @@ public sealed class Perf {
         }
         double ms = delta * 1000;
         _ms[_i++] = ms;
+        foreach (Rid r in _rids) _gpu += RenderingServer.ViewportGetMeasuredRenderTimeGpu(r);
         if (ms > 16.7) _slow++;
         if (_i < _n) return;
         Report();
@@ -66,6 +75,7 @@ public sealed class Perf {
         GD.Print($"PERF_PART физика={_part[0] / _n:F2} сцена={_part[1] / _n:F2} "
                  + $"приборы={_part[2] / _n:F2} задание={_part[3] / _n:F2} "
                  + $"всего своего={own / _n:F2}мс на кадр");
+        GD.Print($"PERF_GPUMS рисование={_gpu / _n:F2}мс на кадр по {_rids.Count} окнам");
         GD.Print($"PERF_GPU вызовов={Mon(Performance.Monitor.RenderTotalDrawCallsInFrame):F0} "
                  + $"объектов={Mon(Performance.Monitor.RenderTotalObjectsInFrame):F0} "
                  + $"примитивов={Mon(Performance.Monitor.RenderTotalPrimitivesInFrame) / 1000:F0}тыс "
