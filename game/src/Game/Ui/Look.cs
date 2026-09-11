@@ -52,6 +52,7 @@ public static class Look {
             cf.SetValue("ui", "theme", P.Key);
             cf.Save(Cfg);
         }
+        Inked.Clear();
         for (int k = Binds.Count - 1; k >= 0; k--) {
             if (Binds[k].C.TryGetTarget(out Control c) && GodotObject.IsInstanceValid(c)) Binds[k].Paint(c);
             else Binds.RemoveAt(k);

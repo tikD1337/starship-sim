@@ -7,7 +7,8 @@ public sealed class Controls {
     private readonly Node _host;
     private readonly SimState _sim;
     private readonly CamRig _rig;
-    private readonly ConsoleFull _ui;
+    private readonly Screens _scr;
+    private readonly EngineerView _eng;
     public double Speed = 1.0;
     private const double MaxStepPerFrame = 0.60;
     public bool Paused;
@@ -20,8 +21,8 @@ public sealed class Controls {
     public Replay Rec, Play;
     public Action<string> Saved;
     public Action Replay;
-    public Controls(Node host, SimState sim, CamRig rig, ConsoleFull ui) {
-        _host = host; _sim = sim; _rig = rig; _ui = ui;
+    public Controls(Node host, SimState sim, CamRig rig, Screens scr, EngineerView eng) {
+        _host = host; _sim = sim; _rig = rig; _scr = scr; _eng = eng;
     }
     public void StepPhysics(double delta) {
         if (Paused) return;
@@ -74,12 +75,11 @@ public sealed class Controls {
         }
         if (e is not InputEventKey k || !k.Pressed || k.Echo) return;
         switch (k.Keycode) {
-            case Key.Tab: _ui.ToggleFull(); break;
-            case Key.F1: _ui.ToggleKeys(); break;
-            case Key.F2: _ui.SetTab(0); break;
-            case Key.F3: _ui.SetTab(1); break;
-            case Key.F4: _ui.SetTab(2); break;
-            case Key.F5: _ui.SetTab(3); break;
+            case Key.Tab: _scr.ToggleEngineer(); break;
+            case Key.F1: _scr.ToggleKeys(); break;
+            case Key.F3: Plot(0); break;
+            case Key.F4: Plot(1); break;
+            case Key.F5: Plot(2); break;
             case Key.F6: NextMission?.Invoke(); break;
             case Key.F7: ToggleAnom?.Invoke(); break;
             case Key.F8: ShowRecords?.Invoke(); break;
@@ -103,9 +103,9 @@ public sealed class Controls {
             }
             case Key.N: Rec?.Put(_sim.T, "sat", 1); Physics.Sim.DeploySat(_sim, _sim.Veh[1], 1); break;
             case Key.M: Rec?.Put(_sim.T, "sat", 10); Physics.Sim.DeploySat(_sim, _sim.Veh[1], 10); break;
-            case Key.Key1: _rig.Cur = CamRig.Kind.Orbit; break;
-            case Key.Key2: _rig.EnterMount(_sim.FocusVeh() == _sim.Veh[1] && !_sim.Veh[1].Attached); break;
-            case Key.Key3: _rig.EnterFree(); break;
+            case Key.Key1: _scr.Show(1); break;
+            case Key.Key2: OnBoard(); break;
+            case Key.Key3: _rig.EnterFree(); _scr.Show(2); break;
             case Key.G: ToggleSmoke?.Invoke(); break;
             case Key.L: ToggleFlat?.Invoke(); break;
             case Key.Pageup: _rig.Speed *= 2f; _rig.FastSpeed *= 2f; break;
@@ -121,6 +121,19 @@ public sealed class Controls {
             case Key.KpEnter: Stage(); break;
             case Key.S: if (!free) Stage(); break;
         }
+    }
+    private void Plot(int kind) {
+        _eng.SetPlot(kind);
+        _scr.Show(3);
+    }
+    private void OnBoard() {
+        if (_scr.Cur == 2 || _rig.Cur != CamRig.Kind.Mount)
+            _rig.EnterMount(_sim.FocusVeh() == _sim.Veh[1] && !_sim.Veh[1].Attached);
+        _scr.Show(2);
+    }
+    public void SetFocus(bool ship) {
+        if (_sim.Veh[1].Attached || (_sim.Focus == "ship") == ship) return;
+        SwitchFocus();
     }
     private void Stage() {
         Rec?.Put(_sim.T, "sep", 1);
