@@ -1,0 +1,21 @@
+name: Предложение
+description: Чего не хватает в симуляторе
+labels: [enhancement]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: Чего хочется
+      description: Что вы хотите делать в игре и почему сейчас не получается.
+    validations:
+      required: true
+  - type: textarea
+    id: real
+    attributes:
+      label: Как это у настоящего Starship
+      description: Ссылки на трансляции, документы, числа — если есть. Модель держится на открытых источниках.
+  - type: textarea
+    id: look
+    attributes:
+      label: Как это могло бы выглядеть
+      description: Клавиша, панель пульта, вид камеры — как представляете.

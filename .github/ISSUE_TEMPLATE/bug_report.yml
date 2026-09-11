@@ -1,0 +1,50 @@
+name: Ошибка
+description: Игра ведёт себя не так, как должна
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Модель детерминирована: запись полёта воспроизводит его до шага. Поэтому самое ценное в отчёте — запись. Она сохраняется клавишей `F9` прямо в полёте.
+  - type: textarea
+    id: what
+    attributes:
+      label: Что случилось
+      description: И что должно было случиться.
+      placeholder: На T+06:12 корабль закончил переворот, но не погасил снос и сел в 300 м от башни.
+    validations:
+      required: true
+  - type: input
+    id: flight
+    attributes:
+      label: Задание, зерно, отказы
+      description: Всё это есть в строке состояния сверху.
+      placeholder: Орбитальное, зерно 0000302a, отказы выкл
+    validations:
+      required: true
+  - type: input
+    id: time
+    attributes:
+      label: Время полёта
+      placeholder: T+06:12
+  - type: textarea
+    id: replay
+    attributes:
+      label: Запись полёта
+      description: |
+        Перетащите сюда файл `.txt` из папки записей:
+        * Windows — `%APPDATA%\Godot\app_userdata\Starship\replays`
+        * Linux — `~/.local/share/godot/app_userdata/Starship/replays`
+        * macOS — `~/Library/Application Support/Godot/app_userdata/Starship/replays`
+  - type: textarea
+    id: shot
+    attributes:
+      label: Снимок экрана
+      description: Если ошибка видна глазами.
+  - type: input
+    id: version
+    attributes:
+      label: Версия и система
+      placeholder: v1.0, Windows 11
+    validations:
+      required: true
