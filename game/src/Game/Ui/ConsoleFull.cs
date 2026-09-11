@@ -44,17 +44,15 @@ public sealed class ConsoleFull {
     private SimState _sim;
     private Vehicle _focus;
     public string CamName = "Орбита";
-    public bool Cockpit;
     public double Speed = 1.0;
     public bool Paused;
-    private VBoxContainer _cockHud;
     private PanelContainer _keys;
     private readonly TeleLog _tele = new();
     private PlotView _plotBig, _plotSmall;
     private int _tab;
     private static readonly string[] KeyHelp = {
         "— обзор",
-        "1 орбитальная камера · 2 камеры на корпусе · 3 свободная (WASD, Q/E, Shift) · 4 кабина",
+        "1 орбитальная камера · 2 камеры на корпусе · 3 свободная (WASD, Q/E, Shift)",
         "мышь — поворот, колесо — зум · Tab обзор во весь экран · V сменить ступень",
         "— приборы",
         "F2 обзор · F3 графики · F4 развёртка · F5 коридор входа · F1 эта карточка",
@@ -352,15 +350,6 @@ public sealed class ConsoleFull {
         _viewBox.AddChild(World);
         _plotBig = new PlotView { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
         holder.AddChild(_plotBig);
-        _cockHud = new VBoxContainer {
-            MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkEnd,
-            Visible = false,
-        };
-        holder.AddChild(_cockHud);
-        Row(_cockHud, "cBank", "Крен", 150, 15, Val);
-        Row(_cockHud, "cAoa", "Угол атаки", 150, 15, Val);
-        Row(_cockHud, "cRcs", "ДМТ", 150, 15, Val);
-        Row(_cockHud, "cThr", "Тяга", 150, 15, Val);
         _keys = new PanelContainer { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
         _keys.AddThemeStyleboxOverride("panel", Box(new Color(0.04f, 0.05f, 0.07f, 0.90f), Accent, 1, 4, 18));
         holder.AddChild(_keys);
@@ -475,15 +464,6 @@ public sealed class ConsoleFull {
         Txt(_mode, sim.Mode == "man" ? "РУЧНОЙ РЕЖИМ" : "уставку держит наведение");
         Col(_mode, sim.Mode == "man" ? Warn : Dim);
         Txt(_camLab, $"камера: {CamName}   ·   вид: {TabName}   ·   F1 — клавиши");
-        _cockHud.Visible = Cockpit;
-        if (Cockpit) {
-            Set("cBank", $"{v.Bank * Const.R2D:F0}° / {v.BankCmd * Const.R2D:F0}°");
-            Set("cAoa", $"{v.Alpha * Const.R2D:F0}° / {v.AlphaCmd:F0}°",
-                Math.Abs(v.Alpha * Const.R2D) > 80 ? Warn : Val);
-            Set("cRcs", v.Rcs ? $"вкл, нагрузка {100 * Math.Abs(v.RcsUse):F0} %" : "ВЫКЛЮЧЕН",
-                v.Rcs ? Val : Bad);
-            Set("cThr", $"{v.F / 1e6:F2} МН   {v.NRun}/{v.MaxEng}   {100 * v.Throttle:F0} %");
-        }
         Orbit o = Guidance.Orb(v);
         Set("alt", PlotView.Dist(v.Alt));
         Set("spd", $"{v.Speed:F0} м/с");

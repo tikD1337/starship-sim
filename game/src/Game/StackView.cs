@@ -13,6 +13,8 @@ public sealed class StackView {
     private readonly List<MeshInstance3D> _glow = new();
     private float _flapFwdNow, _flapAftNow;
     public (float Fwd, float Aft) FlapAngles => (_flapFwdNow, _flapAftNow);
+    public Node3D FlapFwd => _flapsFwd.Count > 0 ? _flapsFwd[0] : null;
+    public Node3D FlapAft => _flapsAft.Count > 0 ? _flapsAft[0] : null;
     public const float FlapFwdMax = 42f, FlapAftMax = 68f;
     private const float FlapRate = 26f;
     public Plume BoosterPlume, ShipPlume;

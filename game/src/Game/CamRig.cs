@@ -3,55 +3,57 @@ using System.Collections.Generic;
 using Godot;
 namespace Starship.Game;
 public sealed class CamRig {
-    public enum Kind { Orbit, Mount, Free, Cockpit }
+    public enum Kind { Orbit, Mount, Free }
+    public enum Carrier { Body, FlapFwd, FlapAft }
+    public readonly record struct Spot(string Name, bool Ship, Carrier On, Vector3 Pos);
     private sealed class Mount {
         public string Name;
         public bool Ship;
+        public Carrier On;
         public float Azim, Radius, Y;
         public Vector3 Target;
         public bool HasTarget;
         public Vector3 Dir;
         public float Fov = 75f;
+        public float Roll;
     }
     private static readonly List<Mount> Mounts = new() {
-        new Mount { Name = "Нос вперёд", Ship = true, Azim = 0f, Radius = 3.4f, Y = 46.2f,
-                    Dir = new Vector3(0.34f, 0.94f, 0f), Fov = 82f },
-        new Mount { Name = "Нос назад", Ship = true, Azim = 0f, Radius = 3.6f, Y = 45.4f,
-                    Dir = new Vector3(0.78f, -0.63f, 0f), Fov = 88f },
-        new Mount { Name = "Хвост корабля", Ship = true, Azim = 90f, Radius = 5.1f, Y = 2.8f,
-                    Dir = new Vector3(-0.42f, 0.91f, 0f), Fov = 78f },
-        new Mount { Name = "Закрылок задний", Ship = true, Azim = 93f, Radius = 6.4f, Y = 12.0f,
-                    HasTarget = true, Target = new Vector3(-0.3f, 5.8f, -6.2f), Fov = 68f },
-        new Mount { Name = "Закрылок передний", Ship = true, Azim = 150f, Radius = 11.0f, Y = 47.6f,
-                    HasTarget = true, Target = new Vector3(-1.22f, 47.6f, -2.61f), Fov = 55f },
-        new Mount { Name = "Грузовой отсек", Ship = true, Azim = 212f, Radius = 9.5f, Y = 30.5f,
-                    HasTarget = true, Target = new Vector3(-3.32f, 28.4f, 2.05f), Fov = 62f },
-        new Mount { Name = "Решётчатые рули", Ship = false, Azim = 42f, Radius = 5.3f, Y = 49.5f,
+        new Mount { Name = "Передний закрылок", Ship = true, On = Carrier.FlapFwd,
+                    Azim = 113.0f, Radius = 7.46f, Y = 41.30f,
+                    HasTarget = true, Target = new Vector3(0f, 8f, -7.5f), Fov = 64f, Roll = -90f },
+        new Mount { Name = "Петля переднего закрылка", Ship = true, Azim = 78f, Radius = 4.52f, Y = 40.2f,
+                    HasTarget = true, Target = new Vector3(-1.94f, 45.0f, -5.04f), Fov = 70f },
+        new Mount { Name = "Петля заднего закрылка", Ship = true, Azim = 102f, Radius = 4.50f, Y = 14.6f,
+                    HasTarget = true, Target = new Vector3(-1.35f, -10f, -6.36f), Fov = 72f, Roll = 90f },
+        new Mount { Name = "Решётчатые рули", Ship = false, Azim = 42f, Radius = 4.42f, Y = 49.5f,
                     HasTarget = true, Target = new Vector3(0f, 61.2f, -4.9f), Fov = 62f },
-        new Mount { Name = "Факел", Ship = false, Azim = 0f, Radius = 5.6f, Y = 7.0f,
-                    Dir = new Vector3(-0.36f, -0.93f, 0f), Fov = 84f },
-        new Mount { Name = "Хвост ускорителя", Ship = false, Azim = 90f, Radius = 5.2f, Y = 4.2f,
-                    Dir = new Vector3(-0.30f, 0.95f, 0f), Fov = 76f },
+        new Mount { Name = "Сверху на двигатели", Ship = false, Azim = 112f, Radius = 4.65f, Y = 63.6f,
+                    HasTarget = true, Target = new Vector3(-9.33f, -12f, -23.09f), Fov = 70f, Roll = 90f },
+        new Mount { Name = "Наплыв", Ship = false, Azim = 126f, Radius = 5.0f, Y = 27.45f,
+                    HasTarget = true, Target = new Vector3(-3.06f, 70f, -4.21f), Fov = 66f },
+        new Mount { Name = "Факел", Ship = false, Azim = 0f, Radius = 4.50f, Y = 7.0f,
+                    Dir = new Vector3(0.174f, -0.985f, 0f), Fov = 84f },
     };
+    public Node3D FlapFwd, FlapAft;
     public Kind Cur = Kind.Orbit;
     public int MountIdx;
     public float Yaw = 0.9f, Pitch = 0.14f, Dist = 300f;
     private Vector3 _freePos;
     private float _freeYaw, _freePitch;
     private bool _freeReady;
-    private float _cockYaw, _cockPitch;
-    private float _cockFov = 78f;
-    public float BankView;
-    private static readonly Vector3 CockpitPos = new(0f, 44.6f, 3.95f);
-    private static readonly Basis CockpitBasis =
-        new(new Vector3(0, 0, 1), new Vector3(-1, 0, 0), new Vector3(0, -1, 0));
     private readonly Camera3D _cam;
     public CamRig(Camera3D cam) => _cam = cam;
     private Mount Cursor => Mounts[((MountIdx % Mounts.Count) + Mounts.Count) % Mounts.Count];
+    public static IEnumerable<Spot> Spots {
+        get { foreach (Mount m in Mounts) yield return new Spot(m.Name, m.Ship, m.On, PosOf(m)); }
+    }
+    private static Vector3 PosOf(Mount m) {
+        float a = Mathf.DegToRad(m.Azim);
+        return new Vector3(Mathf.Cos(a), 0, -Mathf.Sin(a)) * m.Radius + new Vector3(0, m.Y, 0);
+    }
     public string Name => Cur switch {
         Kind.Orbit => "Орбита",
         Kind.Free => "Свободная",
-        Kind.Cockpit => "Кабина",
         _ => Cursor.Name,
     };
     public void NextMount(bool shipFocused) {
@@ -81,20 +83,11 @@ public sealed class CamRig {
             _freePitch = Mathf.Clamp(_freePitch - dPitch, -1.45f, 1.45f);
             return;
         }
-        if (Cur == Kind.Cockpit) {
-            _cockYaw = Mathf.Clamp(_cockYaw - dYaw, -1.25f, 1.25f);
-            _cockPitch = Mathf.Clamp(_cockPitch - dPitch, -1.0f, 1.0f);
-            return;
-        }
         Yaw -= dYaw;
         Pitch = Mathf.Clamp(Pitch + dPitch, -1.4f, 1.4f);
     }
     public void Zoom(float k) {
         if (Cur == Kind.Mount) return;
-        if (Cur == Kind.Cockpit) {
-            _cockFov = Mathf.Clamp(_cockFov * k, 42f, 104f);
-            return;
-        }
         Dist = Mathf.Clamp(Dist * k, 12f, 6000f);
     }
     public float Speed = 48f, FastSpeed = 340f;
@@ -111,23 +104,24 @@ public sealed class CamRig {
             return;
         }
         _freeReady = false;
-        if (Cur == Kind.Cockpit) {
-            Basis head = Basis.FromEuler(new Vector3(_cockPitch, _cockYaw, BankView));
-            _cam.Fov = _cockFov;
-            _cam.GlobalTransform = body.GlobalTransform *
-                new Transform3D(CockpitBasis * head, CockpitPos);
-            return;
-        }
         if (Cur == Kind.Mount) {
             if (Cursor.Ship != shipFocused) NextMount(shipFocused);
             Mount m = Cursor;
             float a = Mathf.DegToRad(m.Azim);
             var radial = new Vector3(Mathf.Cos(a), 0, -Mathf.Sin(a));
-            Vector3 pos = radial * m.Radius + new Vector3(0, m.Y, 0);
+            Vector3 pos = PosOf(m);
             Vector3 dir = m.HasTarget ? (m.Target - pos).Normalized() : m.Dir.Normalized();
             Vector3 up = Mathf.Abs(dir.Dot(Vector3.Up)) > 0.86f ? radial : Vector3.Up;
+            Basis look = Basis.LookingAt(dir, up);
+            if (m.Roll != 0f) look = new Basis(dir, Mathf.DegToRad(m.Roll)) * look;
+            Node3D carrier = m.On switch {
+                Carrier.FlapFwd => FlapFwd ?? body,
+                Carrier.FlapAft => FlapAft ?? body,
+                _ => body,
+            };
+            Vector3 origin = carrier == body ? Vector3.Zero : carrier.Position;
             _cam.Fov = m.Fov;
-            _cam.GlobalTransform = body.GlobalTransform * new Transform3D(Basis.LookingAt(dir, up), pos);
+            _cam.GlobalTransform = carrier.GlobalTransform * new Transform3D(look, pos - origin);
             return;
         }
         _cam.Fov = 42f;

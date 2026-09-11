@@ -106,10 +106,6 @@ public sealed class Controls {
             case Key.Key1: _rig.Cur = CamRig.Kind.Orbit; break;
             case Key.Key2: _rig.EnterMount(_sim.FocusVeh() == _sim.Veh[1] && !_sim.Veh[1].Attached); break;
             case Key.Key3: _rig.EnterFree(); break;
-            case Key.Key4:
-                if (!_sim.Veh[1].Attached) _sim.Focus = "ship";
-                _rig.Cur = CamRig.Kind.Cockpit;
-                break;
             case Key.G: ToggleSmoke?.Invoke(); break;
             case Key.L: ToggleFlat?.Invoke(); break;
             case Key.Pageup: _rig.Speed *= 2f; _rig.FastSpeed *= 2f; break;
