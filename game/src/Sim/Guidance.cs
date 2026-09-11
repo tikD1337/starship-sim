@@ -90,14 +90,16 @@ public static class Guidance {
         return Math.Acos(Const.Clamp(c, -1, 1));
     }
     public static double StopAlt(Vehicle v, int nEng) {
-        double h = v.Alt, vv = v.VVert, m = v.Mass;
+        double h = v.Alt, vv = v.VVert, m = v.Mass, t = 0;
+        double tau = v.Ign ? 0 : Math.Max(0.05, v.Eng[0].P.Tau);
         const double dt = 0.4;
         for (int i = 0; i < 800 && vv < 0 && h > 0; i++) {
             Air at = Atmosphere.At(h);
-            double f = nEng * Math.Max(0, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
+            double spool = tau > 0 ? 1 - tau / dt * (Math.Exp(-t / tau) - Math.Exp(-(t + dt) / tau)) : 1;
+            double f = spool * nEng * Math.Max(0, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
             double d = 0.5 * at.Rho * vv * vv * v.A * 0.12;
             double a = (f + d) / m - Const.MU / ((Const.RE + h) * (Const.RE + h));
-            vv += a * dt; h += vv * dt; m -= nEng * Spec.RaptorSL.Mdot * dt;
+            vv += a * dt; h += vv * dt; m -= spool * nEng * Spec.RaptorSL.Mdot * dt; t += dt;
         }
         return h;
     }
@@ -135,15 +137,6 @@ public static class Guidance {
     }
     private static double LatTime(double dr, double vh, double aLat)
         => Const.LAND_TLAG + Math.Sqrt(4 * Math.Abs(dr) / aLat) + Math.Abs(vh) / aLat;
-    public static int LandEngines(Vehicle v) {
-        Air at = Atmosphere.At(v.Alt);
-        double g = Const.MU / (v.R * v.R);
-        double fone = Math.Max(1, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
-        double hT = v.SeekPad ? Const.CATCH_H : 0, vv = v.VVert;
-        double aNeed = vv * vv / (2 * Math.Max(v.Alt - hT, 60)) + g;
-        double need = Math.Ceiling(aNeed * 1.3 * v.Mass / fone);
-        return (int)Const.Clamp(need, 3, v.Kind == Kind.Booster ? 6 : 3);
-    }
     private readonly struct Burn {
         public readonly double H, HT, DhS, Dh, G, FOne, Drag, Vv, VDes, FNow0, Dr, Tgo;
         public Burn(SimState sim, Vehicle v, int nEng) {
@@ -153,8 +146,9 @@ public static class Guidance {
             FOne = Math.Max(1, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
             Drag = 0.5 * at.Rho * v.VVert * v.VVert * v.A * 0.75;
             FNow0 = (v.Ign ? v.NEng : nEng) * FOne;
-            HT = v.SeekPad ? Const.CATCH_H : 0;
-            double f = nEng * Math.Max(0, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
+            HT = !v.SeekPad ? 0 : v.Kind == Kind.Booster ? Const.CATCH_H - Const.CATCH_WIN / 2 : Const.CATCH_H;
+            double f = (v.Kind == Kind.Booster ? Const.LAND_B_END : nEng)
+                       * Math.Max(0, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
             double anet = Math.Max(1, f / v.Mass - G);
             VDes = -(2.5 + Math.Sqrt(2 * anet * 0.72 * Math.Max(H - HT - 8, 0)));
             Vv = v.VVert;
@@ -168,7 +162,7 @@ public static class Guidance {
         }
     }
     private static void Ignite(SimState sim, Vehicle v, int nEng, in Burn e) {
-        double stopH = v.Kind == Kind.Ship ? Const.LAND_STOP_S : Const.LAND_STOP_H;
+        double stopH = v.Kind == Kind.Ship ? Const.LAND_STOP_S : Const.CATCH_H + Const.BOOST_SWITCH_H;
         if (v.Ign || v.Prop <= 0 || StopAlt(v, nEng) >= stopH) return;
         v.Ign = true;
         v.NEng = nEng;
@@ -184,7 +178,8 @@ public static class Guidance {
         int need = nEng;
         for (int k = 1; k <= nEng; k++)
             if (k * e.FOne / v.Mass - e.G >= aNeed * 1.35 + 1.5) { need = k; break; }
-        if (v.Kind == Kind.Booster) return need;
+        if (v.Kind == Kind.Booster)
+            return v.NEng == Const.LAND_B_END || need <= Const.LAND_B_END ? Const.LAND_B_END : nEng;
         v.CutT += dt;
         int want = need;
         int two = Math.Min(2, nEng);
@@ -245,38 +240,41 @@ public static class Guidance {
         v.Throttle = ThrottleFor(v, e, DescentRate(v, e, dt, fnow / v.Mass), fnow);
         AimBody(sim, v, e);
     }
-    public static double PredictMiss(SimState sim, Vehicle v, bool withEntry) {
+    public static double BoosterMiss(SimState sim, Vehicle v, double lift) {
         double x = v.X, y = v.Y, vx = v.Vx, vy = v.Vy, t = 0, m = v.Mass;
-        bool entry = false;
-        double propEnt = Math.Max(0, v.Prop - 0.030 * v.PropMax);
-        double dvEnt = Spec.RaptorSL.Isp * Const.G0 * Math.Log(m / Math.Max(m - propEnt, m * 0.2));
+        double A = v.A, LD = v.FullLen * v.Dia / A, a0 = Const.BOOST_AOA * Const.D2R;
         void Acc(double px, double py, double pvx, double pvy, out double ax, out double ay) {
             double r = Math.Sqrt(px * px + py * py), h = r - Const.RE;
-            Air at = Atmosphere.At(h, sim.RhoK);
+            double ux = px / r, uy = py / r, ex = -uy, ey = ux;
             double g = Const.MU / (r * r);
-            ax = -g * px / r; ay = -g * py / r;
+            ax = -g * ux; ay = -g * uy;
             double rvx = pvx + Const.W * py, rvy = pvy - Const.W * px;
             double sp = Math.Sqrt(rvx * rvx + rvy * rvy);
-            if (sp > 1 && at.Rho > 0) {
-                double q = 0.5 * at.Rho * sp * sp;
-                double d = q * v.A * (Atmosphere.CdEngine(sp / at.A) + 0.06) / m;
-                ax -= d * rvx / sp; ay -= d * rvy / sp;
-            }
+            Air at = Atmosphere.At(h, sim.RhoK);
+            if (sp < 1 || at.Rho <= 0) return;
+            double th = Math.Atan2(-rvx * ex - rvy * ey, -rvx * ux - rvy * uy)
+                        + (h > Const.BOOST_STRAIGHT_H ? a0 : 0);
+            double c = Math.Cos(th), s = Math.Sin(th);
+            double axX = ux * c + ex * s, axY = uy * c + ey * s;
+            double sdX = -ux * s + ex * c, sdY = -uy * s + ey * c;
+            double va = (rvx * axX + rvy * axY) / sp, vs = (rvx * sdX + rvy * sdY) / sp;
+            double al = Math.Atan2(vs, va), sa = Math.Sin(al), ca = Math.Cos(al);
+            double q = 0.5 * at.Rho * sp * sp;
+            double CA = Atmosphere.CdAxial(sp / at.A, va) * ca * ca + 0.06;
+            double CN = 2 * sa * Math.Abs(ca) + 1.15 * LD * sa * Math.Abs(sa);
+            double fax = -q * A * CA * Math.Sign(va != 0 ? va : 1), fsd = -q * A * CN;
+            double fx = fax * axX + fsd * sdX, fy = fax * axY + fsd * sdY;
+            double dx = rvx / sp, dy = rvy / sp, alng = fx * dx + fy * dy;
+            fx = alng * dx + (fx - alng * dx) * lift;
+            fy = alng * dy + (fy - alng * dy) * lift;
+            ax += fx / m; ay += fy / m;
         }
         for (int i = 0; i < 20000; i++) {
             double r = Math.Sqrt(x * x + y * y), h = r - Const.RE;
             if (h <= Const.CATCH_H) break;
-            double ux = x / r, uy = y / r;
             double rvx = vx + Const.W * y, rvy = vy - Const.W * x;
             double sp = Math.Sqrt(rvx * rvx + rvy * rvy);
-            if (withEntry && !entry && h < 72e3 && (vx * ux + vy * uy) < 0 && sp > 760) {
-                double spNew = Math.Max(700, sp - dvEnt), k = spNew / sp;
-                rvx *= k; rvy *= k; vx = rvx - Const.W * y; vy = rvy + Const.W * x; entry = true;
-                m *= Math.Exp(-(sp - spNew) / (Spec.RaptorSL.Isp * Const.G0));
-                sp = spNew;
-            }
-            Air at = Atmosphere.At(h, sim.RhoK);
-            double qq = 0.5 * at.Rho * sp * sp;
+            double qq = 0.5 * Atmosphere.At(h, sim.RhoK).Rho * sp * sp;
             double dt = qq < 50 ? 2 : (qq < 5e3 ? 0.5 : 0.2);
             Acc(x, y, vx, vy, out double ax1, out double ay1);
             double hd = dt / 2;
@@ -286,6 +284,16 @@ public static class Guidance {
             if (h > 200e3 && t > 1200) break;
         }
         return (SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE;
+    }
+    public static double BoosterLift(SimState sim, Vehicle v) {
+        double lo = -1, hi = 1;
+        double mLo = BoosterMiss(sim, v, lo), mHi = BoosterMiss(sim, v, hi);
+        if (Math.Sign(mLo) == Math.Sign(mHi)) return Math.Abs(mLo) < Math.Abs(mHi) ? lo : hi;
+        for (int i = 0; i < 8; i++) {
+            double mid = 0.5 * (lo + hi), mm = BoosterMiss(sim, v, mid);
+            if (Math.Sign(mm) == Math.Sign(mLo)) { lo = mid; mLo = mm; } else hi = mid;
+        }
+        return 0.5 * (lo + hi);
     }
     public static double DeorbitDv(Vehicle v, double rp) {
         double r = v.R, sp = Math.Sqrt(v.Vx * v.Vx + v.Vy * v.Vy);
@@ -369,14 +377,6 @@ public static class Guidance {
         double g = Const.MU / (v.R * v.R), vv = v.VVert, h = v.Alt;
         double tf = (vv + Math.Sqrt(Math.Max(0, vv * vv + 2 * g * h))) / g;
         return -sim.Downrange(v) / Math.Max(tf, 1);
-    }
-    public static double EntryAim(Vehicle v) {
-        Vec2 e = v.East, vr = v.VRel;
-        double sp = Math.Max(v.Speed, 1);
-        double mp = double.IsNaN(v.MissPred) ? 0 : v.MissPred;
-        double bias = Const.Clamp(mp / 3000, -0.95, 0.95);
-        double dx = -vr.X / sp - bias * e.X * 0.85, dy = -vr.Y / sp - bias * e.Y * 0.85;
-        return PitchOf(new Vec2(dx, dy), v);
     }
     public static double BoostbackAim(Vehicle v) {
         Vec2 u = v.Up, e = v.East;

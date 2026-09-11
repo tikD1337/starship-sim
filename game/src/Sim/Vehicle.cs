@@ -32,7 +32,6 @@ public sealed class Vehicle {
     public bool Venting, BurnLogged, IgnBurn;
     public double MissPred = double.NaN, PredAcc;
     public System.Collections.Generic.Dictionary<string, double> Sgn = new();
-    public int NLand = 3;
     public double DeoAcc, DvBurn, EntAcc, AlphaCmd = 62;
     public double DeoMiss = double.NaN, DeoLeft = double.NaN, EntMiss = double.NaN;
     public bool DeoAuto;

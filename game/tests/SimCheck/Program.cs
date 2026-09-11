@@ -172,8 +172,8 @@ internal static class Program {
         var sb = new StringBuilder();
         Row(sb, "case", "kind", "alt", "vx", "vy", "th", "fill", "seekPad", "simT",
                 "pitchProg", "apo", "peri", "ecc", "aimRetro", "aimPro", "aimA60",
-                "liftRefX", "liftRefUp", "flipDrift", "stopAlt3", "landEng", "landAim",
-                "bbNeed", "entryAim", "bbAim", "predMiss", "predMissE",
+                "liftRefX", "liftRefUp", "flipDrift", "stopAlt3", "landAim",
+                "bbNeed", "bbAim", "predMiss",
                 "deorbDv60", "entryMiss", "entryT", "glideBank");
         var sim = new SimState { RhoK = 1 };
         int cs = 0;
@@ -191,7 +191,7 @@ internal static class Program {
             v.Prop = v.PropMax * fill;
             v.SeekPad = seek;
             v.MissPred = 1800 - cs * 130;
-            v.Mode = kind == Kind.Booster ? "entryB" : "entryS";
+            v.Mode = kind == Kind.Booster ? "landB" : "entryS";
             Air at = Atmosphere.At(v.Alt);
             double sp = v.Speed;
             v.Q = 0.5 * at.Rho * sp * sp; v.Mach = sp / at.A;
@@ -204,10 +204,9 @@ internal static class Program {
                 F(Guidance.PitchProg(sp)), F(o.Apo), F(o.Peri), F(o.E),
                 F(Guidance.AimRetro(v)), F(Guidance.AimPro(v)), F(Guidance.AimAlpha(v, 60)),
                 F(lr.X), F(lr.Up), F(Guidance.FlipDrift(v)), F(Guidance.StopAlt(v, 3)),
-                Guidance.LandEngines(v).ToString(Inv),
                 F(Guidance.LandAim(sim, v, 40 * Const.D2R, 0)),
-                F(Guidance.BbNeed(sim, v)), F(Guidance.EntryAim(v)), F(Guidance.BoostbackAim(v)),
-                F(Guidance.PredictMiss(sim, v, false)), F(Guidance.PredictMiss(sim, v, true)),
+                F(Guidance.BbNeed(sim, v)), F(Guidance.BoostbackAim(v)),
+                F(Guidance.BoosterMiss(sim, v, 0)),
                 F(Guidance.DeorbitDv(v, Const.RE + 60e3)), F(ep.Miss), F(ep.T),
                 F(Guidance.GlideBank(2500 - cs * 300, 40, v.Alt, -180, 12, 0.6)));
             cs++;
@@ -317,7 +316,7 @@ internal static class Program {
             if (double.IsNaN(sepV) && !s.Attached) sepV = b.Speed;
             if (s.Mode == "entryS" && Math.Abs(s.Flap) > flapMax) flapMax = Math.Abs(s.Flap);
             if (b.Mode == "landB" && b.Ign) burnT += dt;
-            if (b.Mode == "coastB" || b.Mode == "entryB" || b.Mode == "landB") {
+            if (b.Mode == "coastB" || b.Mode == "landB") {
                 double om = Math.Abs(b.Om) * Const.R2D;
                 if (om > omMax) omMax = om;
                 if (Math.Abs(b.Fin) > finMax) finMax = Math.Abs(b.Fin);
@@ -371,7 +370,8 @@ internal static class Program {
                 Console.Error.WriteLine($"LNDB t={sim.T:F1} h={b.Alt:F0} vv={b.VVert:F1}"
                     + $" vh={b.VHor:F1} dr={sim.Downrange(b):F1} th={(b.Th*Const.R2D):F2}"
                     + $" tc={(b.ThCmd*Const.R2D):F2} n={b.NRun} thr={b.Throttle:F2}"
-                    + $" wind={b.WindE:F1}");
+                    + $" wind={b.WindE:F1} q={(b.Q/1000):F1} aoa={(b.AoaDev*Const.R2D):F1}"
+                    + $" bank={(b.Bank*Const.R2D):F0} fin={b.Fin:F2} v={b.Speed:F0}");
             if (lndDbg && (s.Mode == "entryS" && s.Alt < 6000 || s.Mode == "flipS" || s.Mode == "landS")
                 && i % 50 == 0)
                 Console.Error.WriteLine($"LND t={sim.T:F1} {s.Mode} h={s.Alt:F0} vv={s.VVert:F1}"

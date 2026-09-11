@@ -39,6 +39,7 @@ internal static class Program {
         HeatShield();
         WindProfile();
         CatchInWind();
+        BoosterReturn();
         FlightMarks();
         OrbitElements();
         MassBalance();
@@ -497,6 +498,39 @@ internal static class Program {
             if (b.Alt < 3e3 && b.Alt > 100) drift = Math.Max(drift, Math.Abs(b.WindE));
         }
         return (b.Caught, sim.Downrange(b), drift);
+    }
+    private static void BoosterReturn() {
+        Head("Возврат ускорителя: без импульса входа, жига 13 → 3");
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 12345);
+        Vehicle b = sim.Veh[0];
+        bool boostbackSeen = false, coasting = false;
+        double litCoast = 0, hIgn = double.NaN, qDesc = 0, tIgn = double.NaN;
+        int nIgn = 0, nLast = 0;
+        var counts = new System.Collections.Generic.SortedSet<int>();
+        for (int i = 0; i < 200000 && !b.Landed && !b.Crashed && !b.Caught; i++) {
+            Physics.Sim.Tick(sim, Const.DT);
+            if (b.Mode == "boostback") boostbackSeen = true;
+            else if (boostbackSeen && !b.IgnBurn) coasting = true;
+            if (coasting && !b.IgnBurn && b.NRun > 0) litCoast += Const.DT;
+            if (coasting && b.Q > qDesc) qDesc = b.Q;
+            if (!b.IgnBurn || b.NRun == 0) continue;
+            if (double.IsNaN(hIgn)) { hIgn = b.Alt; nIgn = b.NRun; tIgn = sim.T; }
+            counts.Add(b.NRun);
+            nLast = b.NRun;
+        }
+        True("между тормозным импульсом и жигой двигатели ускорителя молчат", litCoast == 0,
+             $"работали {N(litCoast)} с");
+        True("жига начинается ниже 2 км", hIgn < 2000, $"с высоты {N(hIgn)} м");
+        True("жига начинается выше 500 м", hIgn > 500, $"с высоты {N(hIgn)} м");
+        True("жига зажигает 13 двигателей", nIgn == 13, $"{nIgn}");
+        True("жига кончается на трёх", nLast == 3, $"{nLast}");
+        True("в жиге только 13 или 3 двигателя", counts.SetEquals(new[] { 13, 3 }),
+             string.Join(", ", counts));
+        True("ускоритель пойман", b.Caught, $"промах {N(sim.Downrange(b))} м");
+        True("напор на спуске ниже предела конструкции", qDesc < 200e3, $"{N(qDesc / 1000)} кПа");
+        double burn = b.Caught ? sim.T - tIgn : double.NaN;
+        True("от зажигания жиги до захвата не больше 30 с", burn <= 30, $"{N(burn)} с");
     }
     private static double AscentAoA(Wind wind) {
         var sim = new SimState { Mission = "orbital", AnomOn = false };

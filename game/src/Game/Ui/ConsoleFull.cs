@@ -453,7 +453,7 @@ public sealed class ConsoleFull {
     private static readonly Dictionary<string, string> Modes = new() {
         ["idle"] = "ПРЕДСТАРТОВАЯ", ["ascent"] = "ВЫВЕДЕНИЕ", ["meco"] = "ГОРЯЧЕЕ РАЗДЕЛЕНИЕ",
         ["flip"] = "РАЗВОРОТ", ["boostback"] = "ТОРМОЗНОЙ ИМПУЛЬС", ["coastB"] = "ПАССИВНЫЙ УЧАСТОК",
-        ["entryB"] = "ИМПУЛЬС ВХОДА", ["landB"] = "ПОСАДКА УСКОРИТЕЛЯ", ["caught"] = "ЗАХВАЧЕН БАШНЕЙ",
+        ["landB"] = "ПОСАДКА УСКОРИТЕЛЯ", ["caught"] = "ЗАХВАЧЕН БАШНЕЙ",
         ["landed"] = "ПОСАДКА ВЫПОЛНЕНА", ["crashed"] = "РАЗРУШЕНИЕ",
         ["ascent2"] = "РАБОТА ВТОРОЙ СТУПЕНИ", ["coastS"] = "ПАССИВНЫЙ УЧАСТОК",
         ["circ"] = "ДОВЫВЕДЕНИЕ", ["orbit"] = "ОРБИТА", ["deorbit"] = "СХОД С ОРБИТЫ",

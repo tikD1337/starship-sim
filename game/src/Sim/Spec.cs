@@ -67,7 +67,7 @@ public sealed class Spec {
     public static readonly EngineSpec RaptorVac = EngineSpec.Make(2.70e6, 380, 340);
     public static readonly Spec Booster = new() {
         Name = "Super Heavy (B)", Dry = 275e3, Prop = 3650e3, Len = 72.3, Dia = 9,
-        Eng = RaptorSL, NEng = 33, NVac = 0, NLand = 3, Gimbal = 13 * Const.D2R,
+        Eng = RaptorSL, NEng = 33, NVac = 0, NLand = 13, Gimbal = 13 * Const.D2R,
     };
     public static readonly Spec Ship = new() {
         Name = "Starship (S)", Dry = 85e3, Prop = 1500e3, Len = 52.1, Dia = 9,

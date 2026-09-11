@@ -10,6 +10,7 @@ public static class Const {
     public static double LAND_TLAG = 2.5, LAND_KLAT = 0.6, LAND_DHPD = 300, LAND_TILT_NEAR = 16;
     public static double LAND_KDAMP = 2.4, LAND_TILT_END = 7, LAND_DH_END = 18;
     public const double LAND_CUT2 = 9, LAND_CUT_HOLD = 0.8;
+    public const int LAND_B_END = 3;
     public static double LAND_THR_MIN = 0.40, LAND_PROJ = 0.5;
     public static double LAND_WIND_K = 2.0, LAND_WIND_H = 3000;
     public const double TILE_CAP = 6000, SKIN_CAP = 15800, BODY_CAP = 160e3, TILE_LIMIT = 1700,
@@ -17,7 +18,7 @@ public static class Const {
         ENTRY_BANK0 = 45;
     public static double ENTRY_KB = 6e-5, ENTRY_KT = 5e3, ENTRY_TRIM_LO = -18, ENTRY_TRIM_HI = 8;
     public const double BANK_RATE = 8, BANK_SMOOTH = 0.35, ALPHA_RATE = 3.0, ENTRY_PRED_DT = 0.5;
-    public static double FLIP_H = 1500, HOLD_MAX = 2, LAND_STOP_H = 120, LAND_STOP_S = 500;
+    public static double FLIP_H = 1500, HOLD_MAX = 2, LAND_STOP_S = 500;
     public const double SEP_GAP = 2.35;
     public static double HDR_Z = 0.82;
     public const double BAY_Z0 = 21.6, BAY_Z1 = 35.2, PRED_H_MAX = 2000e3, PRED_T_MAX = 12000,
@@ -34,6 +35,7 @@ public static class Const {
     public static double FIN_CN = 1.5;
     public static double GLIDE_KA = 400, GLIDE_A_LO = 45, GLIDE_A_HI = 70;
     public static double FLIP_DRIFT_K = 0.8;
+    public static double BOOST_AOA = 24, BOOST_STRAIGHT_H = 4000, BOOST_SWITCH_H = 450;
     public static double ASC_KA = 5e-4, ASC_KV = 0.04, ASC_AVMAX = 40, ASC_THMAX = 140, DEO_AIM = 30e3;
     public const double DT = 0.01;
     public static double Clamp(double v, double a, double b) => v < a ? a : (v > b ? b : v);

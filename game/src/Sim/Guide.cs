@@ -61,34 +61,20 @@ public static class Guide {
             double near = double.IsNaN(v.MissPred) ? 1e9 : Math.Abs(v.MissPred);
             v.PredAcc += dt;
             if (v.PredAcc > (near < 40e3 ? 0.05 : 0.25) || double.IsNaN(v.MissPred)) {
-                v.PredAcc = 0; v.MissPred = Guidance.PredictMiss(sim, v, true);
+                v.PredAcc = 0; v.MissPred = Guidance.BoosterMiss(sim, v, 0);
             }
             v.ThCmd = Guidance.BoostbackAim(v);
             if (near < 25e3) { v.NEng = 3; v.Throttle = near < 4e3 ? 0.4 : 1; }
-            if (near < 250 || v.Prop < 0.055 * v.PropMax) {
+            if (near < 250 || v.Prop < 0.025 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Throttle = 1; v.Mode = "coastB";
                 sim.LogMsg($"Б: конец тормозного импульса, топливо {(v.Prop / 1000):F0} т, расчётный промах {Mp(v):F0} м", 1);
             }
             break;
         }
         case "coastB": {
-            v.Ign = false; v.ThCmd = Guidance.AimRetro(v);
-            if (h < 75e3 && sp > 800) {
-                v.Mode = "entryB"; v.Ign = true; v.NEng = 3; v.Throttle = 1;
-                sim.LogMsg("Б: тормозной импульс входа в атмосферу", 1);
-            }
-            else if (h < 40e3) v.Mode = "landB";
-            break;
-        }
-        case "entryB": {
-            v.PredAcc += dt;
-            if (v.PredAcc > 0.25) { v.PredAcc = 0; v.MissPred = Guidance.PredictMiss(sim, v, false); }
-            v.ThCmd = Guidance.EntryAim(v);
-            double miss = Math.Abs(Mp(v));
-            if ((sp < 760 && miss < 250) || sp < 300 || h < 24e3 || v.Prop < 0.030 * v.PropMax) {
-                v.Ign = false; v.NEng = 0; v.Mode = "landB";
-                sim.LogMsg($"Б: отсечка входа, V={sp:F0} м/с, H={(h / 1000):F1} км, промах {Mp(v):F0} м", 1);
-            }
+            v.Ign = false;
+            DescentB(sim, v, dt);
+            if (h < 40e3) v.Mode = "landB";
             break;
         }
         case "landB": {
@@ -96,25 +82,8 @@ public static class Guide {
                 v.SeekPad = false;
                 sim.LogMsg($"Б: башня недосягаема ({(sim.Downrange(v) / 1000):F1} км) — посадка вне площадки", 2);
             }
-            v.NLand = (int)Const.Clamp(Math.Max(v.NLand, Guidance.LandEngines(v)), 3, 6);
-            if (!v.IgnBurn) {
-                v.PredAcc += dt;
-                if (v.PredAcc > 0.3) { v.PredAcc = 0; v.MissPred = Guidance.PredictMiss(sim, v, false); }
-                double miss = Mp(v);
-                if (v.Q < 300 && Math.Abs(miss) > 500 && h > 20e3 && v.Prop > 0.035 * v.PropMax &&
-                    Guidance.StopAlt(v, v.NLand) > 1500) {
-                    Vec2 e = v.East, u = v.Up;
-                    double sgn = miss > 0 ? -1 : 1;
-                    v.Ign = true; v.NEng = 1; v.Throttle = 0.4;
-                    v.ThCmd = Guidance.PitchOf(new Vec2(sgn * e.X * 0.77 + u.X * 0.64,
-                                                        sgn * e.Y * 0.77 + u.Y * 0.64), v);
-                    break;
-                }
-                if (v.NEng == 1) { v.Ign = false; v.NEng = 0; }
-                double dl = Const.Clamp(Math.Abs(miss) / 1500, 0, 1) * 16 * Const.D2R;
-                v.ThCmd = Guidance.AimRetro(v) + (miss > 0 ? dl : -dl);
-            }
-            Guidance.LandingBurn(sim, v, dt, v.NLand);
+            if (!v.IgnBurn) DescentB(sim, v, dt);
+            Guidance.LandingBurn(sim, v, dt, v.Spec.NLand);
             break;
         }
         case "ascent2": {
@@ -310,6 +279,23 @@ public static class Guide {
             Guidance.LandingBurn(sim, v, dt, 3);
             break;
         }
+    }
+    private static void DescentB(SimState sim, Vehicle v, double dt) {
+        v.PredAcc += dt;
+        if (v.Alt > Const.BOOST_STRAIGHT_H) {
+            if (v.PredAcc > 0.3 || double.IsNaN(v.MissPred)) {
+                v.PredAcc = 0;
+                v.BankCmd = Math.Acos(Guidance.BoosterLift(sim, v));
+                v.MissPred = Guidance.BoosterMiss(sim, v, Math.Cos(v.Bank));
+            }
+            v.ThCmd = Guidance.AimRetro(v) + Const.BOOST_AOA * Const.D2R;
+            return;
+        }
+        v.BankCmd = 0;
+        if (v.PredAcc > 0.3) { v.PredAcc = 0; v.MissPred = Guidance.BoosterMiss(sim, v, 1); }
+        double miss = Mp(v);
+        double dl = Const.Clamp(Math.Abs(miss) / 1500, 0, 1) * 16 * Const.D2R;
+        v.ThCmd = Guidance.AimRetro(v) + (miss > 0 ? dl : -dl);
     }
     private static double Mp(Vehicle v) => double.IsNaN(v.MissPred) ? 0 : v.MissPred;
     private static double Em(Vehicle v) => double.IsNaN(v.EntMiss) ? 0 : v.EntMiss;
