@@ -1,5 +1,6 @@
 using System;
 using Starship.Game.Ui;
+using Starship.Physics;
 namespace Starship.Tests;
 internal static partial class Program {
     private static void Same(string name, string got, string want) =>
@@ -105,5 +106,34 @@ internal static partial class Program {
             True($"«{g.Name}»: обе колонки не пустые", k > 0 && k < g.Sections.Count,
                  $"вторая с раздела {k} из {g.Sections.Count}");
         }
+    }
+    private static void UiEngine() {
+        Head("Интерфейс: показания двигателя");
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 12345);
+        Engine e = sim.Veh[0].Eng[0];
+        True("до зажигания двигатель стоит", EngineState.Of(e) == EngLook.Off);
+        while (sim.T < 20) Physics.Sim.Tick(sim, Const.DT);
+        True("на T+20 двигатель работает", EngineState.Of(e) == EngLook.On, $"давление в камере {N(e.Pc)} МПа");
+        PumpRow[] t = PumpTable.Of(e);
+        True("в таблице пять строк", t.Length == 5);
+        Same("обороты горючего — насос горючего", t[0].Fuel, NumFmt.F(e.Pf.Rpm, 0));
+        Same("обороты окислителя — насос окислителя", t[0].Ox, NumFmt.F(e.Po.Rpm, 0));
+        True("насосы крутятся по-разному (пункт 47)", t[0].Fuel != t[0].Ox, $"{t[0].Fuel} и {t[0].Ox}");
+        Same("расход горючего", t[2].Fuel, NumFmt.F(e.Pf.Q * Pump.RHO_F, 1));
+        Same("номинал напора окислителя", t[1].Ox.Split(" / ")[^1], NumFmt.F(Pump.NomO.DP / 1e6, 1));
+        double cav = e.Pf.Cav;
+        e.Pf.Cav = 0.5;
+        PumpRow low = PumpTable.Of(e)[4];
+        True("кавитация горючего подсвечена, окислителя нет", low.FuelWarn && !low.OxWarn);
+        e.Pf.Cav = cav;
+        double tb = e.Pf.T;
+        e.Pf.T = 600;
+        True("600 K в подшипниках — жёлтый", EngineState.Of(e) == EngLook.Warn);
+        e.Pf.T = 680;
+        True("680 K — красный", EngineState.Of(e) == EngLook.Crit);
+        e.Pf.T = tb;
+        e.Failed = true;
+        True("отказ виден сразу", EngineState.Of(e) == EngLook.Failed);
     }
 }
