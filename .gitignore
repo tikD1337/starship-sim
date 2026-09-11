@@ -24,9 +24,6 @@ game/assets/*
 starship_model/
 
 .env
-orchestrator/.env
-orchestrator/runs/
-orchestrator/__pycache__/
 __pycache__/
 *.pyc
 .venv/
@@ -44,8 +41,10 @@ launch_pad/
 
 .claude/
 
-# Рабочие заметки, снимки найденных ошибок, скрипты сборки модели. Нужны в работе,
+# Рабочие заметки, снимки, скрипты сборки модели, оркестратор агентов. Нужны в работе,
 # но в опубликованном репозитории им делать нечего.
+/orchestrator/
+/screens/
 /bugs/
 /bugs_flaps/
 /game/tools/
