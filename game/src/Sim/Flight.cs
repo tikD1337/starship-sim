@@ -97,7 +97,7 @@ public static class Flight {
         v.Vy += (Fy / m - gr * up.Y) * dt;
         v.X += v.Vx * dt; v.Y += v.Vy * dt;
         v.Om += torque / I * dt;
-        v.Om *= 1 - 0.15 * dt;
+        v.Om *= 1 - Const.OM_DAMP * dt;
         v.Th += v.Om * dt;
         if (v.Th > Math.PI) v.Th -= 2 * Math.PI; else if (v.Th < -Math.PI) v.Th += 2 * Math.PI;
         if (v.SeekPad && !v.Caught && !v.Crashed && v.Launched &&

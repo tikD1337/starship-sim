@@ -111,7 +111,7 @@ public static class Guidance {
         double aVert = Math.Max(vv * vv / (2 * dh) + g, 0.5);
         if (!v.SeekPad) {
             double a2 = Const.Clamp(-v.VHor * 0.55, -3, 3);
-            return Const.Clamp(Math.Atan2(a2, aVert), -maxTilt, maxTilt);
+            return Steer(v, Const.Clamp(Math.Atan2(a2, aVert), -maxTilt, maxTilt));
         }
         double dr = sim.Downrange(v), vh = v.VHor;
         double aMax = aMaxIn > 0 ? aMaxIn : aVert * 1.6;
@@ -119,7 +119,11 @@ public static class Guidance {
         if (dh < 500) lat = Math.Min(lat, Const.LAND_ALAT);
         else if (dh < 3000) lat = Math.Min(lat, 6.5);
         double aLat;
-        if (dh < Const.LAND_DHPD) {
+        if (dh < Const.LAND_DHPD && v.Kind == Kind.Booster) {
+            double p = Const.LAND_POLE;
+            aLat = -p * p / 6 * dr - 2 * p / 3 * vh;
+        }
+        else if (dh < Const.LAND_DHPD) {
             double aL = Math.Min(lat, Const.LAND_ALAT);
             double tau = v.Kd / Math.Max(v.Kp, 0.1);
             double k1 = Math.Min(aL / 35, Const.LAND_KLAT / (tau * tau));
@@ -133,7 +137,12 @@ public static class Guidance {
                     * v.Dia * v.FullLen / v.Mass;
         }
         aLat = Const.Clamp(aLat, -lat, lat);
-        return Const.Clamp(Math.Atan2(aLat, aVert), -maxTilt, maxTilt);
+        return Steer(v, Const.Clamp(Math.Atan2(aLat, aVert), -maxTilt, maxTilt));
+    }
+    private static double Steer(Vehicle v, double want) {
+        if (v.Kind != Kind.Booster) return want;
+        double p = Const.LAND_POLE, kp = Math.Max(v.Kp, 0.1), th = Vehicle.AngDiff(v.Th, 0);
+        return th + 6 * p * p / kp * (want - th) - (4 * p - v.Kd - Const.OM_DAMP) / kp * v.Om;
     }
     private static double LatTime(double dr, double vh, double aLat)
         => Const.LAND_TLAG + Math.Sqrt(4 * Math.Abs(dr) / aLat) + Math.Abs(vh) / aLat;
