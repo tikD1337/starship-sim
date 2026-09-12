@@ -145,4 +145,53 @@ internal static partial class Program {
         True("мусор и пустое не проходят", !NumFmt.TryParse("abc", out _) && !NumFmt.TryParse("", out _)
                                            && !NumFmt.TryParse(null, out _));
     }
+    private static void UiAir() {
+        Head("Эфир: палитра, силуэт, лента фаз");
+        True("палитра эфира из спецификации", OnAir.Sky == 0x0A1426FF && OnAir.Band == 0x1C3656FF
+             && OnAir.Ink == 0xF2F5F8FF && OnAir.Rail == 0x8C98A6FF && OnAir.Strip == 0x16191EFF);
+        Part[] stack = RocketArt.Stack(), ship = RocketArt.Ship(), boost = RocketArt.Booster();
+        True("связка — это корабль и ускоритель вместе", stack.Length == ship.Length + boost.Length,
+             $"{stack.Length} против {ship.Length} и {boost.Length}");
+        (double Lo, double Hi, double Wide) s = Span(stack);
+        Near("связка — корабль и ускоритель встык", s.Hi - s.Lo, 54.6 + 71.1, 1e-9, " м");
+        True("нос в нуле", Math.Abs(s.Lo) < 1e-9, N(s.Lo));
+        True("ничего не торчит дальше 9 м от оси", s.Wide <= 9, N(s.Wide) + " м");
+        (double Lo, double Hi, double Wide) sh = Span(ship);
+        Near("корабль с кольцом разделения — 54,6 м", sh.Hi - sh.Lo, 54.6, 0.01, " м");
+        (double Lo, double Hi, double Wide) bo = Span(boost);
+        True("у ускорителя своя система координат от нуля", Math.Abs(bo.Lo) < 1e-9, N(bo.Lo));
+        Near("ускоритель с раструбами — 71 м", bo.Hi - bo.Lo, 71, 0.005, " м");
+        Pt[] flame = RocketArt.Flame(42, 0);
+        double fLo = 1e9, fHi = -1e9;
+        foreach (Pt q in flame) { fLo = Math.Min(fLo, q.Y); fHi = Math.Max(fHi, q.Y); }
+        True("факел идёт от среза вниз на заданную длину", flame.Length > 4 && Math.Abs(fLo) < 1e-9
+             && Math.Abs(fHi - 42) < 1e-9, $"{N(fLo)}…{N(fHi)} м");
+        True("короткая тяга — короткий факел", RocketArt.Flame(10, 0)[^1].Y <= 10 + 1e-9);
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 12345);
+        while (sim.T < 100) Physics.Sim.Tick(sim, Const.DT);
+        Rail.Mark[] r = Rail.Of(sim);
+        True("на ленте четыре вехи", r.Length == 4);
+        True("на T+100 старт и max Q пройдены", r[0].Past && r[1].Past);
+        True("разделение — следующая веха", !r[2].Past && r[2].Next);
+        True("орбита ещё далеко", !r[3].Past && !r[3].Next);
+        Same("фаза эфира на выведении", Phases.Air("ascent"), "Работа первой ступени");
+        Same("фаза пульта осталась прежней", Phases.Console("ascent"), "Выведение");
+        True("у каждого режима есть эфирное название", Phases.Air("landS").Length > 0
+             && Phases.Air("нет такого") == "нет такого");
+        int worst = EngineState.Worst(sim.Veh[0]);
+        True("ближе всех к пределу — работающий двигатель", worst >= 0 && worst < 33, $"№ {worst + 1}");
+        sim.Veh[0].Eng[7].Pf.T = 600;
+        True("перегретый подшипник выводит свой двигатель вперёд", EngineState.Worst(sim.Veh[0]) == 7);
+    }
+    private static (double Lo, double Hi, double Wide) Span(Part[] parts) {
+        double lo = 1e9, hi = -1e9, wide = 0;
+        foreach (Part p in parts)
+            foreach (Pt q in p.Pts) {
+                lo = Math.Min(lo, q.Y);
+                hi = Math.Max(hi, q.Y);
+                wide = Math.Max(wide, Math.Abs(q.X));
+            }
+        return (lo, hi, wide);
+    }
 }

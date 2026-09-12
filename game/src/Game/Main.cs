@@ -21,6 +21,7 @@ public partial class Main : Node {
     private EngineSound _soundB, _soundS;
     private Screens _scr;
     private EngineerView _eng;
+    private OnAirView _air;
     private Node3D _world;
     private WorldRig _rigWorld;
     private SceneSync _scene;
@@ -47,6 +48,7 @@ public partial class Main : Node {
         Look.Load();
         _scr = Screens.Build(this);
         _eng = EngineerView.Build(_scr);
+        _air = OnAirView.Build(_scr);
         _world = new Node3D { Name = "World" };
         _scr.World.AddChild(_world);
         _rigWorld = WorldRig.Build(_world);
@@ -224,6 +226,7 @@ public partial class Main : Node {
         _shot.Track(_frame, _stack.ShipRoot.GlobalPosition - _rigWorld.Cam.GlobalPosition);
         _perf.Add(Perf.Part.Scene);
         _eng.Update(_sim, _ctl.Speed, _ctl.Paused);
+        _air.Update(_sim);
         _perf.Add(Perf.Part.Ui);
         _mission.Track(_sim);
         _missionView.Update(_mission, _anomOn);

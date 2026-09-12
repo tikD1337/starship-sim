@@ -6,14 +6,6 @@ using Starship.Physics;
 using PEngine = Starship.Physics.Engine;
 namespace Starship.Game.Ui;
 public sealed class EngineerView {
-    private static readonly Dictionary<string, string> Phases = new() {
-        ["idle"] = "Предстартовая", ["ascent"] = "Выведение", ["meco"] = "Горячее разделение",
-        ["flip"] = "Разворот", ["boostback"] = "Тормозной импульс", ["coastB"] = "Пассивный участок",
-        ["landB"] = "Посадка ускорителя", ["caught"] = "Захвачен башней", ["landed"] = "Посадка выполнена",
-        ["crashed"] = "Разрушение", ["ascent2"] = "Работа второй ступени", ["coastS"] = "Пассивный участок",
-        ["circ"] = "Довыведение", ["orbit"] = "Орбита", ["deorbit"] = "Сход с орбиты", ["coastD"] = "Спуск",
-        ["entryS"] = "Вход в атмосферу", ["flipS"] = "Переворот", ["landS"] = "Посадка корабля",
-    };
     private Control _root;
     private readonly TeleLog _tele = new();
     private PlotView _plot;
@@ -267,7 +259,7 @@ public sealed class EngineerView {
     }
     private void Head(SimState sim, Vehicle v, double speed, bool paused) {
         Look.Set(_clock, NumFmt.Clock(sim.T));
-        Look.Set(_phase, Phases.TryGetValue(v.Mode, out string ph) ? ph : v.Mode);
+        Look.Set(_phase, Phases.Console(v.Mode));
         if (_stageSeg.Selected != _stage) _stageSeg.Select(_stage);
         Look.Set(_speed, paused ? "пауза"
             : "скорость ×" + speed.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ','));

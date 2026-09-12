@@ -25,9 +25,10 @@ public sealed class Screens {
     public SubViewport World { get; private set; }
     public int Cur { get; private set; } = 1;
     public Control EngineerRoot => _eng;
+    public Control AirRoot => _air;
     private int _back = 1;
     private SubViewportContainer _view;
-    private Control _eng, _over;
+    private Control _eng, _air, _over;
     private PanelContainer _keys;
     public static Screens Build(Node parent) {
         var s = new Screens();
@@ -46,12 +47,16 @@ public sealed class Screens {
         s._eng = new Control { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore, Theme = Look.UiTheme() };
         l1.AddChild(s._eng);
         s._eng.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        s._air = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Theme = Look.UiTheme() };
+        l1.AddChild(s._air);
+        s._air.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var l2 = new CanvasLayer { Layer = 2 };
         parent.AddChild(l2);
         s._over = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Theme = Look.UiTheme() };
         l2.AddChild(s._over);
         s._over.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         s.BuildHelp();
+        s.Show(1);
         return s;
     }
     private void BuildHelp() {
@@ -87,8 +92,9 @@ public sealed class Screens {
         if (n == 3 && Cur != 3) _back = Cur;
         Cur = n;
         _eng.Visible = n == 3;
-        _view.Visible = n != 3;
-        World.RenderTargetUpdateMode = n == 3 ? SubViewport.UpdateMode.Disabled : SubViewport.UpdateMode.Always;
+        _air.Visible = n == 1;
+        _view.Visible = n == 2;
+        World.RenderTargetUpdateMode = n == 2 ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
     }
     public void ToggleEngineer() => Show(Cur == 3 ? _back : 3);
     public void ToggleKeys() => _keys.Visible = !_keys.Visible;
@@ -113,6 +119,7 @@ public sealed class Screens {
     public List<string> MouseGrabs() {
         var bad = new List<string>();
         if (_eng.Visible && Cur != 3) bad.Add("пульт виден поверх 3D-вида");
+        if (_air.Visible && Cur != 1) bad.Add("эфир виден поверх 3D-вида");
         Walk(_over, bad);
         return bad;
     }
