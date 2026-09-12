@@ -117,6 +117,8 @@ public partial class Main : Node {
             : new System.Collections.Generic.HashSet<string> { _script };
         _missionView.Script = _script;
         _rec.Head(key, seed, anom, _script);
+        _ctl.Rec = _rec;
+        _ctl.Play = null;
         _saved = false;
         (_sim.TargetApo, _sim.TargetPeri) = key switch {
             "high" => (520e3, 500e3),
@@ -215,7 +217,7 @@ public partial class Main : Node {
         double span = Math.Max(_sim.T, toT);
         if (toT < _sim.T) {
             StartFlight(_missionKey, _anomOn, _seed);
-            if (play != null) { play.Rewind(); _ctl.Play = play; }
+            if (play != null) { play.Rewind(); _ctl.Play = play; _ctl.Rec = null; }
         }
         FastForward(toT);
         _tape.Widen(span);

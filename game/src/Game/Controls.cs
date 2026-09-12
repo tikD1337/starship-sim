@@ -76,7 +76,7 @@ public sealed class Controls {
         }
         if (e is not InputEventKey k || !k.Pressed || k.Echo) return;
         switch (k.Keycode) {
-            case Key.Tab: _scr.ToggleEngineer(); break;
+            case Key.Tab: _scr.NextScreen(); break;
             case Key.F1: _scr.ToggleKeys(); break;
             case Key.F3: Plot(0); break;
             case Key.F4: Plot(1); break;

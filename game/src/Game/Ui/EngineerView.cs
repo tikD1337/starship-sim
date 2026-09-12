@@ -89,7 +89,7 @@ public sealed class EngineerView {
         _speed = Widgets.Tag(h, "скорость ×1");
         _anom = Widgets.Tag(h, "отказы выключены");
         _seed = Widgets.Tag(h, "зерно");
-        Widgets.Tag(h, "эфир", "Tab");
+        Widgets.Tag(h, "сводка", "Tab");
         Widgets.Tag(h, "клавиши", "F1");
     }
     private void BuildLeft(VBoxContainer col) {
