@@ -42,4 +42,9 @@ public static class NumFmt {
                     .Replace(Minus, '-').Replace(',', '.');
         return double.TryParse(t, NumberStyles.Float, Inv, out x);
     }
+    public static string Hms(double t) {
+        int s = (int)Math.Floor(Math.Abs(t));
+        char sign = t < 0 && s > 0 ? Minus : '+';
+        return $"T{sign}{s / 3600:00}:{s / 60 % 60:00}:{s % 60:00}";
+    }
 }

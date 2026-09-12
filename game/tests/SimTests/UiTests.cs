@@ -20,6 +20,8 @@ internal static partial class Program {
         Same("часы полёта", NumFmt.Clock(101.1), "T+01:41,1");
         Same("отсчёт до старта", NumFmt.Clock(-10), "T" + m + "00:10,0");
         Same("секунды не доходят до 60", NumFmt.Clock(59.97), "T+01:00,0");
+        Same("часы борта с часами", NumFmt.Hms(270), "T+00:04:30");
+        Same("часы борта до старта", NumFmt.Hms(-10), "T" + m + "00:00:10");
         Same("метры", NumFmt.Dist(850, out string u1) + " " + u1, "850 м");
         Same("километры с десятыми", NumFmt.Dist(30912, out string u2) + " " + u2, "30,9 км");
         Same("далеко — целые км", NumFmt.Dist(212400, out string u3) + " " + u3, "212 км");
@@ -193,5 +195,44 @@ internal static partial class Program {
                 wide = Math.Max(wide, Math.Abs(q.X));
             }
         return (lo, hi, wide);
+    }
+    private static void UiAir2() {
+        Head("Борт: вехи дуги, наборы камер, режиссёр");
+        var arc = new Arc("orbital");
+        True("у орбитального задания шесть вех", arc.Names.Length == 6, string.Join(", ", arc.Names));
+        Same("первая веха — старт", arc.Names[0], "старт");
+        True("до старта метка в нуле", arc.Frac(-10) == 0);
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 12345);
+        while (sim.T < 140) { Physics.Sim.Tick(sim, Const.DT); arc.Track(sim); }
+        True("на T+140 пройдены старт, max Q и разделение", arc.Passed[0] && arc.Passed[1] && arc.Passed[2]);
+        True("SECO и захват ещё нет", !arc.Passed[4] && !arc.Passed[5]);
+        double f = arc.Frac(sim.T);
+        True("метка прошла часть дуги, но не дошла до конца", f > 0.35 && f < 0.8, N(f));
+        True("у трансатмосферного свой набор", new Arc("trans").Names[^1] == "приводнение",
+             string.Join(", ", new Arc("trans").Names));
+        True("на выведении показываем «Факел»", Array.IndexOf(CamPlan.For("ascent"), 6) >= 0,
+             string.Join(",", CamPlan.For("ascent")));
+        True("на разделении — петля заднего закрылка", Array.IndexOf(CamPlan.For("meco"), 2) >= 0);
+        True("у корабля на входе первая — петля переднего закрылка", CamPlan.For("entryS")[0] == 1);
+        True("на захвате ускорителя — внешняя камера", CamPlan.For("caught")[0] == -1);
+        True("при посадочной жиге ведём ускоритель", !CamPlan.Ship("landB", "orbit"));
+        True("пока корабль разгоняется, ведём его", CamPlan.Ship("coastB", "ascent2"));
+        var dull = new Director.Shot(3, 0.1, 0, 0, 90, 0.9, false, 0, 0);
+        var nice = new Director.Shot(4, 0.8, 0.9, 0, 90, 0.3, false, 0, 20);
+        True("красивый кадр оценивается выше пустого", Director.Score(nice) > Director.Score(dull),
+             $"{N(Director.Score(nice))} против {N(Director.Score(dull))}");
+        True("солнце в центре кадра всё портит", Director.Score(nice with { Sun = 5 }) < Director.Score(nice));
+        True("плазма поднимает оценку", Director.Score(dull with { Plasma = 0.9 }) > Director.Score(dull));
+        True("ночная сторона без огня — плохой кадр",
+             Director.Score(nice with { Night = true, Flame = 0 }) < Director.Score(dull));
+        Director.Shot[] set = { dull, nice };
+        True("пока план не выдержан, камера не меняется", Director.Pick(set, 3, 2, false) == 3);
+        True("на событии режем сразу", Director.Pick(set, 3, 2, true) == 4);
+        True("через 15 с меняем и без события", Director.Pick(set, 3, 16, false) == 4);
+        True("одна и та же камера два раза подряд не берётся", Director.Pick(set, 4, 16, true) == 3);
+        True("если выбора нет — остаёмся", Director.Pick(new[] { nice }, 4, 16, true) == 4);
+        True("без заметного перевеса остаёмся",
+             Director.Pick(new[] { dull, dull with { Cam = 4, Earth = 0.13 } }, 3, 8, false) == 3);
     }
 }

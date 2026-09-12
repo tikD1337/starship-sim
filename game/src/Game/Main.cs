@@ -7,7 +7,7 @@ public partial class Main : Node {
     private static readonly string[] Flags = {
         "--free", "--screen", "--theme", "--eng", "--noshadow", "--noglow", "--shot", "--t", "--dbg", "--camcheck",
         "--dist", "--deploy", "--pitch", "--yaw", "--cam", "--focus", "--tab",
-        "--mission", "--anom", "--seed", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
+        "--mission", "--anom", "--seed", "--cuts", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
     };
     private SimState _sim;
     private StackView _stack;
@@ -22,6 +22,7 @@ public partial class Main : Node {
     private Screens _scr;
     private EngineerView _eng;
     private OnAirView _air;
+    private BroadcastView _hud;
     private Node3D _world;
     private WorldRig _rigWorld;
     private SceneSync _scene;
@@ -29,6 +30,7 @@ public partial class Main : Node {
     private Shot _shot;
     private Perf _perf;
     private CamRig _rig;
+    private CamDirector _dir;
     private Mission _mission;
     private MissionView _missionView;
     private string _missionKey = "orbital";
@@ -49,6 +51,7 @@ public partial class Main : Node {
         _scr = Screens.Build(this);
         _eng = EngineerView.Build(_scr);
         _air = OnAirView.Build(_scr);
+        _hud = BroadcastView.Build(_scr);
         _world = new Node3D { Name = "World" };
         _scr.World.AddChild(_world);
         _rigWorld = WorldRig.Build(_world);
@@ -69,7 +72,9 @@ public partial class Main : Node {
         _soundS = EngineSound.Attach(_stack.ShipRoot);
         _scene = new SceneSync(_stack, _tower, _pad, _smoke, _plasma, _sats, _bay, _soundB, _soundS, _splash);
         _rig = new CamRig(_rigWorld.Cam) { FlapFwd = _stack.FlapFwd, FlapAft = _stack.FlapAft };
+        _dir = new CamDirector(_rig);
         _ctl = new Controls(this, _sim, _rig, _scr, _eng);
+        _ctl.ManualCam = () => _dir.Manual = true;
         _eng.Focus = ship => _ctl.SetFocus(ship);
         _shot = new Shot(this);
         _perf = new Perf(this);
@@ -122,6 +127,7 @@ public partial class Main : Node {
         _mission = Mission.Start(key, anom, _script);
         _missionView.Reset(_mission);
         _eng.ClearTele();
+        _hud.Reset(key);
         _splash.Reset();
         _ctl.Paused = false;
         _sim.LogMsg($"Задание: {Mission.NameOf(key)}" + (anom ? " · отказы включены" : ""), 1);
@@ -139,7 +145,8 @@ public partial class Main : Node {
         if (a.Has("--nosmoke")) _smoke.Off = true;
         if (a.Has("--flat")) _rigWorld.FlatLight();
         if (a.Has("--recs")) _missionView.ToggleRecords(_missionKey);
-        if (a.Has("--debugcam")) { _rig.Cur = CamRig.Kind.Free; _scr.Show(2); }
+        if (a.Has("--cuts")) _dir.Log = true;
+        if (a.Has("--debugcam")) { _rig.Cur = CamRig.Kind.Free; _scr.Show(2); _dir.Manual = true; }
         if (a.Has("--dbg")) _rigWorld.SetDbg(a.Int("--dbg", 0));
         if (a.Has("--tab")) {
             int tab = a.Int("--tab", 0);
@@ -159,8 +166,9 @@ public partial class Main : Node {
             _rig.MountIdx = a.Int("--cam", 0);
             _rig.Cur = CamRig.Kind.Mount;
             _scr.Show(2);
+            _dir.Manual = true;
         }
-        if (a.Has("--free")) { _freeArg = true; _scr.Show(2); }
+        if (a.Has("--free")) { _freeArg = true; _scr.Show(2); _dir.Manual = true; }
         if (a.Num("--t", out double toT)) FastForward(toT);
         if (a.Has("--tape")) {
             _tape.Visible = true;
@@ -227,6 +235,7 @@ public partial class Main : Node {
         _perf.Add(Perf.Part.Scene);
         _eng.Update(_sim, _ctl.Speed, _ctl.Paused);
         _air.Update(_sim);
+        _hud.Update(_sim, _mission, _rig.Name, _ctl.Speed, _ctl.Paused);
         _perf.Add(Perf.Part.Ui);
         _mission.Track(_sim);
         _missionView.Update(_mission, _anomOn);
@@ -243,6 +252,7 @@ public partial class Main : Node {
         _perf.Step(delta);
     }
     private void UpdateCamera() {
+        _dir.Step(_sim, _stack, _ctl.Paused ? 0 : 1.0 / 60);
         Vehicle s = _sim.Veh[1];
         Vehicle v = _sim.FocusVeh();
         float top = s.Attached ? 123f : (v.Kind == Kind.Booster ? 71f : 52f);

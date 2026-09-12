@@ -106,23 +106,7 @@ public partial class OnAirView : Control {
                                    : "высота " + NumFmt.F(v.Alt, 0) + " м";
         Text(alt, x, mid + 52 * k, 21 * k, 400, OnAir.Ink2, right);
     }
-    private void Ring(Vehicle v, Vector2 c, float d) {
-        Spot[] spots = EngineLayout.Of(v.Kind == Kind.Ship);
-        float reach = 1;
-        foreach (Spot s in spots) reach = Math.Max(reach, (float)(Math.Sqrt(s.X * s.X + s.Y * s.Y) + s.R));
-        float k = d * 0.5f / reach;
-        for (int i = 0; i < spots.Length && i < v.Eng.Count; i++) {
-            Vector2 p = c + new Vector2((float)spots[i].X, (float)spots[i].Y) * k;
-            float r = (float)spots[i].R * k;
-            EngLook st = EngineState.Of(v.Eng[i]);
-            if (st is EngLook.On or EngLook.Warn or EngLook.Crit)
-                DrawCircle(p, r, new Color(st == EngLook.Warn ? Themes.Warn
-                                         : st == EngLook.Crit ? Themes.Crit : OnAir.Ink), true, -1, true);
-            else
-                DrawCircle(p, r * 0.82f, new Color(st == EngLook.Failed ? Themes.Crit : OnAir.Rail), false,
-                           Math.Max(1f, r * 0.2f), true);
-        }
-    }
+    private void Ring(Vehicle v, Vector2 c, float d) => Widgets.EngineRing(this, v, c, d, OnAir.Ink, OnAir.Rail);
     private void Marks(float k, float w, float yd) {
         Rail.Mark[] marks = Rail.Of(_sim);
         float x0 = w * 0.31f, x1 = w * 0.69f, y = yd - 76 * k;

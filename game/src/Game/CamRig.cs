@@ -51,6 +51,15 @@ public sealed class CamRig {
         float a = Mathf.DegToRad(m.Azim);
         return new Vector3(Mathf.Cos(a), 0, -Mathf.Sin(a)) * m.Radius + new Vector3(0, m.Y, 0);
     }
+    public static int Count => Mounts.Count;
+    private static Mount At(int idx) => Mounts[((idx % Mounts.Count) + Mounts.Count) % Mounts.Count];
+    public static Vector3 DirOf(int idx) {
+        Mount m = At(idx);
+        return (m.HasTarget ? (m.Target - PosOf(m)) : m.Dir).Normalized();
+    }
+    public static bool ShipCam(int idx) => At(idx).Ship;
+    public static float FovOf(int idx) => At(idx).Fov;
+    public static string NameOf(int idx) => At(idx).Name;
     public string Name => Cur switch {
         Kind.Orbit => "Орбита",
         Kind.Free => "Свободная",

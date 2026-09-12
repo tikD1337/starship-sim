@@ -26,9 +26,10 @@ public sealed class Screens {
     public int Cur { get; private set; } = 1;
     public Control EngineerRoot => _eng;
     public Control AirRoot => _air;
+    public Control HudRoot => _hud;
     private int _back = 1;
     private SubViewportContainer _view;
-    private Control _eng, _air, _over;
+    private Control _eng, _air, _hud, _over;
     private PanelContainer _keys;
     public static Screens Build(Node parent) {
         var s = new Screens();
@@ -50,6 +51,9 @@ public sealed class Screens {
         s._air = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Theme = Look.UiTheme() };
         l1.AddChild(s._air);
         s._air.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        s._hud = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Theme = Look.UiTheme() };
+        l1.AddChild(s._hud);
+        s._hud.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var l2 = new CanvasLayer { Layer = 2 };
         parent.AddChild(l2);
         s._over = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Theme = Look.UiTheme() };
@@ -93,6 +97,7 @@ public sealed class Screens {
         Cur = n;
         _eng.Visible = n == 3;
         _air.Visible = n == 1;
+        _hud.Visible = n == 2;
         _view.Visible = n == 2;
         World.RenderTargetUpdateMode = n == 2 ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
     }
@@ -120,6 +125,7 @@ public sealed class Screens {
         var bad = new List<string>();
         if (_eng.Visible && Cur != 3) bad.Add("пульт виден поверх 3D-вида");
         if (_air.Visible && Cur != 1) bad.Add("эфир виден поверх 3D-вида");
+        if (_hud.Visible && Cur != 2) bad.Add("худ борта виден не на своём экране");
         Walk(_over, bad);
         return bad;
     }

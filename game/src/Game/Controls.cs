@@ -13,7 +13,7 @@ public sealed class Controls {
     private const double MaxStepPerFrame = 0.60;
     public bool Paused;
     public Action Restart, NextMission, ToggleAnom, ToggleSmoke, ToggleFlat, ShowRecords;
-    public Action ShowTape, StepOne;
+    public Action ShowTape, StepOne, ManualCam;
     public bool TapeOn;
     public Action<int> StepMark;
     private bool _drag;
@@ -106,7 +106,7 @@ public sealed class Controls {
             case Key.M: Rec?.Put(_sim.T, "sat", 10); Physics.Sim.DeploySat(_sim, _sim.Veh[1], 10); break;
             case Key.Key1: _scr.Show(1); break;
             case Key.Key2: OnBoard(); break;
-            case Key.Key3: _rig.EnterFree(); _scr.Show(2); break;
+            case Key.Key3: _rig.EnterFree(); _scr.Show(2); ManualCam?.Invoke(); break;
             case Key.G: ToggleSmoke?.Invoke(); break;
             case Key.L: ToggleFlat?.Invoke(); break;
             case Key.Pageup: _rig.Speed *= 2f; _rig.FastSpeed *= 2f; break;
@@ -131,6 +131,7 @@ public sealed class Controls {
         if (_scr.Cur == 2 || _rig.Cur != CamRig.Kind.Mount)
             _rig.EnterMount(_sim.FocusVeh() == _sim.Veh[1] && !_sim.Veh[1].Attached);
         _scr.Show(2);
+        ManualCam?.Invoke();
     }
     public void SetFocus(bool ship) {
         if (_sim.Veh[1].Attached || (_sim.Focus == "ship") == ship) return;

@@ -67,6 +67,23 @@ public static class Widgets {
         if (key != null) Look.Caption(h, key, 14, 600, () => Look.Ink);
         return Look.Caption(h, text, 14, 400, () => Look.Ink2);
     }
+    public static void EngineRing(CanvasItem ci, Starship.Physics.Vehicle v, Vector2 c, float d, uint ink, uint off) {
+        Spot[] spots = EngineLayout.Of(v.Kind == Starship.Physics.Kind.Ship);
+        float reach = 1;
+        foreach (Spot s in spots) reach = Mathf.Max(reach, (float)(Mathf.Sqrt((float)(s.X * s.X + s.Y * s.Y)) + s.R));
+        float k = d * 0.5f / reach;
+        for (int i = 0; i < spots.Length && i < v.Eng.Count; i++) {
+            Vector2 p = c + new Vector2((float)spots[i].X, (float)spots[i].Y) * k;
+            float r = (float)spots[i].R * k;
+            EngLook st = EngineState.Of(v.Eng[i]);
+            if (st is EngLook.On or EngLook.Warn or EngLook.Crit)
+                ci.DrawCircle(p, r, new Color(st == EngLook.Warn ? Themes.Warn
+                                            : st == EngLook.Crit ? Themes.Crit : ink), true, -1, true);
+            else
+                ci.DrawCircle(p, r * 0.82f, new Color(st == EngLook.Failed ? Themes.Crit : off), false,
+                              Mathf.Max(1f, r * 0.2f), true);
+        }
+    }
 }
 public sealed class KvRow {
     public Label Key, Val, Unit;
