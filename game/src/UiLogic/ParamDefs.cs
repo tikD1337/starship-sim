@@ -9,8 +9,8 @@ public sealed class ParamRow {
     public Scope Scope = Scope.Engine;
     public int Digits = 2;
     public double Lo = double.NegativeInfinity, Hi = double.PositiveInfinity;
-    public double Warn = double.NaN, Crit = double.NaN;
-    public bool LowIsBad;
+    public double Warn = double.NaN, Crit = double.NaN, Max = double.NaN;
+    public bool LowIsBad, Stage;
     public string Note;
     public Func<PEngine, double> FromEngine;
     public Func<Vehicle, double> FromVehicle;
@@ -41,12 +41,17 @@ public static class ParamDefs {
         => new() { Key = key, Label = label, Unit = unit, Digits = d, Scope = Scope.ReadOnly, FromEngine = f };
     private static ParamRow RoV(string key, string label, string unit, int d, Func<Vehicle, double> f)
         => new() { Key = key, Label = label, Unit = unit, Digits = d, Scope = Scope.ReadOnly, FromVehicle = f };
-    private static ParamRow Zone(this ParamRow r, double warn, double crit, string note,
+    private static ParamRow Zone(this ParamRow r, double warn, double crit, double max, string note,
                                  bool lowIsBad = false) {
         r.Warn = warn;
         r.Crit = crit;
+        r.Max = max;
         r.Note = note;
         r.LowIsBad = lowIsBad;
+        return r;
+    }
+    private static ParamRow Whole(this ParamRow r) {
+        r.Stage = true;
         return r;
     }
     public static string ZoneOf(ParamRow r, double x) {
@@ -55,6 +60,29 @@ public static class ParamDefs {
         if (crit) return "crit";
         bool warn = r.LowIsBad ? x <= r.Warn : x >= r.Warn;
         return warn ? "warn" : "";
+    }
+    public static ParamRow Row(string key) {
+        foreach (ParamGroup g in Groups)
+            foreach (ParamSection s in g.Sections)
+                foreach (ParamRow r in s.Rows)
+                    if (r.Key == key) return r;
+        return null;
+    }
+    public static (double W0, double W1, double C0, double C1, double Mark) Bands(ParamRow r, double x) {
+        double k(double v) => Math.Clamp(v / r.Max, 0, 1);
+        double mark = k(x);
+        return r.LowIsBad ? (k(r.Crit), k(r.Warn), 0, k(r.Crit), mark)
+                          : (k(r.Warn), k(r.Crit), k(r.Crit), 1, mark);
+    }
+    public static int Split(ParamGroup g) {
+        int total = 0;
+        foreach (ParamSection s in g.Sections) total += s.Rows.Count + 1;
+        int acc = 0;
+        for (int i = 0; i < g.Sections.Count; i++) {
+            acc += g.Sections[i].Rows.Count + 1;
+            if (acc * 2 >= total) return Math.Clamp(i + 1, 1, g.Sections.Count - 1);
+        }
+        return g.Sections.Count - 1;
     }
     public static readonly List<ParamGroup> Groups = new() {
         new ParamGroup { Name = "Турбонасос", Sections = {
@@ -67,8 +95,8 @@ public static class ParamDefs {
             new ParamSection { Title = "Подшипники", Rows = {
                 Eng("heat", "Множитель теплоотвода", "", 2, 0, 5, p => p.Heat, (p, v) => p.Heat = v),
                 Eng("vibAdd", "Добавка вибрации", "g", 2, 0, 30, p => p.VibAdd, (p, v) => p.VibAdd = v),
-                RoE("_tb", "Температура подшипников", "K", 0, e => e.Pf.T).Zone(550, 650, "при 700 K подшипники клинит и двигатель гаснет: на красном есть считаные секунды"),
-                RoE("_vb", "Вибрация", "g", 2, e => Math.Max(e.Pf.Vib, e.Po.Vib)).Zone(2.5, 9, "выше 2,5 g крыльчатка изнашивается, при 12 g разрушается") } },
+                RoE("_tb", "Температура подшипников", "K", 0, e => e.Pf.T).Zone(550, 650, 700, "при 700 K подшипники клинит и двигатель гаснет: на красном есть считаные секунды"),
+                RoE("_vb", "Вибрация", "g", 2, e => Math.Max(e.Pf.Vib, e.Po.Vib)).Zone(2.5, 9, 12, "выше 2,5 g крыльчатка изнашивается, при 12 g разрушается") } },
             new ParamSection { Title = "Насос горючего", Rows = {
                 Eng("fHead", "Множитель напора", "", 2, 0, 2, p => p.FHead, (p, v) => p.FHead = v),
                 Eng("fEff", "Множитель КПД", "", 2, 0.2, 1.3, p => p.FEff, (p, v) => p.FEff = v) } },
@@ -87,12 +115,12 @@ public static class ParamDefs {
                 RoE("_qo", "Расход окислителя", "кг/с", 1, e => e.Po.Q * Pump.RHO_OX) } } } },
         new ParamGroup { Name = "Баки", Sections = {
             new ParamSection { Title = "Наддув", Rows = {
-                Eng("pTankF", "Уставка наддува горючего", "кПа", 1, 80, 900, p => p.PTankF, (p, v) => p.PTankF = v),
-                Eng("pTankOx", "Уставка наддува окислителя", "кПа", 1, 80, 900, p => p.PTankOx, (p, v) => p.PTankOx = v),
-                RoV("_pf", "Фактическое давление горючего", "кПа", 1, v => v.Tanks.F.P / 1000).Zone(280, 200, "паспортное 350 кПа: ниже насос начинает кавитировать", true),
-                RoV("_po", "Фактическое давление окислителя", "кПа", 1, v => v.Tanks.O.P / 1000).Zone(300, 220, "паспортное 380 кПа: ниже насос начинает кавитировать", true),
+                Eng("pTankF", "Уставка наддува горючего", "кПа", 1, 80, 900, p => p.PTankF, (p, v) => p.PTankF = v).Whole(),
+                Eng("pTankOx", "Уставка наддува окислителя", "кПа", 1, 80, 900, p => p.PTankOx, (p, v) => p.PTankOx = v).Whole(),
+                RoV("_pf", "Фактическое давление горючего", "кПа", 1, v => v.Tanks.F.P / 1000).Zone(280, 200, 500, "паспортное 350 кПа: ниже насос начинает кавитировать", true),
+                RoV("_po", "Фактическое давление окислителя", "кПа", 1, v => v.Tanks.O.P / 1000).Zone(300, 220, 500, "паспортное 380 кПа: ниже насос начинает кавитировать", true),
                 RoV("_gas", "Газ в подушках", "кг", 0, v => v.Tanks.F.Mg + v.Tanks.O.Mg),
-                RoV("_copv", "Остаток баллонов", "%", 1, v => v.Tanks.Copv / v.Tanks.Copv0 * 100).Zone(25, 8, "без наддува давление на входе насосов падает и начинается кавитация", true) } },
+                RoV("_copv", "Остаток баллонов", "%", 1, v => v.Tanks.Copv / v.Tanks.Copv0 * 100).Zone(25, 8, 100, "без наддува давление на входе насосов падает и начинается кавитация", true) } },
             new ParamSection { Title = "Остатки", Rows = {
                 RoV("_fill", "Заправка ступени", "%", 1, v => v.Fill * 100),
                 RoV("_prop", "Топливо на борту", "т", 1, v => v.Prop / 1000),
@@ -119,8 +147,8 @@ public static class ParamDefs {
                 Eng("tau", "Постоянная выхода на режим", "с", 2, 0.05, 5, p => p.Tau, (p, v) => p.Tau = v),
                 Eng("ignDelay", "Задержка запуска", "с", 2, 0, 5, p => p.IgnDelay, (p, v) => p.IgnDelay = v) } },
             new ParamSection { Title = "Ресурс", Rows = {
-                RoE("_wf", "Износ крыльчатки горючего", "", 3, e => e.Pf.Wear).Zone(0.3, 0.7, "износ съедает напор и КПД: при 100 % насос теряет треть напора"),
-                RoE("_wo", "Износ крыльчатки окислителя", "", 3, e => e.Po.Wear).Zone(0.3, 0.7, "износ съедает напор и КПД: при 100 % насос теряет треть напора"),
+                RoE("_wf", "Износ крыльчатки горючего", "", 3, e => e.Pf.Wear).Zone(0.3, 0.7, 1, "износ съедает напор и КПД: при 100 % насос теряет треть напора"),
+                RoE("_wo", "Износ крыльчатки окислителя", "", 3, e => e.Po.Wear).Zone(0.3, 0.7, 1, "износ съедает напор и КПД: при 100 % насос теряет треть напора"),
                 RoE("_sp", "Уровень режима", "", 2, e => e.Spool) } } } },
         new ParamGroup { Name = "Рулевой тракт", Sections = {
             new ParamSection { Title = "Привод качания", Rows = {

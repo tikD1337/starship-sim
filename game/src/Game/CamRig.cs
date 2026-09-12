@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 namespace Starship.Game;
 public sealed class CamRig {
-    public enum Kind { Orbit, Mount, Free }
+    public enum Kind { Orbit, Mount, Free, Pad }
     public enum Carrier { Body, FlapFwd, FlapAft }
     public readonly record struct Spot(string Name, bool Ship, Carrier On, Vector3 Pos);
     private sealed class Mount {
@@ -37,6 +37,39 @@ public sealed class CamRig {
     public Node3D FlapFwd, FlapAft;
     public Kind Cur = Kind.Orbit;
     public int MountIdx;
+    private sealed class PadCam {
+        public string Name;
+        public Vector3 Off, Aim;
+        public float Fov;
+        public bool Zoom;
+        public float Range = 9000;
+        public float AimAt = 1f;
+    }
+    private static readonly List<PadCam> Pads = new() {
+        new PadCam { Name = "Стол", Off = new Vector3(-120, 6, 300), Fov = 24, Zoom = true },
+        new PadCam { Name = "Башня сверху", Off = new Vector3(-58, 168, 42), Aim = new Vector3(0, -42, 0), Fov = 52, Range = 3000 },
+        new PadCam { Name = "Панорама", Off = new Vector3(-900, 45, 1150), Fov = 32, Zoom = true, Range = 20000 },
+        new PadCam { Name = "Ловильные руки", Off = new Vector3(-58, 118, 95), Aim = new Vector3(0, -6, 0), Fov = 40, Zoom = true, Range = 1500 },
+        new PadCam { Name = "Под столом", Off = new Vector3(-3.5f, 3.5f, 6.5f), Fov = 62, Range = 400, AimAt = 0.04f },
+    };
+    public int PadIdx;
+    public static int Total => Mounts.Count + Pads.Count;
+    public static bool IsPad(int idx) => idx >= Mounts.Count;
+    private static PadCam PadAt(int idx) {
+        int n = idx - Mounts.Count;
+        return Pads[((n % Pads.Count) + Pads.Count) % Pads.Count];
+    }
+    public static Vector3 PadOff(int idx) => PadAt(idx).Off;
+    public static float RangeOf(int idx) => PadAt(idx).Range;
+    public void EnterCam(int idx) {
+        if (idx >= Mounts.Count) {
+            PadIdx = idx - Mounts.Count;
+            Cur = Kind.Pad;
+            return;
+        }
+        MountIdx = idx;
+        Cur = Kind.Mount;
+    }
     public float Yaw = 0.9f, Pitch = 0.14f, Dist = 300f;
     private Vector3 _freePos;
     private float _freeYaw, _freePitch;
@@ -51,9 +84,19 @@ public sealed class CamRig {
         float a = Mathf.DegToRad(m.Azim);
         return new Vector3(Mathf.Cos(a), 0, -Mathf.Sin(a)) * m.Radius + new Vector3(0, m.Y, 0);
     }
+    public static int Count => Mounts.Count;
+    private static Mount At(int idx) => Mounts[((idx % Mounts.Count) + Mounts.Count) % Mounts.Count];
+    public static Vector3 DirOf(int idx) {
+        Mount m = At(idx);
+        return (m.HasTarget ? (m.Target - PosOf(m)) : m.Dir).Normalized();
+    }
+    public static bool ShipCam(int idx) => At(idx).Ship;
+    public static float FovOf(int idx) => idx >= Mounts.Count ? PadAt(idx).Fov : At(idx).Fov;
+    public static string NameOf(int idx) => idx >= Mounts.Count ? PadAt(idx).Name : At(idx).Name;
     public string Name => Cur switch {
         Kind.Orbit => "Орбита",
         Kind.Free => "Свободная",
+        Kind.Pad => PadAt(Mounts.Count + PadIdx).Name,
         _ => Cursor.Name,
     };
     public void NextMount(bool shipFocused) {
@@ -96,7 +139,7 @@ public sealed class CamRig {
         float sp = (fast ? FastSpeed : Speed) * (float)dt;
         _freePos += Basis.FromEuler(new Vector3(_freePitch, _freeYaw, 0)) * axes.Normalized() * sp;
     }
-    public void Update(Node3D body, float halfLen, bool shipFocused) {
+    public void Update(Node3D body, float halfLen, bool shipFocused, Vector3 padPos) {
         if (Cur == Kind.Free) {
             _cam.Fov = 60f;
             _cam.Position = _freePos;
@@ -122,6 +165,18 @@ public sealed class CamRig {
             Vector3 origin = carrier == body ? Vector3.Zero : carrier.Position;
             _cam.Fov = m.Fov;
             _cam.GlobalTransform = carrier.GlobalTransform * new Transform3D(look, pos - origin);
+            return;
+        }
+        if (Cur == Kind.Pad) {
+            PadCam p = PadAt(Mounts.Count + PadIdx);
+            Vector3 pos = padPos + p.Off;
+            Vector3 aim = body.Position + body.Basis.Y * (halfLen * p.AimAt) + p.Aim;
+            float dist = pos.DistanceTo(aim);
+            _cam.Fov = p.Zoom
+                ? Mathf.Clamp(Mathf.RadToDeg(2f * Mathf.Atan(halfLen * 2.4f / Mathf.Max(1f, dist))), 5f, p.Fov)
+                : p.Fov;
+            _cam.Position = pos;
+            _cam.LookAt(aim, Vector3.Up);
             return;
         }
         _cam.Fov = 42f;

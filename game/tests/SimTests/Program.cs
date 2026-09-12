@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using Starship.Physics;
 namespace Starship.Tests;
-internal static class Program {
+internal static partial class Program {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
     private static int _ok, _fail, _todo;
     private static void Head(string s) {
@@ -44,6 +44,14 @@ internal static class Program {
         OrbitElements();
         MassBalance();
         BadNumbers();
+        UiNumbers();
+        UiThemes();
+        UiEngineLayout();
+        UiParams();
+        UiEngine();
+        UiParse();
+        UiAir();
+        UiAir2();
         Console.WriteLine();
         Console.WriteLine($"итог: пройдено {_ok}, провалов {_fail}, ждут заданий {_todo}");
         return _fail == 0 ? 0 : 1;

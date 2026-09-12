@@ -11,6 +11,7 @@
   <ItemGroup>
     <Compile Include="..\..\src\Sim\**\*.cs" />
     <Compile Include="..\..\src\Engines\**\*.cs" />
+    <Compile Include="..\..\src\UiLogic\**\*.cs" />
     <Compile Include="*.cs" />
   </ItemGroup>
 </Project>

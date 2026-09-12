@@ -5,9 +5,9 @@ using Starship.Physics;
 namespace Starship.Game;
 public partial class Main : Node {
     private static readonly string[] Flags = {
-        "--free", "--full", "--noshadow", "--noglow", "--shot", "--t", "--dbg", "--camcheck",
+        "--free", "--screen", "--theme", "--eng", "--noshadow", "--noglow", "--shot", "--t", "--dbg", "--camcheck",
         "--dist", "--deploy", "--pitch", "--yaw", "--cam", "--focus", "--tab",
-        "--mission", "--anom", "--seed", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
+        "--mission", "--anom", "--seed", "--cuts", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
     };
     private SimState _sim;
     private StackView _stack;
@@ -19,7 +19,10 @@ public partial class Main : Node {
     private BayView _bay;
     private Splash _splash;
     private EngineSound _soundB, _soundS;
-    private ConsoleFull _ui;
+    private Screens _scr;
+    private EngineerView _eng;
+    private OnAirView _air;
+    private BroadcastView _hud;
     private Node3D _world;
     private WorldRig _rigWorld;
     private SceneSync _scene;
@@ -27,6 +30,7 @@ public partial class Main : Node {
     private Shot _shot;
     private Perf _perf;
     private CamRig _rig;
+    private CamDirector _dir;
     private Mission _mission;
     private MissionView _missionView;
     private string _missionKey = "orbital";
@@ -43,9 +47,13 @@ public partial class Main : Node {
         Log.Sink = (m, lv) => GD.Print(m);
         _sim = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(_sim, 12345u);
-        _ui = ConsoleFull.Build(this);
+        Look.Load();
+        _scr = Screens.Build(this);
+        _eng = EngineerView.Build(_scr);
+        _air = OnAirView.Build(_scr);
+        _hud = BroadcastView.Build(_scr);
         _world = new Node3D { Name = "World" };
-        _ui.World.AddChild(_world);
+        _scr.World.AddChild(_world);
         _rigWorld = WorldRig.Build(_world);
         ModelLibrary lib = _lib = ModelLibrary.Load("res://assets/starship.glb",
                                                    "res://assets/starship_proc.glb");
@@ -64,13 +72,17 @@ public partial class Main : Node {
         _soundS = EngineSound.Attach(_stack.ShipRoot);
         _scene = new SceneSync(_stack, _tower, _pad, _smoke, _plasma, _sats, _bay, _soundB, _soundS, _splash);
         _rig = new CamRig(_rigWorld.Cam) { FlapFwd = _stack.FlapFwd, FlapAft = _stack.FlapAft };
-        _ctl = new Controls(this, _sim, _rig, _ui);
+        _dir = new CamDirector(_rig);
+        _ctl = new Controls(this, _sim, _rig, _scr, _eng);
+        _ctl.ManualCam = () => _dir.Manual = true;
+        _eng.Focus = ship => _ctl.SetFocus(ship);
         _shot = new Shot(this);
         _perf = new Perf(this);
-        _missionView = MissionView.Build(_ui, key => StartFlight(key, _anomOn, _seed),
+        _missionView = MissionView.Build(_eng.MissionCard, _eng.MissionCaption, _scr,
+            key => StartFlight(key, _anomOn, _seed),
             () => StartFlight(_missionKey, !_anomOn, _seed),
             key => { _script = key; StartFlight(_missionKey, key != null || _anomOn, _seed); });
-        _tape = FlightTape.Build(_ui);
+        _tape = FlightTape.Build(_scr);
         _ctl.Rec = _rec;
         _ctl.Replay = () => PlayBack(Starship.Game.Replay.Newest());
         _ctl.Saved = path => _sim.LogMsg(path != null
@@ -87,7 +99,7 @@ public partial class Main : Node {
         _ctl.StepOne = () => { _ctl.Play?.Apply(_sim, _ctl); Physics.Sim.Tick(_sim, Const.DT); };
         _ctl.ToggleSmoke = () => _smoke.Off = !_smoke.Off;
         _ctl.ToggleFlat = () => { _flat = !_flat; if (_flat) _rigWorld.FlatLight(); else _rigWorld.NormalLight(); };
-        foreach (string name in _ui.MouseGrabs()) GD.Print("UI_MOUSE_GRAB " + name);
+        foreach (string name in _scr.MouseGrabs()) GD.Print("UI_MOUSE_GRAB " + name);
         Apply(CliArgs.Parse(OS.GetCmdlineUserArgs()));
     }
     private static string NextKey(string key) {
@@ -114,7 +126,8 @@ public partial class Main : Node {
         Physics.Sim.Reset(_sim, seed);
         _mission = Mission.Start(key, anom, _script);
         _missionView.Reset(_mission);
-        _ui.ClearTele();
+        _eng.ClearTele();
+        _hud.Reset(key);
         _splash.Reset();
         _ctl.Paused = false;
         _sim.LogMsg($"Задание: {Mission.NameOf(key)}" + (anom ? " · отказы включены" : ""), 1);
@@ -126,29 +139,36 @@ public partial class Main : Node {
         if (System.Array.IndexOf(Mission.Keys, key) < 0) key = _missionKey;
         StartFlight(key, a.Has("--anom"), (uint)a.Int("--seed", (int)_seed));
         if (a.Has("--camcheck")) { GetTree().Quit(CamCheck.Run(_lib) == 0 ? 0 : 1); return; }
-        if (a.Has("--full")) _ui.ToggleFull();
+        if (a.Has("--theme")) Look.SetTheme(Themes.Parse(a.Str("--theme"), Look.Current), false);
         if (a.Has("--noshadow")) _rigWorld.NoShadow();
         if (a.Has("--noglow")) _tileGlow = false;
         if (a.Has("--nosmoke")) _smoke.Off = true;
         if (a.Has("--flat")) _rigWorld.FlatLight();
         if (a.Has("--recs")) _missionView.ToggleRecords(_missionKey);
-        if (a.Has("--debugcam")) _rig.Cur = CamRig.Kind.Free;
+        if (a.Has("--cuts")) _dir.Log = true;
+        if (a.Has("--debugcam")) { _rig.Cur = CamRig.Kind.Free; _scr.Show(2); _dir.Locked = true; }
         if (a.Has("--dbg")) _rigWorld.SetDbg(a.Int("--dbg", 0));
-        if (a.Has("--tab")) _ui.SetTab(a.Int("--tab", 0));
-        if (a.Has("--pgrp")) _ui.SelectGroup(a.Int("--pgrp", 0));
+        if (a.Has("--tab")) {
+            int tab = a.Int("--tab", 0);
+            _eng.SetPlot(tab == 2 ? 1 : tab == 3 ? 2 : 0);
+            if (tab > 0) _scr.Show(3);
+        }
+        if (a.Has("--pgrp")) _eng.SelectGroup(a.Int("--pgrp", 0));
         if (a.Has("--pset"))
             foreach (string one in a.Str("--pset").Split(';')) {
                 string[] kv = one.Split('=');
-                if (kv.Length == 2) _ui.SetParam(_sim.FocusVeh(), kv[0], kv[1]);
+                if (kv.Length == 2) _eng.SetParam(_sim.FocusVeh(), kv[0], kv[1]);
             }
         _rig.Yaw = a.Flt("--yaw", 0.9f);
         _rig.Pitch = a.Flt("--pitch", 0.14f);
         _rig.Dist = a.Flt("--dist", 300f);
         if (a.Has("--cam")) {
-            _rig.MountIdx = a.Int("--cam", 0);
-            _rig.Cur = CamRig.Kind.Mount;
+            _rig.EnterCam(a.Int("--cam", 0));
+            _dir.Locked = true;
+            _scr.Show(2);
+            _dir.Manual = true;
         }
-        if (a.Has("--free")) _freeArg = true;
+        if (a.Has("--free")) { _freeArg = true; _scr.Show(2); _dir.Locked = true; }
         if (a.Num("--t", out double toT)) FastForward(toT);
         if (a.Has("--tape")) {
             _tape.Visible = true;
@@ -156,11 +176,13 @@ public partial class Main : Node {
             _missionView.HideFinal();
         }
         if (a.Has("--focus")) _sim.Focus = a.Str("--focus") == "b" ? "stack" : "ship";
+        if (a.Has("--eng")) _eng.SelectEngine(_sim.FocusVeh(), a.Int("--eng", 0));
         if (a.Has("--deploy")) {
             Vehicle sh = _sim.Veh[1];
             if (sh.BayS != null) { sh.BayS.Want = 1; sh.BayS.Open = 1; }
             Physics.Sim.DeploySat(_sim, sh, a.Int("--deploy", 1));
         }
+        if (a.Has("--screen")) _scr.Show(a.Int("--screen", 1));
         if (a.Has("--shot")) _shot.Arm(a.Str("--shot"), a.Int("--shotat", 200));
         _perf.Cold = a.Has("--cold");
         _perf.KeepVsync = a.Has("--vsync");
@@ -184,7 +206,7 @@ public partial class Main : Node {
             _ctl.Play?.Apply(_sim, _ctl);
             Physics.Sim.Tick(_sim, Const.DT);
             if (guard % 50 != 0) continue;
-            _ui.PushTele(_sim);
+            _eng.PushTele(_sim);
             _mission.Track(_sim);
         }
     }
@@ -207,14 +229,13 @@ public partial class Main : Node {
         _ctl.StepPhysics(delta);
         _perf.Add(Perf.Part.Physics);
         Origin org = _scene.Frame(_sim, delta, _tileGlow);
-        UpdateCamera();
+        UpdateCamera(org);
         _rigWorld.Update(_sim, org);
         _shot.Track(_frame, _stack.ShipRoot.GlobalPosition - _rigWorld.Cam.GlobalPosition);
         _perf.Add(Perf.Part.Scene);
-        _ui.CamName = _rig.Name;
-        _ui.Speed = _ctl.Speed;
-        _ui.Paused = _ctl.Paused;
-        _ui.Update(_sim, _sim.Veh[0], _sim.Veh[1]);
+        _eng.Update(_sim, _ctl.Speed, _ctl.Paused);
+        _air.Update(_sim);
+        _hud.Update(_sim, _mission, _rig.Name, _ctl.Speed, _ctl.Paused);
         _perf.Add(Perf.Part.Ui);
         _mission.Track(_sim);
         _missionView.Update(_mission, _anomOn);
@@ -230,13 +251,15 @@ public partial class Main : Node {
         _shot.Maybe(_frame, _sim, _rigWorld.Cam, _stack, _bay, _tower);
         _perf.Step(delta);
     }
-    private void UpdateCamera() {
+    private void UpdateCamera(Origin org) {
+        var padPos = new Vector3(-(float)org.X, -(float)org.Y, 0);
+        _dir.Step(_sim, _stack, _ctl.Paused ? 0 : 1.0 / 60, padPos);
         Vehicle s = _sim.Veh[1];
         Vehicle v = _sim.FocusVeh();
         float top = s.Attached ? 123f : (v.Kind == Kind.Booster ? 71f : 52f);
         bool onShip = v == s && !s.Attached;
         Node3D body = onShip ? _stack.ShipRoot : _stack.BoosterRoot;
-        _rig.Update(body, top * 0.5f, onShip);
+        _rig.Update(body, top * 0.5f, onShip, padPos);
         if (_freeArg && _frame > 2) { _freeArg = false; _rig.EnterFree(); }
     }
     public override void _UnhandledInput(InputEvent e) => _ctl.Event(e);
