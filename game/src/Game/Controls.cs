@@ -64,6 +64,7 @@ public sealed class Controls {
     public void Event(InputEvent e) {
         bool free = _rig.Cur == CamRig.Kind.Free;
         if (e is InputEventMouseButton mb) {
+            if (mb.Pressed) _host.GetViewport().GuiReleaseFocus();
             if (mb.ButtonIndex == MouseButton.Left) _drag = mb.Pressed;
             if (mb.ButtonIndex == MouseButton.WheelUp) _rig.Zoom(0.9f);
             if (mb.ButtonIndex == MouseButton.WheelDown) _rig.Zoom(1.11f);

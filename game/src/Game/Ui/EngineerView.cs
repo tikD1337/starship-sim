@@ -27,6 +27,8 @@ public sealed class EngineerView {
     private LogEntry _top;
     private EngineMap _map, _mini;
     private EngineDetail _detail;
+    private ParamPanel _params;
+    private TankPanel _tanks;
     private Label _thrF, _thrN, _thrS, _other;
     private readonly int[] _sel = { 0, 0 };
     private int _stage, _pin = -1;
@@ -84,6 +86,14 @@ public sealed class EngineerView {
         _stageSeg = Seg.Make(h, new[] { "Super Heavy", "Starship" });
         _stageSeg.Picked += PickStage;
         h.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, MouseFilter = Control.MouseFilterEnum.Ignore });
+        var th = new PanelContainer { SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        Look.Bind(th, x => x.AddThemeStyleboxOverride("panel", Look.Box(Look.Panel, 999, 14, 2)));
+        h.AddChild(th);
+        var dots = new HBoxContainer();
+        dots.AddThemeConstantOverride("separation", 4);
+        th.AddChild(dots);
+        Look.Caption(dots, "тема", 14, 400, () => Look.Ink2).VerticalAlignment = VerticalAlignment.Center;
+        for (int i = 0; i < Themes.All.Length; i++) ThemeDot.Make(dots, i);
         _speed = Widgets.Tag(h, "скорость ×1");
         _anom = Widgets.Tag(h, "отказы выключены");
         _seed = Widgets.Tag(h, "зерно");
@@ -157,7 +167,8 @@ public sealed class EngineerView {
         _other = Look.Caption(other, "", 14, 400, () => Look.Lab);
         _other.VerticalAlignment = VerticalAlignment.Center;
         _detail = EngineDetail.Build(row);
-        Widgets.Section(col, "Параметры").Box.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        _params = ParamPanel.Build(col);
+        _params.Picked += i => Group = i;
     }
     private static Label Pair(Control parent, string name) {
         var h = new HBoxContainer();
@@ -169,7 +180,7 @@ public sealed class EngineerView {
         return v;
     }
     private void BuildRight(VBoxContainer col) {
-        Widgets.Section(col, "Баки и наддув");
+        _tanks = TankPanel.Build(col);
         (PanelContainer pb, VBoxContainer p, _) = Widgets.Section(col, null);
         pb.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         _plotSeg = Seg.Make(p, new[] { "Телеметрия F3", "Развёртка F4", "Коридор входа F5" });
@@ -224,16 +235,13 @@ public sealed class EngineerView {
         _sel[v.Kind == Kind.Ship ? 1 : 0] = Math.Clamp(n, 0, Math.Max(0, v.Eng.Count - 1));
     public void SetParam(Vehicle v, string key, string text) {
         ParamRow r = ParamDefs.Row(key);
-        if (r == null || v == null || !TryNum(text, out double x)) return;
+        if (r == null || v == null || !NumFmt.TryParse(text, out double x)) return;
         x = Math.Clamp(x, r.Lo, r.Hi);
         if (r.Scope == Scope.Vehicle) r.SetVeh?.Invoke(v, x);
         else if (r.Scope == Scope.Engine)
             foreach (PEngine e in v.Eng) r.Set?.Invoke(e.P, x);
         _sim?.LogMsg($"Параметр «{r.Label}» → {NumFmt.F(x, r.Digits)}", 1);
     }
-    private static bool TryNum(string s, out double x) =>
-        double.TryParse(s.Replace(NumFmt.Thin.ToString(), "").Replace(" ", "").Replace(NumFmt.Minus, '-')
-                         .Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out x);
     private PEngine Pick(Vehicle v) => v.Eng.Count == 0 ? null : v.Eng[Math.Clamp(_sel[_stage], 0, v.Eng.Count - 1)];
     private void PickStage(int i) {
         if (_sim == null) return;
@@ -252,6 +260,8 @@ public sealed class EngineerView {
         Head(sim, v, speed, paused);
         Flight(sim, v);
         Engines(sim, now);
+        _params.Update(sim, sim.Veh[_stage], Pick(sim.Veh[_stage]), Group);
+        _tanks.Update(sim, _stage);
         Legend();
         Journal(sim);
     }

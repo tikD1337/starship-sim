@@ -136,4 +136,13 @@ internal static partial class Program {
         e.Failed = true;
         True("отказ виден сразу", EngineState.Of(e) == EngLook.Failed);
     }
+    private static void UiParse() {
+        Head("Интерфейс: разбор введённого числа");
+        True("узкий пробел и запятая", NumFmt.TryParse("32" + NumFmt.Thin + "394,5", out double a) && a == 32394.5, N(a));
+        True("обычный пробел", NumFmt.TryParse("1 000", out double b) && b == 1000, N(b));
+        True("минус из пульта", NumFmt.TryParse(NumFmt.Minus + "0,25", out double c) && c == -0.25, N(c));
+        True("точка тоже годится", NumFmt.TryParse("2.5", out double d) && d == 2.5, N(d));
+        True("мусор и пустое не проходят", !NumFmt.TryParse("abc", out _) && !NumFmt.TryParse("", out _)
+                                           && !NumFmt.TryParse(null, out _));
+    }
 }

@@ -35,4 +35,11 @@ public static class NumFmt {
         unit = "км";
         return F(m / 1000, a < 100e3 ? 1 : 0);
     }
+    public static bool TryParse(string s, out double x) {
+        x = 0;
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        string t = s.Replace(Thin, ' ').Replace('\u00A0', ' ').Replace(" ", "")
+                    .Replace(Minus, '-').Replace(',', '.');
+        return double.TryParse(t, NumberStyles.Float, Inv, out x);
+    }
 }

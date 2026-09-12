@@ -53,6 +53,8 @@ public static class Widgets {
         parent?.AddChild(b);
         return b;
     }
+    public static string StageName(Starship.Physics.Vehicle v) =>
+        v.Kind == Starship.Physics.Kind.Booster ? "Super Heavy" : "Starship";
     public static Label Tag(Control parent, string text, string key = null) {
         var p = new PanelContainer {
             MouseFilter = Control.MouseFilterEnum.Ignore, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
