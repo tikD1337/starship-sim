@@ -1,11 +1,13 @@
 namespace Starship.Game.Ui;
 public static class CamPlan {
     public static int[] For(string mode) => mode switch {
-        "ascent" => new[] { 6, 4, -1 },
+        "idle" => new[] { 7, 11, 9 },
+        "ascent" => new[] { 8, 11, 7, 6, 4 },
         "meco" => new[] { 2, 4 },
         "flip" or "boostback" => new[] { 4, 3 },
         "coastB" => new[] { 3, 5 },
-        "landB" => new[] { 4, 5 },
+        "landB" => new[] { 4, 5, 10, 7 },
+        "caught" or "landed" => new[] { 10, 7, 8 },
         "ascent2" or "coastS" or "circ" or "orbit" => new[] { 0, 2 },
         "deorbit" or "coastD" => new[] { 0, 1 },
         "entryS" => new[] { 1, 2 },

@@ -146,7 +146,7 @@ public partial class Main : Node {
         if (a.Has("--flat")) _rigWorld.FlatLight();
         if (a.Has("--recs")) _missionView.ToggleRecords(_missionKey);
         if (a.Has("--cuts")) _dir.Log = true;
-        if (a.Has("--debugcam")) { _rig.Cur = CamRig.Kind.Free; _scr.Show(2); _dir.Manual = true; }
+        if (a.Has("--debugcam")) { _rig.Cur = CamRig.Kind.Free; _scr.Show(2); _dir.Locked = true; }
         if (a.Has("--dbg")) _rigWorld.SetDbg(a.Int("--dbg", 0));
         if (a.Has("--tab")) {
             int tab = a.Int("--tab", 0);
@@ -163,12 +163,12 @@ public partial class Main : Node {
         _rig.Pitch = a.Flt("--pitch", 0.14f);
         _rig.Dist = a.Flt("--dist", 300f);
         if (a.Has("--cam")) {
-            _rig.MountIdx = a.Int("--cam", 0);
-            _rig.Cur = CamRig.Kind.Mount;
+            _rig.EnterCam(a.Int("--cam", 0));
+            _dir.Locked = true;
             _scr.Show(2);
             _dir.Manual = true;
         }
-        if (a.Has("--free")) { _freeArg = true; _scr.Show(2); _dir.Manual = true; }
+        if (a.Has("--free")) { _freeArg = true; _scr.Show(2); _dir.Locked = true; }
         if (a.Num("--t", out double toT)) FastForward(toT);
         if (a.Has("--tape")) {
             _tape.Visible = true;
@@ -229,7 +229,7 @@ public partial class Main : Node {
         _ctl.StepPhysics(delta);
         _perf.Add(Perf.Part.Physics);
         Origin org = _scene.Frame(_sim, delta, _tileGlow);
-        UpdateCamera();
+        UpdateCamera(org);
         _rigWorld.Update(_sim, org);
         _shot.Track(_frame, _stack.ShipRoot.GlobalPosition - _rigWorld.Cam.GlobalPosition);
         _perf.Add(Perf.Part.Scene);
@@ -251,14 +251,15 @@ public partial class Main : Node {
         _shot.Maybe(_frame, _sim, _rigWorld.Cam, _stack, _bay, _tower);
         _perf.Step(delta);
     }
-    private void UpdateCamera() {
-        _dir.Step(_sim, _stack, _ctl.Paused ? 0 : 1.0 / 60);
+    private void UpdateCamera(Origin org) {
+        var padPos = new Vector3(-(float)org.X, -(float)org.Y, 0);
+        _dir.Step(_sim, _stack, _ctl.Paused ? 0 : 1.0 / 60, padPos);
         Vehicle s = _sim.Veh[1];
         Vehicle v = _sim.FocusVeh();
         float top = s.Attached ? 123f : (v.Kind == Kind.Booster ? 71f : 52f);
         bool onShip = v == s && !s.Attached;
         Node3D body = onShip ? _stack.ShipRoot : _stack.BoosterRoot;
-        _rig.Update(body, top * 0.5f, onShip);
+        _rig.Update(body, top * 0.5f, onShip, padPos);
         if (_freeArg && _frame > 2) { _freeArg = false; _rig.EnterFree(); }
     }
     public override void _UnhandledInput(InputEvent e) => _ctl.Event(e);

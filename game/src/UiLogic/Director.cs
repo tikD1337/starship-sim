@@ -15,8 +15,9 @@ public static class Director {
         if (shots == null || shots.Length == 0) return cur;
         int best = shots[0].Cam, second = int.MinValue;
         double bs = double.MinValue, ss = double.MinValue, curScore = double.MinValue;
-        foreach (Shot s in shots) {
-            double v = Score(s);
+        for (int i = 0; i < shots.Length; i++) {
+            Shot s = shots[i];
+            double v = Score(s) + 0.12 * (1 - (double)i / Math.Max(1, shots.Length - 1));
             if (s.Cam == cur) curScore = v;
             if (v > bs) {
                 second = best;

@@ -215,7 +215,9 @@ internal static partial class Program {
              string.Join(",", CamPlan.For("ascent")));
         True("на разделении — петля заднего закрылка", Array.IndexOf(CamPlan.For("meco"), 2) >= 0);
         True("у корабля на входе первая — петля переднего закрылка", CamPlan.For("entryS")[0] == 1);
-        True("на захвате ускорителя — внешняя камера", CamPlan.For("caught")[0] == -1);
+        True("на захвате ускорителя — камера с ловильных рук", CamPlan.For("caught")[0] == 10);
+        True("на старте — стол, при отрыве — башня сверху",
+             Array.IndexOf(CamPlan.For("idle"), 7) >= 0 && CamPlan.For("ascent")[0] == 8);
         True("при посадочной жиге ведём ускоритель", !CamPlan.Ship("landB", "orbit"));
         True("пока корабль разгоняется, ведём его", CamPlan.Ship("coastB", "ascent2"));
         var dull = new Director.Shot(3, 0.1, 0, 0, 90, 0.9, false, 0, 0);
@@ -234,5 +236,7 @@ internal static partial class Program {
         True("если выбора нет — остаёмся", Director.Pick(new[] { nice }, 4, 16, true) == 4);
         True("без заметного перевеса остаёмся",
              Director.Pick(new[] { dull, dull with { Cam = 4, Earth = 0.13 } }, 3, 8, false) == 3);
+        True("при равных кадрах берём первую камеру набора",
+             Director.Pick(new[] { dull with { Cam = 5 }, dull with { Cam = 6 } }, int.MinValue, 0, true) == 5);
     }
 }
