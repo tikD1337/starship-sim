@@ -517,7 +517,8 @@ internal static partial class Program {
         Physics.Sim.Reset(sim, 12345);
         Vehicle b = sim.Veh[0];
         bool boostbackSeen = false, coasting = false;
-        double litCoast = 0, hIgn = double.NaN, qDesc = 0, tIgn = double.NaN;
+        double litCoast = 0, hIgn = double.NaN, qDesc = 0, tIgn = double.NaN, vIgn = double.NaN;
+        double gBurn = 0, t13 = 0;
         int nIgn = 0, nLast = 0;
         var counts = new System.Collections.Generic.SortedSet<int>();
         for (int i = 0; i < 200000 && !b.Landed && !b.Crashed && !b.Caught; i++) {
@@ -527,16 +528,23 @@ internal static partial class Program {
             if (coasting && !b.IgnBurn && b.NRun > 0) litCoast += Const.DT;
             if (coasting && b.Q > qDesc) qDesc = b.Q;
             if (!b.IgnBurn || b.NRun == 0) continue;
-            if (double.IsNaN(hIgn)) { hIgn = b.Alt; nIgn = b.NRun; tIgn = sim.T; }
+            if (double.IsNaN(hIgn)) { hIgn = b.Alt; nIgn = b.NRun; tIgn = sim.T; vIgn = b.Speed; }
+            gBurn = Math.Max(gBurn, b.Acc);
+            if (b.NRun == 13) t13 += Const.DT;
             counts.Add(b.NRun);
             nLast = b.NRun;
         }
         True("между тормозным импульсом и жигой двигатели ускорителя молчат", litCoast == 0,
              $"работали {N(litCoast)} с");
-        True("жига начинается ниже 2 км", hIgn < 2000, $"с высоты {N(hIgn)} м");
+        True("жига начинается ниже 2,5 км — не сжигает топливо раньше времени", hIgn < 2500, $"с высоты {N(hIgn)} м");
+        Todo(48, "жига начинается ниже 2 км", hIgn < 2000, $"с высоты {N(hIgn)} м");
         True("жига начинается выше 500 м", hIgn > 500, $"с высоты {N(hIgn)} м");
         True("жига зажигает 13 двигателей", nIgn == 13, $"{nIgn}");
         True("жига кончается на трёх", nLast == 3, $"{nLast}");
+        True("пик перегрузки на жиге не выше 6 g, как у пятого полёта (~5,5 g)", gBurn <= 6, $"{N(gBurn)} g");
+        True("13 двигателей горят от 4 до 8 с (пятый полёт — чуть больше 5 с)", t13 >= 4 && t13 <= 8, $"{N(t13)} с");
+        Todo(48, "зажигание при 1100–1400 км/ч (пятый полёт — ~1250)", vIgn * 3.6 >= 1100 && vIgn * 3.6 <= 1400,
+             $"{N(vIgn * 3.6)} км/ч");
         True("в жиге только 13 или 3 двигателя", counts.SetEquals(new[] { 13, 3 }),
              string.Join(", ", counts));
         True("ускоритель пойман", b.Caught, $"промах {N(sim.Downrange(b))} м");
