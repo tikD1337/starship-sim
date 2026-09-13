@@ -132,7 +132,7 @@ public partial class OnAirView : Control {
         ParamRow tb = ParamDefs.Row("_tb"), vb = ParamDefs.Row("_vb");
         double tbx = tb.FromEngine(e), vbx = vb.FromEngine(e);
         float baseline = mid + 8 * k, x = 52 * k;
-        x += Text("Пульт по Tab:", x, baseline, 22 * k, 400, OnAir.StripDim) + 60 * k;
+        x += Text("У предела:", x, baseline, 22 * k, 400, OnAir.StripDim) + 60 * k;
         x = Pair(x, baseline, k, "Обороты вала", NumFmt.F(e.Pf.Rpm, 0), false);
         x = Pair(x, baseline, k, "Подшипники", NumFmt.F(tbx, 0) + " K", ParamDefs.ZoneOf(tb, tbx).Length > 0);
         Pair(x, baseline, k, "Вибрация", NumFmt.F(vbx, 2) + " g", ParamDefs.ZoneOf(vb, vbx).Length > 0);

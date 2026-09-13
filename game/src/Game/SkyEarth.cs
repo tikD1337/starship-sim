@@ -133,6 +133,15 @@ vec3 stars(vec3 d) {
     vec3 tint = mix(vec3(0.72, 0.80, 1.0), vec3(1.0, 0.86, 0.68), hash13(ci + 9.3));
     return tint * pt * br * 1.4;
 }
+float erfcx(float z) {
+    float t = 1.0 / (1.0 + 0.3275911 * z);
+    return t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+}
+float shell(float gh, float t0, float hs) {
+    float z = -t0 / sqrt(2.0 * RE_M * hs);
+    if (z >= 0.0) return 0.5 * exp(-max(alt_m, 0.0) / hs) * erfcx(z);
+    return 0.5 * exp(-max(gh, 0.0) / hs) * (2.0 - exp(-z * z) * erfcx(-z));
+}
 vec3 space(vec3 d, vec3 L, float b, float cc) {
     vec3 col = stars(d) * star_gain;
 
@@ -140,16 +149,15 @@ vec3 space(vec3 d, vec3 L, float b, float cc) {
     col += vec3(1.0, 0.98, 0.94) * smoothstep(0.999984, 0.999993, sd) * 9.0;
     col += vec3(1.0, 0.94, 0.82) * pow(max(sd, 0.0), 3400.0) * 0.9;
 
-    if (b > 0.0) {
-        float per = sqrt(max(cc - b * b, 0.0));
-        float gh = (per - 1.0) * RE_M;
-        vec3 q = normalize(d * b - L);
-        float lit = smoothstep(-0.28, 0.14, dot(q, sun_dir));
-        float thin = exp(-max(gh, 0.0) / 13000.0);
-        float dense = exp(-max(gh, 0.0) / 4200.0);
-        vec3 rc = mix(vec3(0.22, 0.50, 1.0), vec3(0.62, 0.82, 1.0), dense);
-        col += rc * thin * lit * 1.35;
-    }
+    float per = sqrt(max(cc - b * b, 0.0));
+    float gh = (per - 1.0) * RE_M;
+    float t0 = b * RE_M;
+    vec3 q = normalize(d * max(b, 0.0) - L);
+    float lit = smoothstep(-0.28, 0.14, dot(q, sun_dir));
+    float thin = shell(gh, t0, 13000.0);
+    float dense = shell(gh, t0, 4200.0);
+    vec3 rc = mix(vec3(0.22, 0.50, 1.0), vec3(0.62, 0.82, 1.0), dense);
+    col += rc * thin * lit * 1.35 * smoothstep(3000.0, 20000.0, alt_m);
     return col;
 }
 vec3 air(vec3 col, vec3 d, float path_m, float hit) {

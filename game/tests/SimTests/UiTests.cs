@@ -239,4 +239,33 @@ internal static partial class Program {
         True("при равных кадрах берём первую камеру набора",
              Director.Pick(new[] { dull with { Cam = 5 }, dull with { Cam = 6 } }, int.MinValue, 0, true) == 5);
     }
+    private static void UiReplay() {
+        Head("Запись прогона: разбор чужого файла");
+        string[] keys = { "orbital", "trans", "high" };
+        ReplayText.Data ok = ReplayText.Parse(new[] {
+            "mission high", "seed 777", "anom 1", "script engine-out",
+            "12.50 pitch 1", "13.00 sep 1" }, keys);
+        True("нормальная запись читается целиком",
+             ok.Mission == "high" && ok.Seed == 777 && ok.Anom && ok.Script == "engine-out" && ok.Ev.Count == 2
+             && ok.Ev[1].T == 13 && ok.Ev[1].K == "sep",
+             $"{ok.Mission}, зерно {ok.Seed}, событий {ok.Ev.Count}");
+        ReplayText.Data far = ReplayText.Parse(new[] { "mission ../../../../Users/Public/x" }, keys);
+        Same("название задания не из списка заменяется на орбитальное", far.Mission, "orbital");
+        bool threw = false;
+        ReplayText.Data bad = default;
+        try { bad = ReplayText.Parse(new[] { "seed abc", "seed 99999999999", "seed -1" }, keys); }
+        catch (Exception) { threw = true; }
+        True("битое зерно не роняет разбор и оставляет исходное", !threw && bad.Seed == 12345u,
+             threw ? "исключение" : $"зерно {bad.Seed}");
+        ReplayText.Data nan = ReplayText.Parse(new[] {
+            "NaN pitch 1", "1.00 thr Infinity", "2.00 bank 1e999", "3.00 thr -1e999", "4.00 pitch 0.5" }, keys);
+        True("события с NaN и бесконечностью отбрасываются", nan.Ev.Count == 1 && nan.Ev[0].A == 0.5,
+             $"осталось {nan.Ev.Count}");
+    }
+    private static void UiTabs() {
+        Head("Интерфейс: Tab ходит по всем трём экранам");
+        True("со сводки в эфир", Tabs.Next(1) == 2, $"{Tabs.Next(1)}");
+        True("из эфира на пульт", Tabs.Next(2) == 3, $"{Tabs.Next(2)}");
+        True("с пульта на сводку", Tabs.Next(3) == 1, $"{Tabs.Next(3)}");
+    }
 }

@@ -40,6 +40,7 @@ internal static partial class Program {
         WindProfile();
         CatchInWind();
         BoosterReturn();
+        BoosterSwing();
         FlightMarks();
         OrbitElements();
         MassBalance();
@@ -52,6 +53,8 @@ internal static partial class Program {
         UiParse();
         UiAir();
         UiAir2();
+        UiTabs();
+        UiReplay();
         Console.WriteLine();
         Console.WriteLine($"итог: пройдено {_ok}, провалов {_fail}, ждут заданий {_todo}");
         return _fail == 0 ? 0 : 1;
@@ -539,6 +542,43 @@ internal static partial class Program {
         True("напор на спуске ниже предела конструкции", qDesc < 200e3, $"{N(qDesc / 1000)} кПа");
         double burn = b.Caught ? sim.T - tIgn : double.NaN;
         True("от зажигания жиги до захвата не больше 30 с", burn <= 30, $"{N(burn)} с");
+    }
+    private static void BoosterSwing() {
+        Head("Ускоритель на последних 300 м не раскачивается у башни");
+        foreach ((string mission, Wind wind, string name) in new (string, Wind, string)[] {
+                     ("orbital", null, "орбитальное"), ("orbital", Wind.Calm(), "штиль"),
+                     ("orbital", Wind.Steady(8), "ветер 8 м/с"), ("orbital", Wind.Steady(-8), "ветер −8 м/с"),
+                     ("high", null, "высокая орбита"), ("trans", null, "трансатмосферное") }) {
+            (bool caught, double dr0, double drMax, int flips, int turns) = Swing(mission, wind);
+            True($"{name}: пойман", caught);
+            True($"{name}: промах меняет направление не больше одного раза", turns <= 1,
+                 $"разворотов {turns}, на входе {N(dr0)} м, наибольший {N(drMax)} м");
+            True($"{name}: корпус не перекладывается через вертикаль больше раза", flips <= 1,
+                 $"перекладок {flips}");
+        }
+    }
+    private static (bool, double, double, int, int) Swing(string mission, Wind wind) {
+        var sim = new SimState { Mission = mission, AnomOn = false };
+        Physics.Sim.Reset(sim, 12345);
+        if (wind != null) sim.Wind = wind;
+        Vehicle b = sim.Veh[0];
+        double dr0 = double.NaN, drMax = 0;
+        int flips = 0, side = 0, turns = 0, trend = 0;
+        double ext = double.NaN;
+        for (int i = 0; i < 200000 && !b.Landed && !b.Crashed && !b.Caught; i++) {
+            Physics.Sim.Tick(sim, Const.DT);
+            if (b.Mode != "landB" || b.Alt - Const.CATCH_H > Const.LAND_DHPD) continue;
+            double x = sim.Downrange(b), dr = Math.Abs(x), th = Vehicle.AngDiff(b.Th, 0) * Const.R2D;
+            if (double.IsNaN(dr0)) { dr0 = dr; ext = x; }
+            drMax = Math.Max(drMax, dr);
+            if (trend >= 0 && x < ext - 0.5) { if (trend > 0) turns++; trend = -1; }
+            else if (trend <= 0 && x > ext + 0.5) { if (trend < 0) turns++; trend = 1; }
+            if (trend > 0) ext = Math.Max(ext, x); else if (trend < 0) ext = Math.Min(ext, x);
+            int now = th > 1 ? 1 : th < -1 ? -1 : 0;
+            if (now != 0 && side != 0 && now != side) flips++;
+            if (now != 0) side = now;
+        }
+        return (b.Caught, dr0, drMax, flips, turns);
     }
     private static double AscentAoA(Wind wind) {
         var sim = new SimState { Mission = "orbital", AnomOn = false };

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Godot;
+using Starship.Game.Ui;
 using Starship.Physics;
 namespace Starship.Game;
 public sealed class Replay {
@@ -38,22 +39,9 @@ public sealed class Replay {
     public static Replay Load(string path) {
         using FileAccess f = FileAccess.Open(path, FileAccess.ModeFlags.Read);
         if (f == null) return null;
-        var r = new Replay();
-        while (!f.EofReached()) {
-            string[] p = f.GetLine().Split(' ');
-            if (p.Length < 2) continue;
-            switch (p[0]) {
-                case "mission": r.Mission = p[1]; break;
-                case "seed": r.Seed = uint.Parse(p[1], Inv); break;
-                case "anom": r.Anom = p[1] == "1"; break;
-                case "script": r.Script = p[1] == "-" ? null : p[1]; break;
-                default:
-                    if (p.Length >= 3 && double.TryParse(p[0], NumberStyles.Float, Inv, out double t)
-                        && double.TryParse(p[2], NumberStyles.Float, Inv, out double a))
-                        r.Ev.Add((t, p[1], a));
-                    break;
-            }
-        }
+        ReplayText.Data d = ReplayText.Parse(f.GetAsText().Split('\n'), Game.Mission.Keys);
+        var r = new Replay { Mission = d.Mission, Seed = d.Seed, Anom = d.Anom, Script = d.Script };
+        r.Ev.AddRange(d.Ev);
         return r;
     }
     public static string Newest() {

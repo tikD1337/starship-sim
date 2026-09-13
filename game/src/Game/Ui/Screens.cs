@@ -4,8 +4,8 @@ namespace Starship.Game.Ui;
 public sealed class Screens {
     private static readonly (string Head, (string Key, string Text)[] Rows)[] HelpLeft = {
         ("Экраны", new[] {
-            ("1", "эфир"), ("2", "борт, ещё раз — следующая камера"), ("3", "свободная камера: WASD, Q и E, Shift"),
-            ("Tab", "пульт и обратно"), ("V", "другая ступень"), ("мышь", "поворот камеры, колесо — приближение"),
+            ("1", "сводка"), ("2", "эфир, ещё раз — следующая камера"), ("3", "свободная камера: WASD, Q и E, Shift"),
+            ("Tab", "следующий экран: сводка, эфир, пульт"), ("V", "другая ступень"), ("мышь", "поворот камеры, колесо — приближение"),
         }),
         ("Пульт", new[] { ("F3 F4 F5", "телеметрия, развёртка, коридор входа"), ("F1", "эта карточка") }),
         ("Время", new[] { ("пробел", "пауза"), ("[  ]", "медленнее и быстрее вдвое"), ("Esc", "выход") }),
@@ -27,7 +27,6 @@ public sealed class Screens {
     public Control EngineerRoot => _eng;
     public Control AirRoot => _air;
     public Control HudRoot => _hud;
-    private int _back = 1;
     private SubViewportContainer _view;
     private Control _eng, _air, _hud, _over;
     private PanelContainer _keys;
@@ -93,7 +92,6 @@ public sealed class Screens {
     }
     public void Show(int n) {
         n = Mathf.Clamp(n, 1, 3);
-        if (n == 3 && Cur != 3) _back = Cur;
         Cur = n;
         _eng.Visible = n == 3;
         _air.Visible = n == 1;
@@ -101,7 +99,7 @@ public sealed class Screens {
         _view.Visible = n == 2;
         World.RenderTargetUpdateMode = n == 2 ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
     }
-    public void ToggleEngineer() => Show(Cur == 3 ? _back : 3);
+    public void NextScreen() => Show(Tabs.Next(Cur));
     public void ToggleKeys() => _keys.Visible = !_keys.Visible;
     public PanelContainer AddOverlay() {
         var p = new PanelContainer { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -124,7 +122,7 @@ public sealed class Screens {
     public List<string> MouseGrabs() {
         var bad = new List<string>();
         if (_eng.Visible && Cur != 3) bad.Add("пульт виден поверх 3D-вида");
-        if (_air.Visible && Cur != 1) bad.Add("эфир виден поверх 3D-вида");
+        if (_air.Visible && Cur != 1) bad.Add("сводка видна поверх 3D-вида");
         if (_hud.Visible && Cur != 2) bad.Add("худ борта виден не на своём экране");
         Walk(_over, bad);
         return bad;
