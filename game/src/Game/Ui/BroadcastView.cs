@@ -136,8 +136,8 @@ public partial class BroadcastView : Control {
         int next = -1;
         for (int i = 0; i < _arc.Passed.Length; i++)
             if (!_arc.Passed[i]) { next = i; break; }
-        for (int i = 0; i < _arc.Names.Length; i++) {
-            float a = -24 + 48f * i / (_arc.Names.Length - 1);
+        for (int i = _arc.First; i < _arc.First + _arc.Shown; i++) {
+            float a = -24 + 48f * (i - _arc.First) / (_arc.Shown - 1);
             Vector2 p = At(cx, cy, r, a);
             if (_arc.Passed[i]) DrawCircle(p, 6.5f * k, new Color(OnAir.Ink), true, -1, true);
             else {

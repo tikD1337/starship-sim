@@ -26,7 +26,7 @@ public sealed class SimState {
     public Rng Rng = new();
     public Anomalies Anom;
     public Wind Wind = Wind.Calm();
-    public double Arms, ArmDrop, ArmY = Const.ARM_PARK;
+    public double ArmGap = Const.ARM_GAP_PARK, ArmDrop, ArmY = Const.ARM_PARK, ArmSag, ArmSagV, ArmHeldT = double.NaN;
     public static SimState Current = new();
     public void LogMsg(string txt, int lv = 1) {
         if (lv <= 1) Marks.Add(new LogEntry { T = T, M = txt, Lv = lv });

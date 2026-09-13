@@ -6,12 +6,13 @@ public static class CamPlan {
         "meco" => new[] { 2, 4 },
         "flip" or "boostback" => new[] { 4, 3 },
         "coastB" => new[] { 3, 5 },
-        "landB" => new[] { 4, 5, 10, 7 },
-        "caught" or "landed" => new[] { 10, 7, 8 },
+        "landB" => new[] { 4, 5, 12, 10, 7 },
+        "caught" or "landed" => new[] { 10, 12, 7, 8 },
         "ascent2" or "coastS" or "circ" or "orbit" => new[] { 0, 2 },
         "deorbit" or "coastD" => new[] { 0, 1 },
         "entryS" => new[] { 1, 2 },
-        "flipS" or "landS" => new[] { 2, 1 },
+        "flipS" => new[] { 2, 1 },
+        "landS" => new[] { 2, 12, 10, 8, 1 },
         _ => new[] { -1 },
     };
     private static int Rank(string mode) => mode switch {
@@ -21,5 +22,7 @@ public static class CamPlan {
         "coastB" or "coastS" or "coastD" or "orbit" => 1,
         _ => 0,
     };
-    public static bool Ship(string boosterMode, string shipMode) => Rank(shipMode) > Rank(boosterMode);
+    public const double AfterBooster = 12;
+    public static bool Ship(string boosterMode, string shipMode, double boosterDone = -1)
+        => boosterDone >= AfterBooster || Rank(shipMode) > Rank(boosterMode);
 }

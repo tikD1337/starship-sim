@@ -249,6 +249,12 @@ internal static class Program {
             if (args[k] == "--windk") Const.LAND_WIND_K = double.Parse(args[k + 1], Inv);
             if (args[k] == "--kdamp") Const.LAND_KDAMP = double.Parse(args[k + 1], Inv);
             if (args[k] == "--pole") Const.LAND_POLE = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellytilt") Const.BELLY_TILT = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellyvp0") Const.BELLY_VP0 = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellyvp1") Const.BELLY_VP1 = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellylead") Const.BELLY_LEAD = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bgmax") Const.LAND_B_GMAX = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bswitch") Const.BOOST_SWITCH_H = double.Parse(args[k + 1], Inv);
             if (args[k] == "--wind") windSurf = double.Parse(args[k + 1], Inv);
             if (args[k] == "--tiltend") Const.LAND_TILT_END = double.Parse(args[k + 1], Inv);
             if (args[k] == "--dhend") Const.LAND_DH_END = double.Parse(args[k + 1], Inv);
@@ -299,6 +305,7 @@ internal static class Program {
         double sepV = double.NaN, apoMax = 0, qPeak = 0, aPeak = 0, bkPeak = 0, cmPeak = 0, mPeak = 0;
         double orbPeri = double.NaN, orbApo = double.NaN;
         double burnT = 0, holdT = 0, sBurnT = 0, omMax = 0, omSum = 0, devMax = 0;
+        double bIgnH = double.NaN, bIgnV = double.NaN, b13T = 0, bBurnG = 0;
         double finMax = 0, flapMax = 0;
         double sTouch = double.NaN, bTouch = double.NaN, sVvPrev = 0, bVvPrev = 0;
         double sVhFlip = 0, sHoverT = 0, sTiltMax = 0;
@@ -317,6 +324,11 @@ internal static class Program {
             if (double.IsNaN(sepV) && !s.Attached) sepV = b.Speed;
             if (s.Mode == "entryS" && Math.Abs(s.Flap) > flapMax) flapMax = Math.Abs(s.Flap);
             if (b.Mode == "landB" && b.Ign) burnT += dt;
+            if (b.Mode == "landB" && b.NRun > 0) {
+                if (double.IsNaN(bIgnH)) { bIgnH = b.Alt; bIgnV = b.Speed * 3.6; }
+                if (b.NRun == 13) b13T += dt;
+                bBurnG = Math.Max(bBurnG, b.Acc);
+            }
             if (b.Mode == "coastB" || b.Mode == "landB") {
                 double om = Math.Abs(b.Om) * Const.R2D;
                 if (om > omMax) omMax = om;
@@ -411,7 +423,8 @@ internal static class Program {
         Console.Error.WriteLine($"PEAK sQ={qPeak / 1000:F1}kPa alpha={aPeak:F1}deg bank={bkPeak:F1}deg " +
                                 $"cm={cmPeak:F2}m mass={mPeak / 1000:F1}t sDry={s.Dry / 1000:F1}t sats={s.BayS?.Sats}");
         Console.Error.WriteLine($"BURN bBurn={burnT:F1}s bHold={holdT:F1}s sBurn={sBurnT:F1}s " +
-                                $"bTouch={Math.Abs(bTouch):F2}m/s sTouch={Math.Abs(sTouch):F2}m/s");
+                                $"bTouch={Math.Abs(bTouch):F2}m/s sTouch={Math.Abs(sTouch):F2}m/s " +
+                                $"bIgnH={bIgnH:F0}m bIgnV={bIgnV:F0}kmh b13={b13T:F1}s bBurnG={bBurnG:F1}");
         Console.Error.WriteLine($"FLIP sVhMax={sVhFlip:F1}m/s sHover={sHoverT:F1}s sTiltMax={sTiltMax:F1}deg");
         Console.Error.WriteLine($"ZONE tb={tbMax:F0}K vib={vbMax:F2}g wear={wrMax:F3} pc={pcMin:F1}MPa "
                               + $"pf={pfMin:F0}kPa po={poMin:F0}kPa copv={copvMin:F1}%");

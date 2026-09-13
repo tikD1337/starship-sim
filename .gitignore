@@ -16,6 +16,8 @@ game/assets/*
 !game/assets/starship_*.jpg.import
 !game/assets/starship_proc.glb
 !game/assets/starship_proc.glb.import
+!game/assets/tower.glb
+!game/assets/tower.glb.import
 !game/assets/textures/
 *.blend
 *.blend1

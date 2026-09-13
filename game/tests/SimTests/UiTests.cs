@@ -176,7 +176,16 @@ internal static partial class Program {
         True("на ленте четыре вехи", r.Length == 4);
         True("на T+100 старт и max Q пройдены", r[0].Past && r[1].Past);
         True("разделение — следующая веха", !r[2].Past && r[2].Next);
-        True("орбита ещё далеко", !r[3].Past && !r[3].Next);
+        True("четвёртая веха ещё впереди", !r[3].Past && !r[3].Next);
+        while (sim.T < 600) Physics.Sim.Tick(sim, Const.DT);
+        Rail.Mark[] late = Rail.Of(sim);
+        True("после выхода на орбиту лента показывает, что дальше — сход с орбиты",
+             Array.Exists(late, m => m.Name == "сход с орбиты" && !m.Past),
+             string.Join(", ", Array.ConvertAll(late, m => m.Name + (m.Past ? "✓" : ""))));
+        Same("захват корабля подписан кораблём", Phases.Air("caught", true), "Корабль пойман башней");
+        Same("захват ускорителя — ускорителем", Phases.Air("caught", false), "Ускоритель пойман башней");
+        True("на посадке корабля есть камера с ловильных рук", Array.IndexOf(CamPlan.For("landS"), 10) >= 0,
+             string.Join(",", CamPlan.For("landS")));
         Same("фаза эфира на выведении", Phases.Air("ascent"), "Работа первой ступени");
         Same("фаза пульта осталась прежней", Phases.Console("ascent"), "Выведение");
         True("у каждого режима есть эфирное название", Phases.Air("landS").Length > 0
@@ -199,8 +208,14 @@ internal static partial class Program {
     private static void UiAir2() {
         Head("Борт: вехи дуги, наборы камер, режиссёр");
         var arc = new Arc("orbital");
-        True("у орбитального задания шесть вех", arc.Names.Length == 6, string.Join(", ", arc.Names));
         Same("первая веха — старт", arc.Names[0], "старт");
+        Same("последняя веха орбитального — захват корабля", arc.Names[^1], "захват корабля");
+        True("после захвата ускорителя дальше орбита, сход с орбиты и вход",
+             Array.IndexOf(arc.Names, "захват ускорителя") < Array.IndexOf(arc.Names, "орбита")
+             && Array.IndexOf(arc.Names, "орбита") < Array.IndexOf(arc.Names, "сход с орбиты")
+             && Array.IndexOf(arc.Names, "сход с орбиты") < Array.IndexOf(arc.Names, "вход"),
+             string.Join(", ", arc.Names));
+        True("на дуге видно шесть вех с самого начала", arc.Shown == 6 && arc.First == 0, $"{arc.Shown} с {arc.First}");
         True("до старта метка в нуле", arc.Frac(-10) == 0);
         var sim = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(sim, 12345);
@@ -209,6 +224,14 @@ internal static partial class Program {
         True("SECO и захват ещё нет", !arc.Passed[4] && !arc.Passed[5]);
         double f = arc.Frac(sim.T);
         True("метка прошла часть дуги, но не дошла до конца", f > 0.35 && f < 0.8, N(f));
+        while (sim.T < 470) { Physics.Sim.Tick(sim, Const.DT); arc.Track(sim); }
+        int caught = Array.IndexOf(arc.Names, "захват ускорителя");
+        True("на T+470 ускоритель пойман", caught >= 0 && arc.Passed[caught]);
+        double g = arc.Frac(sim.T);
+        True("захват ускорителя не заканчивает дугу", g < 0.9, N(g));
+        True("после захвата окно сдвинулось и показывает сход с орбиты",
+             arc.First > 0 && arc.First + arc.Shown > Array.IndexOf(arc.Names, "сход с орбиты"),
+             $"вехи {arc.First}…{arc.First + arc.Shown - 1}");
         True("у трансатмосферного свой набор", new Arc("trans").Names[^1] == "приводнение",
              string.Join(", ", new Arc("trans").Names));
         True("на выведении показываем «Факел»", Array.IndexOf(CamPlan.For("ascent"), 6) >= 0,
@@ -220,6 +243,10 @@ internal static partial class Program {
              Array.IndexOf(CamPlan.For("idle"), 7) >= 0 && CamPlan.For("ascent")[0] == 8);
         True("при посадочной жиге ведём ускоритель", !CamPlan.Ship("landB", "orbit"));
         True("пока корабль разгоняется, ведём его", CamPlan.Ship("coastB", "ascent2"));
+        True("ускоритель только что пойман — ещё показываем захват", !CamPlan.Ship("caught", "coastS", 3));
+        True("через 12 с после захвата режиссёр переходит к кораблю", CamPlan.Ship("caught", "coastS", 13));
+        True("после захвата ускорителя вход и посадку ведём по кораблю", CamPlan.Ship("caught", "landS", 300));
+        True("разбившийся ускоритель тоже отпускает режиссёра", CamPlan.Ship("crashed", "orbit", 20));
         var dull = new Director.Shot(3, 0.1, 0, 0, 90, 0.9, false, 0, 0);
         var nice = new Director.Shot(4, 0.8, 0.9, 0, 90, 0.3, false, 0, 20);
         True("красивый кадр оценивается выше пустого", Director.Score(nice) > Director.Score(dull),
@@ -261,6 +288,17 @@ internal static partial class Program {
             "NaN pitch 1", "1.00 thr Infinity", "2.00 bank 1e999", "3.00 thr -1e999", "4.00 pitch 0.5" }, keys);
         True("события с NaN и бесконечностью отбрасываются", nan.Ev.Count == 1 && nan.Ev[0].A == 0.5,
              $"осталось {nan.Ev.Count}");
+    }
+    private static void UiArmGeom() {
+        Head("Руки башни: угол поворота от зазора до обшивки");
+        Near("при касании руки параллельны", ArmGeom.Angle(0) * 180 / Math.PI, 0, 0, "°");
+        foreach (double g in new[] { 0.0, 0.7, ArmGeom.Ready, 5, ArmGeom.Park })
+            Near($"рельс при зазоре {N(g)} м стоит ровно на этом зазоре от обшивки",
+                 ArmGeom.RailDist(ArmGeom.Angle(g)) - ArmGeom.VehR - ArmGeom.RailR, g, 1e-9, " м");
+        double ready = ArmGeom.Angle(ArmGeom.Ready) * 180 / Math.PI;
+        True("рабочий зазор — поворот всего на пару градусов", ready > 1 && ready < 4, $"{N(ready)}°");
+        double park = ArmGeom.Angle(ArmGeom.Park) * 180 / Math.PI;
+        True("на стоянке руки раскрыты широко", park > 35 && park < 65, $"{N(park)}°");
     }
     private static void UiTabs() {
         Head("Интерфейс: Tab ходит по всем трём экранам");

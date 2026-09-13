@@ -237,17 +237,22 @@ public static class Guide {
             }
             else {
                 double miss = sim.Downrange(v) + Guidance.FlipDrift(v);
-                v.AlphaCmd = Const.GLIDE_KA > 0
-                    ? Const.Clamp(58 + miss / Const.GLIDE_KA, Const.GLIDE_A_LO, Const.GLIDE_A_HI)
+                double vp = Guidance.AimPro(v) * Const.R2D;
+                double flat = Const.Clamp((vp - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
+                double lead = miss + Const.BELLY_LEAD;
+                double aGlide = Const.GLIDE_KA > 0
+                    ? Const.Clamp(58 + lead / Const.GLIDE_KA, Const.GLIDE_A_LO, Const.GLIDE_A_HI)
                     : 58;
-                double aa = v.AlphaCmd * Const.D2R, sa2 = Math.Sin(aa), ca2 = Math.Cos(aa);
+                double aBelly = Const.Clamp(vp - 90 - Guidance.BellyTilt(v, miss, v.VHor) * Const.R2D,
+                                            Const.GLIDE_A_LO, 90 + Const.BELLY_TILT);
+                v.AlphaCmd = aGlide + (aBelly - aGlide) * flat;
+                double aa = aGlide * Const.D2R, sa2 = Math.Sin(aa), ca2 = Math.Cos(aa);
                 double cn2 = 2 * sa2 * ca2 + 1.15 * (v.FullLen * v.Dia / v.A) * sa2 * sa2;
                 double ca20 = Atmosphere.Cd0(v.Mach) * ca2 * ca2 + 0.06;
                 double lacc = v.Q * v.A * Math.Max(0, cn2 * ca2 - ca20 * sa2) / v.Mass;
-                v.BankCmd = Guidance.GlideBank(sim.Downrange(v) + Guidance.FlipDrift(v),
-                                               v.VHor, h, v.VVert, lacc, Math.Abs(rf.East));
+                v.BankCmd = (1 - flat) * Guidance.GlideBank(lead, v.VHor, h, v.VVert, lacc, Math.Abs(rf.East));
                 sim.Once("glide" + v.Tag, () =>
-                    sim.LogMsg($"{v.Tag}: терминальное наведение — гашение сноса креном, до башни {(-sim.Downrange(v) / 1000):F0} км", 2));
+                    sim.LogMsg($"{v.Tag}: терминальное наведение — гашение сноса, до башни {(-sim.Downrange(v) / 1000):F0} км", 2));
                 v.ThCmd = Guidance.AimLift(v, v.AlphaCmd, Guidance.LiftSign(v, "east", rf.East));
             }
             if (aPrev > 0)

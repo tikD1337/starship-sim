@@ -161,45 +161,59 @@ public static class Sim {
         sim.ManPitchAxis = 0;
         sim.ManThrAxis = 0;
         sim.ManBankAxis = 0;
-        sim.Arms = 0; sim.ArmDrop = 0; sim.ArmY = Const.ARM_PARK;
+        sim.ArmGap = Const.ARM_GAP_PARK; sim.ArmDrop = 0; sim.ArmY = Const.ARM_PARK;
+        sim.ArmSag = 0; sim.ArmSagV = 0; sim.ArmHeldT = double.NaN;
         sim.LogMsg("Предстартовая подготовка. Баки заправлены, зажигание по нулю.", 1);
     }
     public static void ArmsTick(SimState sim, double dt) {
-        double want = 0;
-        Vehicle held = null;
-        Vehicle b = sim.Veh[0];
-        if (!b.Landed && !b.Caught && b.Alt < 180) want = 1;
-        foreach (Vehicle v in sim.Veh) {
-            if (v.Caught && v.SeekPad && !v.Stowed) { held = v; want = 0; break; }
-            if (v.SeekPad && !v.Landed && !v.Crashed && v.Launched && v.Alt < 8000 && v.VVert < 0) want = 1;
-        }
-        Vehicle serve = held;
-        if (serve == null)
+        Vehicle b = sim.Veh[0], held = null, serve = null;
+        foreach (Vehicle v in sim.Veh)
+            if (v.Caught && v.SeekPad && !v.Stowed) { held = v; break; }
+        if (held == null)
             foreach (Vehicle v in sim.Veh)
-                if (v.SeekPad && !v.Landed && !v.Crashed && v.Launched && v.Alt < 8000 && v.VVert < 0)
+                if (v.SeekPad && !v.Landed && !v.Crashed && v.Launched && v.Alt < Const.ARM_APPROACH_H && v.VVert < 0)
                 { serve = v; break; }
-        double armWant = serve == null && !b.Launched
-            ? Const.ARM_PARK
-            : Const.CATCH_H + (serve ?? b).CatchPinY;
+        Vehicle at = held ?? serve;
+        double armWant = at == null && !b.Launched ? Const.ARM_PARK : Const.CATCH_H + (at ?? b).CatchPinY;
         sim.ArmY += Const.Clamp(armWant - sim.ArmY, -5.0 * dt, 5.0 * dt);
-        double cur = sim.Arms;
-        sim.Arms = Const.Clamp(cur + Const.Clamp(want - cur, -0.25 * dt, 0.25 * dt), 0, 1);
-        if (held != null && sim.Arms < 0.1) {
-            double d = Math.Min(Const.ARM_LOWER * dt, Const.CATCH_H - sim.ArmDrop);
-            if (d > 0) {
-                sim.ArmDrop += d;
-                double k = (held.R - d) / held.R;
-                held.X *= k; held.Y *= k;
-            }
-            if (sim.ArmDrop >= Const.CATCH_H - 0.01) {
-                held.Stowed = true;
-                held.StowT = sim.T;
-                sim.LogMsg($"{held.Tag}: установлен на стартовый стол", 1);
+        double gapWant = Const.ARM_GAP_PARK;
+        if (held != null) gapWant = 0;
+        else if (serve != null) {
+            double s = Const.Clamp((serve.Alt - Const.CATCH_H) / serve.CatchPinY, 0, 1);
+            gapWant = Const.ARM_GAP_READY * s * s * (3 - 2 * s);
+        }
+        sim.ArmGap += Const.Clamp(gapWant - sim.ArmGap, -Const.ARM_GAP_RATE * dt, Const.ARM_GAP_RATE * dt);
+        if (held != null) {
+            if (double.IsNaN(sim.ArmHeldT)) { sim.ArmHeldT = sim.T; sim.ArmSagV = held.CatchVd; }
+            double w = 2 * Math.PI / Const.ARM_SAG_PERIOD;
+            double acc = -w * w * (sim.ArmSag - Const.ARM_SAG_REST) - 2 * Const.ARM_SAG_ZETA * w * sim.ArmSagV;
+            sim.ArmSagV += acc * dt;
+            double ds = sim.ArmSagV * dt;
+            sim.ArmSag += ds;
+            Lower(held, ds);
+            if (sim.T - sim.ArmHeldT > Const.ARM_HOLD_T && Math.Abs(sim.ArmSagV) < 0.05) {
+                double d = Math.Min(Const.ARM_LOWER * dt, Const.CATCH_H - sim.ArmDrop);
+                if (d > 0) {
+                    sim.ArmDrop += d;
+                    Lower(held, d);
+                }
+                if (sim.ArmDrop >= Const.CATCH_H - 0.01) {
+                    held.Stowed = true;
+                    held.StowT = sim.T;
+                    sim.LogMsg($"{held.Tag}: установлен на стартовый стол", 1);
+                }
             }
         }
-        else if (held == null && sim.ArmDrop > 0) {
-            sim.ArmDrop = Math.Max(0, sim.ArmDrop - Const.ARM_LOWER * dt);
+        else {
+            sim.ArmHeldT = double.NaN;
+            sim.ArmSagV = 0;
+            sim.ArmSag = Math.Max(0, sim.ArmSag - 0.5 * dt);
+            if (sim.ArmDrop > 0) sim.ArmDrop = Math.Max(0, sim.ArmDrop - Const.ARM_LOWER * dt);
         }
+    }
+    private static void Lower(Vehicle v, double d) {
+        double k = (v.R - d) / v.R;
+        v.X *= k; v.Y *= k;
     }
     public static void Tick(SimState sim, double dt) {
         Vehicle b = sim.Veh[0], s = sim.Veh[1];
@@ -225,6 +239,7 @@ public static class Sim {
                 double a = Math.Atan2(v.X, v.Y) - Const.W * dt;
                 double rr = Math.Sqrt(v.X * v.X + v.Y * v.Y);
                 v.X = rr * Math.Sin(a); v.Y = rr * Math.Cos(a);
+                v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X;
                 v.Heat = 0; v.Q = 0; v.Acc = 0;
                 continue;
             }
@@ -233,6 +248,7 @@ public static class Sim {
             else ManualGuide(sim, v, dt);
             Flight.StepVehicle(sim, v, dt);
             Thermal(sim, v, dt);
+            if (v.Landed || v.Crashed) sim.Once("over" + v.Tag);
         }
         if (s.Attached) {
             s.X = b.X; s.Y = b.Y; s.Vx = b.Vx; s.Vy = b.Vy; s.Th = b.Th; s.Om = b.Om;

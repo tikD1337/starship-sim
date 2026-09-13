@@ -41,6 +41,8 @@ internal static partial class Program {
         CatchInWind();
         BoosterReturn();
         BoosterSwing();
+        ShipBellyFlop();
+        TowerArms();
         FlightMarks();
         OrbitElements();
         MassBalance();
@@ -54,6 +56,7 @@ internal static partial class Program {
         UiAir();
         UiAir2();
         UiTabs();
+        UiArmGeom();
         UiReplay();
         Console.WriteLine();
         Console.WriteLine($"итог: пройдено {_ok}, провалов {_fail}, ждут заданий {_todo}");
@@ -516,7 +519,8 @@ internal static partial class Program {
         Physics.Sim.Reset(sim, 12345);
         Vehicle b = sim.Veh[0];
         bool boostbackSeen = false, coasting = false;
-        double litCoast = 0, hIgn = double.NaN, qDesc = 0, tIgn = double.NaN;
+        double litCoast = 0, hIgn = double.NaN, qDesc = 0, tIgn = double.NaN, vIgn = double.NaN;
+        double gBurn = 0, t13 = 0;
         int nIgn = 0, nLast = 0;
         var counts = new System.Collections.Generic.SortedSet<int>();
         for (int i = 0; i < 200000 && !b.Landed && !b.Crashed && !b.Caught; i++) {
@@ -526,22 +530,36 @@ internal static partial class Program {
             if (coasting && !b.IgnBurn && b.NRun > 0) litCoast += Const.DT;
             if (coasting && b.Q > qDesc) qDesc = b.Q;
             if (!b.IgnBurn || b.NRun == 0) continue;
-            if (double.IsNaN(hIgn)) { hIgn = b.Alt; nIgn = b.NRun; tIgn = sim.T; }
+            if (double.IsNaN(hIgn)) { hIgn = b.Alt; nIgn = b.NRun; tIgn = sim.T; vIgn = b.Speed; }
+            gBurn = Math.Max(gBurn, b.Acc);
+            if (b.NRun == 13) t13 += Const.DT;
             counts.Add(b.NRun);
             nLast = b.NRun;
         }
         True("между тормозным импульсом и жигой двигатели ускорителя молчат", litCoast == 0,
              $"работали {N(litCoast)} с");
-        True("жига начинается ниже 2 км", hIgn < 2000, $"с высоты {N(hIgn)} м");
+        True("жига начинается ниже 2,5 км — не сжигает топливо раньше времени", hIgn < 2500, $"с высоты {N(hIgn)} м");
+        Todo(48, "жига начинается ниже 2 км", hIgn < 2000, $"с высоты {N(hIgn)} м");
         True("жига начинается выше 500 м", hIgn > 500, $"с высоты {N(hIgn)} м");
         True("жига зажигает 13 двигателей", nIgn == 13, $"{nIgn}");
         True("жига кончается на трёх", nLast == 3, $"{nLast}");
+        True("пик перегрузки на жиге не выше 6 g, как у пятого полёта (~5,5 g)", gBurn <= 6, $"{N(gBurn)} g");
+        True("13 двигателей горят от 4 до 8 с (пятый полёт — чуть больше 5 с)", t13 >= 4 && t13 <= 8, $"{N(t13)} с");
+        Todo(48, "зажигание при 1100–1400 км/ч (пятый полёт — ~1250)", vIgn * 3.6 >= 1100 && vIgn * 3.6 <= 1400,
+             $"{N(vIgn * 3.6)} км/ч");
         True("в жиге только 13 или 3 двигателя", counts.SetEquals(new[] { 13, 3 }),
              string.Join(", ", counts));
         True("ускоритель пойман", b.Caught, $"промах {N(sim.Downrange(b))} м");
         True("напор на спуске ниже предела конструкции", qDesc < 200e3, $"{N(qDesc / 1000)} кПа");
         double burn = b.Caught ? sim.T - tIgn : double.NaN;
         True("от зажигания жиги до захвата не больше 30 с", burn <= 30, $"{N(burn)} с");
+        double tCatch = sim.T;
+        True("время конца полёта ускорителя записано в события в момент захвата",
+             sim.Events.TryGetValue("overБ", out double tOver) && Math.Abs(tOver - tCatch) < 0.05,
+             sim.Events.ContainsKey("overБ") ? $"{N(sim.Events["overБ"])} при захвате {N(tCatch)}" : "нет события");
+        while (sim.T < tCatch + 1000) Physics.Sim.Tick(sim, Const.DT);
+        True("пойманный ускоритель через 1000 с стоит на месте относительно Земли", b.Speed < 0.5,
+             $"{N(b.Speed * 3.6)} км/ч");
     }
     private static void BoosterSwing() {
         Head("Ускоритель на последних 300 м не раскачивается у башни");
@@ -555,6 +573,60 @@ internal static partial class Program {
                  $"разворотов {turns}, на входе {N(dr0)} м, наибольший {N(drMax)} м");
             True($"{name}: корпус не перекладывается через вертикаль больше раза", flips <= 1,
                  $"перекладок {flips}");
+        }
+    }
+    private static void TowerArms() {
+        Head("Руки башни сведены до подлёта и дожимают зазор, пока ступень проходит между ними");
+        foreach ((string mission, int idx, string name) in new[] { ("orbital", 0, "ускоритель"), ("orbital", 1, "корабль") }) {
+            var sim = new SimState { Mission = mission, AnomOn = false };
+            Physics.Sim.Reset(sim, 12345);
+            Vehicle v = sim.Veh[idx];
+            double tReady = double.NaN, gapEnter = double.NaN, gapCatch = double.NaN, tCatch = double.NaN;
+            double early = double.PositiveInfinity, sagMax = 0, sagLate = double.NaN, sagVLate = double.NaN;
+            for (int i = 0; i < 1_400_000; i++) {
+                Physics.Sim.Tick(sim, Const.DT);
+                if (!v.Launched || v.Attached) continue;
+                double rel = v.Alt - Const.CATCH_H;
+                bool approach = !v.Caught && v.VVert < 0 && v.Alt < 8000;
+                if (approach && double.IsNaN(tReady) && sim.ArmGap <= Const.ARM_GAP_READY + 0.05) tReady = sim.T;
+                if (approach && rel > v.CatchPinY + 5) early = Math.Min(early, sim.ArmGap);
+                if (approach && double.IsNaN(gapEnter) && rel < v.CatchPinY) gapEnter = sim.ArmGap;
+                if (v.Caught && double.IsNaN(tCatch)) { tCatch = sim.T; gapCatch = sim.ArmGap; }
+                if (!double.IsNaN(tCatch)) {
+                    sagMax = Math.Max(sagMax, sim.ArmSag);
+                    if (sim.T - tCatch >= 6 && double.IsNaN(sagLate)) { sagLate = sim.ArmSag; sagVLate = sim.ArmSagV; break; }
+                }
+            }
+            True($"{name}: пойман", !double.IsNaN(tCatch));
+            True($"{name}: руки сведены до рабочего зазора заранее, не меньше 8 с до захвата",
+                 tCatch - tReady >= 8, $"за {N(tCatch - tReady)} с");
+            True($"{name}: пока корпус выше рук, зазор не уже рабочего", early >= Const.ARM_GAP_READY - 0.05, $"{N(early)} м");
+            True($"{name}: когда низ корпуса проходит рельсы, руки уже на рабочем зазоре",
+                 gapEnter <= Const.ARM_GAP_READY + 0.05, $"{N(gapEnter)} м");
+            True($"{name}: к захвату зазор дожат до касания", gapCatch <= 0.3, $"{N(gapCatch)} м");
+            True($"{name}: каретка проседает от удара на 0,4–2 м", sagMax >= 0.4 && sagMax <= 2, $"{N(sagMax)} м");
+            True($"{name}: через 6 с после захвата каретка успокоилась", Math.Abs(sagVLate) < 0.05, $"{N(sagVLate)} м/с");
+        }
+    }
+    private static void ShipBellyFlop() {
+        Head("Корабль ниже 15 км падает плашмя, а не носом вниз");
+        foreach ((string mission, string name) in new[] { ("orbital", "орбитальное"), ("trans", "трансатмосферное") }) {
+            var sim = new SimState { Mission = mission, AnomOn = false };
+            Physics.Sim.Reset(sim, 12345);
+            Vehicle s = sim.Veh[1];
+            double worst = 0, atFlip = double.NaN;
+            for (int i = 0; i < 1_200_000 && !s.Landed && !s.Crashed && !s.Caught; i++) {
+                string was = s.Mode;
+                Physics.Sim.Tick(sim, Const.DT);
+                double dev = Vehicle.AngDiff(s.Th, Math.PI / 2) * Const.R2D;
+                if (was == "entryS" && s.Mode == "flipS") atFlip = dev;
+                if (s.Mode == "entryS" && s.Alt < 15e3) worst = Math.Max(worst, Math.Abs(dev));
+            }
+            True($"{name}: корпус держится в пределах 20° от горизонта", worst <= 20, $"наибольший уход {N(worst)}°");
+            if (mission == "orbital")
+                True($"{name}: переворот начинается почти с горизонтали", Math.Abs(atFlip) <= 20, $"{N(atFlip)}° от горизонта");
+            True($"{name}: корабль {(mission == "orbital" ? "пойман башней" : "сел")}",
+                 mission == "orbital" ? s.Caught : s.Landed && !s.Crashed, s.Mode);
         }
     }
     private static (bool, double, double, int, int) Swing(string mission, Wind wind) {

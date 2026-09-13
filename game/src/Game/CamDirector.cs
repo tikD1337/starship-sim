@@ -16,7 +16,8 @@ public sealed class CamDirector {
     public CamDirector(CamRig rig) => _rig = rig;
     public void Step(SimState sim, StackView stack, double dt, Vector3 pad) {
         Vehicle b = sim.Veh[0], s = sim.Veh[1];
-        bool ship = !s.Attached && CamPlan.Ship(b.Mode, s.Mode);
+        double bOver = sim.Events.TryGetValue("over" + b.Tag, out double tOver) ? sim.T - tOver : -1;
+        bool ship = !s.Attached && CamPlan.Ship(b.Mode, s.Mode, bOver);
         Vehicle v = ship ? s : b;
         string mode = v.Mode + (ship ? " к" : " б");
         bool cut = mode != _mode;
@@ -46,7 +47,7 @@ public sealed class CamDirector {
         Apply(sim, ship, pick);
         if (Log)
             GD.Print($"CUT {NumFmt.Clock(sim.T)} {(pick < 0 ? "облёт" : CamRig.NameOf(pick))}"
-                     + $" · {Phases.Air(v.Mode)} · {(ship ? "корабль" : "ускоритель")}");
+                     + $" · {Phases.Air(v.Mode, ship)} · {(ship ? "корабль" : "ускоритель")}");
     }
     private static int Slot(int cam) => cam < 0 ? CamRig.Total : cam;
     private void Apply(SimState sim, bool ship, int cam) {

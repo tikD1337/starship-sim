@@ -79,6 +79,18 @@ public static class Guidance {
         const double tf = 4;
         return Const.Clamp(a * tf * tf * Const.FLIP_DRIFT_K, 150, 1200);
     }
+    public static double BellyTilt(Vehicle v, double dr, double vE) {
+        double lim = Const.BELLY_TILT * Const.D2R;
+        double aA = Math.Abs(v.Alpha), sa = Math.Sin(aA), ca = Math.Cos(aA);
+        double cn = 2 * sa * Math.Abs(ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa;
+        double aN = Math.Max(v.Q * v.A * cn / v.Mass, 0.5 * Const.MU / (v.R * v.R));
+        double aL = aN * Math.Sin(lim);
+        const double tau = 6;
+        double vMax = aL * (-tau + Math.Sqrt(tau * tau + 2 * Math.Abs(dr) / aL));
+        double vWant = -Math.Sign(dr) * Math.Min(vMax, 260);
+        double aLat = (vWant - vE) * 0.3;
+        return Math.Asin(Const.Clamp(aLat / aN, 0, Math.Sin(lim)));
+    }
     public static double GlideBank(double dr, double vE, double h, double vv, double lacc, double ePerp) {
         double aL = Math.Max(Math.Min(lacc * Math.Abs(ePerp), 6), 0.5);
         const double tau = 6;
@@ -89,7 +101,7 @@ public static class Guidance {
         double c = Math.Abs(den) > 1e-3 ? aLat / den : (aLat >= 0 ? 1 : -1);
         return Math.Acos(Const.Clamp(c, -1, 1));
     }
-    public static double StopAlt(Vehicle v, int nEng) {
+    public static double StopAlt(Vehicle v, int nEng, double aCap = double.PositiveInfinity, double cd = 0.12) {
         double h = v.Alt, vv = v.VVert, m = v.Mass, t = 0;
         double tau = v.Ign ? 0 : Math.Max(0.05, v.Eng[0].P.Tau);
         const double dt = 0.4;
@@ -97,9 +109,11 @@ public static class Guidance {
             Air at = Atmosphere.At(h);
             double spool = tau > 0 ? 1 - tau / dt * (Math.Exp(-t / tau) - Math.Exp(-(t + dt) / tau)) : 1;
             double f = spool * nEng * Math.Max(0, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
-            double d = 0.5 * at.Rho * vv * vv * v.A * 0.12;
-            double a = (f + d) / m - Const.MU / ((Const.RE + h) * (Const.RE + h));
-            vv += a * dt; h += vv * dt; m -= spool * nEng * Spec.RaptorSL.Mdot * dt; t += dt;
+            double d = 0.5 * at.Rho * vv * vv * v.A * cd;
+            double fUse = Math.Clamp(aCap * m - d, Const.LAND_THR_MIN * f, f);
+            double a = (fUse + d) / m - Const.MU / ((Const.RE + h) * (Const.RE + h));
+            double share = f > 0 ? fUse / f : 0;
+            vv += a * dt; h += vv * dt; m -= share * spool * nEng * Spec.RaptorSL.Mdot * dt; t += dt;
         }
         return h;
     }
@@ -172,7 +186,12 @@ public static class Guidance {
     }
     private static void Ignite(SimState sim, Vehicle v, int nEng, in Burn e) {
         double stopH = v.Kind == Kind.Ship ? Const.LAND_STOP_S : Const.CATCH_H + Const.BOOST_SWITCH_H;
-        if (v.Ign || v.Prop <= 0 || StopAlt(v, nEng) >= stopH) return;
+        if (v.Ign || v.Prop <= 0) return;
+        double stop = v.Kind == Kind.Ship
+            ? StopAlt(v, nEng)
+            : StopAlt(v, nEng, Const.LAND_B_GMAX * Const.G0,
+                      Const.Clamp(v.Drag / Math.Max(v.Q * v.A, 1), 0.12, 2.5));
+        if (stop >= stopH) return;
         v.Ign = true;
         v.NEng = nEng;
         v.IgnBurn = true;
@@ -226,10 +245,12 @@ public static class Guidance {
         if (pr < Const.LAND_PROJ) return Const.LAND_THR_MIN;
         double kv = e.DhS < 60 ? 1.3 : 2.2;
         double aCmd = e.G - e.Drag / v.Mass + Const.Clamp((vT - e.Vv) * kv, -60, 90);
+        if (v.Kind == Kind.Booster) aCmd = Math.Min(aCmd, Const.LAND_B_GMAX * Const.G0 - v.Drag / v.Mass);
         return Const.Clamp(aCmd * v.Mass / (fnow * pr), Const.LAND_THR_MIN, 1);
     }
     private static void AimBody(SimState sim, Vehicle v, in Burn e) {
         double aMax = e.FNow0 / v.Mass;
+        if (v.Kind == Kind.Booster) aMax = Math.Min(aMax, Const.LAND_B_GMAX * Const.G0 - v.Drag / v.Mass);
         double aNeedV = e.Vv * e.Vv / (2 * Math.Max(e.H - e.HT - 8, 2)) + e.G;
         double tiltMax = Math.Acos(Const.Clamp(aNeedV / Math.Max(aMax, 0.1), 0, 1));
         double tLim = e.H > 3000
