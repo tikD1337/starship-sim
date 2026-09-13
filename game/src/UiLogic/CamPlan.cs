@@ -21,5 +21,7 @@ public static class CamPlan {
         "coastB" or "coastS" or "coastD" or "orbit" => 1,
         _ => 0,
     };
-    public static bool Ship(string boosterMode, string shipMode) => Rank(shipMode) > Rank(boosterMode);
+    public const double AfterBooster = 12;
+    public static bool Ship(string boosterMode, string shipMode, double boosterDone = -1)
+        => boosterDone >= AfterBooster || Rank(shipMode) > Rank(boosterMode);
 }

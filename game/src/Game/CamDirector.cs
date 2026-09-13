@@ -8,7 +8,7 @@ public sealed class CamDirector {
     private static readonly double[] Skin = { 0.45, 0.55, 0.5, 0.5, 0.55, 0.6, 0.35 };
     private readonly CamRig _rig;
     private readonly double[] _seen = new double[CamRig.Total + 1];
-    private double _held, _clock;
+    private double _held, _clock, _bOver = double.NaN;
     private int _cur = int.MinValue;
     private string _mode = "";
     public bool Manual, Locked;
@@ -16,7 +16,9 @@ public sealed class CamDirector {
     public CamDirector(CamRig rig) => _rig = rig;
     public void Step(SimState sim, StackView stack, double dt, Vector3 pad) {
         Vehicle b = sim.Veh[0], s = sim.Veh[1];
-        bool ship = !s.Attached && CamPlan.Ship(b.Mode, s.Mode);
+        bool over = b.Caught || b.Landed || b.Crashed;
+        if (!over || double.IsNaN(_bOver) || _bOver > sim.T) _bOver = over ? sim.T : double.NaN;
+        bool ship = !s.Attached && CamPlan.Ship(b.Mode, s.Mode, over ? sim.T - _bOver : -1);
         Vehicle v = ship ? s : b;
         string mode = v.Mode + (ship ? " к" : " б");
         bool cut = mode != _mode;

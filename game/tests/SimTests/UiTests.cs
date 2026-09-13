@@ -199,8 +199,14 @@ internal static partial class Program {
     private static void UiAir2() {
         Head("Борт: вехи дуги, наборы камер, режиссёр");
         var arc = new Arc("orbital");
-        True("у орбитального задания шесть вех", arc.Names.Length == 6, string.Join(", ", arc.Names));
         Same("первая веха — старт", arc.Names[0], "старт");
+        Same("последняя веха орбитального — захват корабля", arc.Names[^1], "захват корабля");
+        True("после захвата ускорителя дальше орбита, сход с орбиты и вход",
+             Array.IndexOf(arc.Names, "захват ускорителя") < Array.IndexOf(arc.Names, "орбита")
+             && Array.IndexOf(arc.Names, "орбита") < Array.IndexOf(arc.Names, "сход с орбиты")
+             && Array.IndexOf(arc.Names, "сход с орбиты") < Array.IndexOf(arc.Names, "вход"),
+             string.Join(", ", arc.Names));
+        True("на дуге видно шесть вех с самого начала", arc.Shown == 6 && arc.First == 0, $"{arc.Shown} с {arc.First}");
         True("до старта метка в нуле", arc.Frac(-10) == 0);
         var sim = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(sim, 12345);
@@ -209,6 +215,14 @@ internal static partial class Program {
         True("SECO и захват ещё нет", !arc.Passed[4] && !arc.Passed[5]);
         double f = arc.Frac(sim.T);
         True("метка прошла часть дуги, но не дошла до конца", f > 0.35 && f < 0.8, N(f));
+        while (sim.T < 470) { Physics.Sim.Tick(sim, Const.DT); arc.Track(sim); }
+        int caught = Array.IndexOf(arc.Names, "захват ускорителя");
+        True("на T+470 ускоритель пойман", caught >= 0 && arc.Passed[caught]);
+        double g = arc.Frac(sim.T);
+        True("захват ускорителя не заканчивает дугу", g < 0.9, N(g));
+        True("после захвата окно сдвинулось и показывает сход с орбиты",
+             arc.First > 0 && arc.First + arc.Shown > Array.IndexOf(arc.Names, "сход с орбиты"),
+             $"вехи {arc.First}…{arc.First + arc.Shown - 1}");
         True("у трансатмосферного свой набор", new Arc("trans").Names[^1] == "приводнение",
              string.Join(", ", new Arc("trans").Names));
         True("на выведении показываем «Факел»", Array.IndexOf(CamPlan.For("ascent"), 6) >= 0,
@@ -220,6 +234,10 @@ internal static partial class Program {
              Array.IndexOf(CamPlan.For("idle"), 7) >= 0 && CamPlan.For("ascent")[0] == 8);
         True("при посадочной жиге ведём ускоритель", !CamPlan.Ship("landB", "orbit"));
         True("пока корабль разгоняется, ведём его", CamPlan.Ship("coastB", "ascent2"));
+        True("ускоритель только что пойман — ещё показываем захват", !CamPlan.Ship("caught", "coastS", 3));
+        True("через 12 с после захвата режиссёр переходит к кораблю", CamPlan.Ship("caught", "coastS", 13));
+        True("после захвата ускорителя вход и посадку ведём по кораблю", CamPlan.Ship("caught", "landS", 300));
+        True("разбившийся ускоритель тоже отпускает режиссёра", CamPlan.Ship("crashed", "orbit", 20));
         var dull = new Director.Shot(3, 0.1, 0, 0, 90, 0.9, false, 0, 0);
         var nice = new Director.Shot(4, 0.8, 0.9, 0, 90, 0.3, false, 0, 20);
         True("красивый кадр оценивается выше пустого", Director.Score(nice) > Director.Score(dull),

@@ -231,7 +231,7 @@ public partial class Main : Node {
         _ctl.StepPhysics(delta);
         _perf.Add(Perf.Part.Physics);
         Origin org = _scene.Frame(_sim, delta, _tileGlow);
-        UpdateCamera(org);
+        UpdateCamera(org, delta);
         _rigWorld.Update(_sim, org);
         _shot.Track(_frame, _stack.ShipRoot.GlobalPosition - _rigWorld.Cam.GlobalPosition);
         _perf.Add(Perf.Part.Scene);
@@ -253,9 +253,9 @@ public partial class Main : Node {
         _shot.Maybe(_frame, _sim, _rigWorld.Cam, _stack, _bay, _tower);
         _perf.Step(delta);
     }
-    private void UpdateCamera(Origin org) {
+    private void UpdateCamera(Origin org, double delta) {
         var padPos = new Vector3(-(float)org.X, -(float)org.Y, 0);
-        _dir.Step(_sim, _stack, _ctl.Paused ? 0 : 1.0 / 60, padPos);
+        _dir.Step(_sim, _stack, _ctl.Paused ? 0 : delta, padPos);
         Vehicle s = _sim.Veh[1];
         Vehicle v = _sim.FocusVeh();
         float top = s.Attached ? 123f : (v.Kind == Kind.Booster ? 71f : 52f);
