@@ -41,6 +41,7 @@ internal static partial class Program {
         CatchInWind();
         BoosterReturn();
         BoosterSwing();
+        ShipBellyFlop();
         FlightMarks();
         OrbitElements();
         MassBalance();
@@ -542,6 +543,10 @@ internal static partial class Program {
         True("напор на спуске ниже предела конструкции", qDesc < 200e3, $"{N(qDesc / 1000)} кПа");
         double burn = b.Caught ? sim.T - tIgn : double.NaN;
         True("от зажигания жиги до захвата не больше 30 с", burn <= 30, $"{N(burn)} с");
+        double tCatch = sim.T;
+        while (sim.T < tCatch + 1000) Physics.Sim.Tick(sim, Const.DT);
+        True("пойманный ускоритель через 1000 с стоит на месте относительно Земли", b.Speed < 0.5,
+             $"{N(b.Speed * 3.6)} км/ч");
     }
     private static void BoosterSwing() {
         Head("Ускоритель на последних 300 м не раскачивается у башни");
@@ -555,6 +560,27 @@ internal static partial class Program {
                  $"разворотов {turns}, на входе {N(dr0)} м, наибольший {N(drMax)} м");
             True($"{name}: корпус не перекладывается через вертикаль больше раза", flips <= 1,
                  $"перекладок {flips}");
+        }
+    }
+    private static void ShipBellyFlop() {
+        Head("Корабль ниже 15 км падает плашмя, а не носом вниз");
+        foreach ((string mission, string name) in new[] { ("orbital", "орбитальное"), ("trans", "трансатмосферное") }) {
+            var sim = new SimState { Mission = mission, AnomOn = false };
+            Physics.Sim.Reset(sim, 12345);
+            Vehicle s = sim.Veh[1];
+            double worst = 0, atFlip = double.NaN;
+            for (int i = 0; i < 1_200_000 && !s.Landed && !s.Crashed && !s.Caught; i++) {
+                string was = s.Mode;
+                Physics.Sim.Tick(sim, Const.DT);
+                double dev = Vehicle.AngDiff(s.Th, Math.PI / 2) * Const.R2D;
+                if (was == "entryS" && s.Mode == "flipS") atFlip = dev;
+                if (s.Mode == "entryS" && s.Alt < 15e3) worst = Math.Max(worst, Math.Abs(dev));
+            }
+            True($"{name}: корпус держится в пределах 20° от горизонта", worst <= 20, $"наибольший уход {N(worst)}°");
+            if (mission == "orbital")
+                True($"{name}: переворот начинается почти с горизонтали", Math.Abs(atFlip) <= 20, $"{N(atFlip)}° от горизонта");
+            True($"{name}: корабль {(mission == "orbital" ? "пойман башней" : "сел")}",
+                 mission == "orbital" ? s.Caught : s.Landed && !s.Crashed, s.Mode);
         }
     }
     private static (bool, double, double, int, int) Swing(string mission, Wind wind) {

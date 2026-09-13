@@ -36,6 +36,7 @@ public static class Const {
     public const double FIN_S = 37.4, FIN_Y = 61.2;
     public static double FIN_CN = 1.5;
     public static double GLIDE_KA = 400, GLIDE_A_LO = 45, GLIDE_A_HI = 70;
+    public static double BELLY_TILT = 15, BELLY_VP0 = 150, BELLY_VP1 = 170, BELLY_LEAD = 1600;
     public static double FLIP_DRIFT_K = 0.8;
     public static double BOOST_AOA = 24, BOOST_STRAIGHT_H = 4000, BOOST_SWITCH_H = 450;
     public static double ASC_KA = 5e-4, ASC_KV = 0.04, ASC_AVMAX = 40, ASC_THMAX = 140, DEO_AIM = 30e3;

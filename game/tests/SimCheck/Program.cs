@@ -249,6 +249,10 @@ internal static class Program {
             if (args[k] == "--windk") Const.LAND_WIND_K = double.Parse(args[k + 1], Inv);
             if (args[k] == "--kdamp") Const.LAND_KDAMP = double.Parse(args[k + 1], Inv);
             if (args[k] == "--pole") Const.LAND_POLE = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellytilt") Const.BELLY_TILT = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellyvp0") Const.BELLY_VP0 = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellyvp1") Const.BELLY_VP1 = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellylead") Const.BELLY_LEAD = double.Parse(args[k + 1], Inv);
             if (args[k] == "--wind") windSurf = double.Parse(args[k + 1], Inv);
             if (args[k] == "--tiltend") Const.LAND_TILT_END = double.Parse(args[k + 1], Inv);
             if (args[k] == "--dhend") Const.LAND_DH_END = double.Parse(args[k + 1], Inv);

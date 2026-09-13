@@ -225,6 +225,7 @@ public static class Sim {
                 double a = Math.Atan2(v.X, v.Y) - Const.W * dt;
                 double rr = Math.Sqrt(v.X * v.X + v.Y * v.Y);
                 v.X = rr * Math.Sin(a); v.Y = rr * Math.Cos(a);
+                v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X;
                 v.Heat = 0; v.Q = 0; v.Acc = 0;
                 continue;
             }

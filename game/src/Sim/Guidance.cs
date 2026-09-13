@@ -79,6 +79,18 @@ public static class Guidance {
         const double tf = 4;
         return Const.Clamp(a * tf * tf * Const.FLIP_DRIFT_K, 150, 1200);
     }
+    public static double BellyTilt(Vehicle v, double dr, double vE) {
+        double lim = Const.BELLY_TILT * Const.D2R;
+        double aA = Math.Abs(v.Alpha), sa = Math.Sin(aA), ca = Math.Cos(aA);
+        double cn = 2 * sa * Math.Abs(ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa;
+        double aN = Math.Max(v.Q * v.A * cn / v.Mass, 0.5 * Const.MU / (v.R * v.R));
+        double aL = aN * Math.Sin(lim);
+        const double tau = 6;
+        double vMax = aL * (-tau + Math.Sqrt(tau * tau + 2 * Math.Abs(dr) / aL));
+        double vWant = -Math.Sign(dr) * Math.Min(vMax, 260);
+        double aLat = (vWant - vE) * 0.3;
+        return Math.Asin(Const.Clamp(aLat / aN, 0, Math.Sin(lim)));
+    }
     public static double GlideBank(double dr, double vE, double h, double vv, double lacc, double ePerp) {
         double aL = Math.Max(Math.Min(lacc * Math.Abs(ePerp), 6), 0.5);
         const double tau = 6;
