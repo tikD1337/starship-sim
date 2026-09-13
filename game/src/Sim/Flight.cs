@@ -110,7 +110,7 @@ public static class Flight {
                 double ang = Math.Atan2(v.X, v.Y), rr = Const.RE + Const.CATCH_H;
                 v.X = rr * Math.Sin(ang); v.Y = rr * Math.Cos(ang);
                 v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X; v.Om = 0; v.Th = 0;
-                v.Caught = true; v.Landed = true; v.Mode = "caught";
+                v.Caught = true; v.Landed = true; v.Mode = "caught"; v.CatchVd = vd;
                 v.Ign = false; v.NEng = 0; v.F = 0;
                 Quench(v);
                 sim.LogMsg($"{v.Tag}: ЗАХВАТ БАШНЕЙ — руки сомкнулись ({vd:F1} м/с, промах {dr:F1} м)", 1);

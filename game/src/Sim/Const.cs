@@ -6,6 +6,8 @@ public static class Const {
     public static readonly double W = WE * Math.Cos(LAT);
     public const double CATCH_H = 62, ARM_PARK = 116, ARM_LOWER = 1.2, ARM_HAUL = 420, CATCH_DR = 8,
         CATCH_WIN = 14, CATCH_VV = 4.0, CATCH_VH = 3.5, CATCH_TILT = 6, LAND_VTD = 1.1;
+    public const double ARM_GAP_PARK = 24, ARM_GAP_READY = 1.5, ARM_GAP_RATE = 1.2, ARM_APPROACH_H = 8000;
+    public const double ARM_SAG_REST = 0.5, ARM_SAG_PERIOD = 1.8, ARM_SAG_ZETA = 0.45, ARM_HOLD_T = 4;
     public static double LAND_ALAT = 4.0;
     public static double LAND_TLAG = 2.5, LAND_KLAT = 0.6, LAND_DHPD = 300, LAND_TILT_NEAR = 16;
     public static double LAND_KDAMP = 2.4, LAND_TILT_END = 7, LAND_DH_END = 18;

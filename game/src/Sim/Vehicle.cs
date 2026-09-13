@@ -119,6 +119,7 @@ public sealed class Vehicle {
     public bool Stowed;
     public double StowT = double.NaN;
     public bool Hauled;
+    public double CatchVd;
     public double CatchPinY => Len - (Kind == Kind.Booster ? 13.0 : 8.0);
     public static double AngDiff(double a, double b) {
         double d = (a - b) % (2 * Math.PI);

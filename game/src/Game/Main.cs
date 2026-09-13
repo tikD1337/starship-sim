@@ -62,7 +62,7 @@ public partial class Main : Node {
         _stack.SetFins(0f, 0f);
         _stack.SetFlaps(0f, 0f);
         _pad = PadView.Build(lib, _world);
-        _tower = TowerView.Build(lib, _world);
+        _tower = TowerView.Build(_world);
         _smoke = LaunchSmoke.Build(_world);
         _plasma = PlasmaView.Build(_world, _stack.ShipRoot);
         _sats = SatsView.Build(lib, _world);

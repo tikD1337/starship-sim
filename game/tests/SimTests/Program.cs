@@ -42,6 +42,7 @@ internal static partial class Program {
         BoosterReturn();
         BoosterSwing();
         ShipBellyFlop();
+        TowerArms();
         FlightMarks();
         OrbitElements();
         MassBalance();
@@ -55,6 +56,7 @@ internal static partial class Program {
         UiAir();
         UiAir2();
         UiTabs();
+        UiArmGeom();
         UiReplay();
         Console.WriteLine();
         Console.WriteLine($"итог: пройдено {_ok}, провалов {_fail}, ждут заданий {_todo}");
@@ -571,6 +573,39 @@ internal static partial class Program {
                  $"разворотов {turns}, на входе {N(dr0)} м, наибольший {N(drMax)} м");
             True($"{name}: корпус не перекладывается через вертикаль больше раза", flips <= 1,
                  $"перекладок {flips}");
+        }
+    }
+    private static void TowerArms() {
+        Head("Руки башни сведены до подлёта и дожимают зазор, пока ступень проходит между ними");
+        foreach ((string mission, int idx, string name) in new[] { ("orbital", 0, "ускоритель"), ("orbital", 1, "корабль") }) {
+            var sim = new SimState { Mission = mission, AnomOn = false };
+            Physics.Sim.Reset(sim, 12345);
+            Vehicle v = sim.Veh[idx];
+            double tReady = double.NaN, gapEnter = double.NaN, gapCatch = double.NaN, tCatch = double.NaN;
+            double early = double.PositiveInfinity, sagMax = 0, sagLate = double.NaN, sagVLate = double.NaN;
+            for (int i = 0; i < 1_400_000; i++) {
+                Physics.Sim.Tick(sim, Const.DT);
+                if (!v.Launched || v.Attached) continue;
+                double rel = v.Alt - Const.CATCH_H;
+                bool approach = !v.Caught && v.VVert < 0 && v.Alt < 8000;
+                if (approach && double.IsNaN(tReady) && sim.ArmGap <= Const.ARM_GAP_READY + 0.05) tReady = sim.T;
+                if (approach && rel > v.CatchPinY + 5) early = Math.Min(early, sim.ArmGap);
+                if (approach && double.IsNaN(gapEnter) && rel < v.CatchPinY) gapEnter = sim.ArmGap;
+                if (v.Caught && double.IsNaN(tCatch)) { tCatch = sim.T; gapCatch = sim.ArmGap; }
+                if (!double.IsNaN(tCatch)) {
+                    sagMax = Math.Max(sagMax, sim.ArmSag);
+                    if (sim.T - tCatch >= 6 && double.IsNaN(sagLate)) { sagLate = sim.ArmSag; sagVLate = sim.ArmSagV; break; }
+                }
+            }
+            True($"{name}: пойман", !double.IsNaN(tCatch));
+            True($"{name}: руки сведены до рабочего зазора заранее, не меньше 8 с до захвата",
+                 tCatch - tReady >= 8, $"за {N(tCatch - tReady)} с");
+            True($"{name}: пока корпус выше рук, зазор не уже рабочего", early >= Const.ARM_GAP_READY - 0.05, $"{N(early)} м");
+            True($"{name}: когда низ корпуса проходит рельсы, руки уже на рабочем зазоре",
+                 gapEnter <= Const.ARM_GAP_READY + 0.05, $"{N(gapEnter)} м");
+            True($"{name}: к захвату зазор дожат до касания", gapCatch <= 0.3, $"{N(gapCatch)} м");
+            True($"{name}: каретка проседает от удара на 0,4–2 м", sagMax >= 0.4 && sagMax <= 2, $"{N(sagMax)} м");
+            True($"{name}: через 6 с после захвата каретка успокоилась", Math.Abs(sagVLate) < 0.05, $"{N(sagVLate)} м/с");
         }
     }
     private static void ShipBellyFlop() {

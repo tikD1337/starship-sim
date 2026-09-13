@@ -289,6 +289,17 @@ internal static partial class Program {
         True("события с NaN и бесконечностью отбрасываются", nan.Ev.Count == 1 && nan.Ev[0].A == 0.5,
              $"осталось {nan.Ev.Count}");
     }
+    private static void UiArmGeom() {
+        Head("Руки башни: угол поворота от зазора до обшивки");
+        Near("при касании руки параллельны", ArmGeom.Angle(0) * 180 / Math.PI, 0, 0, "°");
+        foreach (double g in new[] { 0.0, 0.7, ArmGeom.Ready, 5, ArmGeom.Park })
+            Near($"рельс при зазоре {N(g)} м стоит ровно на этом зазоре от обшивки",
+                 ArmGeom.RailDist(ArmGeom.Angle(g)) - ArmGeom.VehR - ArmGeom.RailR, g, 1e-9, " м");
+        double ready = ArmGeom.Angle(ArmGeom.Ready) * 180 / Math.PI;
+        True("рабочий зазор — поворот всего на пару градусов", ready > 1 && ready < 4, $"{N(ready)}°");
+        double park = ArmGeom.Angle(ArmGeom.Park) * 180 / Math.PI;
+        True("на стоянке руки раскрыты широко", park > 35 && park < 65, $"{N(park)}°");
+    }
     private static void UiTabs() {
         Head("Интерфейс: Tab ходит по всем трём экранам");
         True("со сводки в эфир", Tabs.Next(1) == 2, $"{Tabs.Next(1)}");
