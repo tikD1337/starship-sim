@@ -21,5 +21,6 @@ public static class Phases {
         ["landS"] = "Посадка корабля",
     };
     public static string Console(string mode) => Con.TryGetValue(mode, out string s) ? s : mode;
-    public static string Air(string mode) => Eth.TryGetValue(mode, out string s) ? s : mode;
+    public static string Air(string mode, bool ship = false)
+        => ship && mode == "caught" ? "Корабль пойман башней" : Eth.TryGetValue(mode, out string s) ? s : mode;
 }

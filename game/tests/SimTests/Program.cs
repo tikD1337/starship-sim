@@ -552,6 +552,9 @@ internal static partial class Program {
         double burn = b.Caught ? sim.T - tIgn : double.NaN;
         True("от зажигания жиги до захвата не больше 30 с", burn <= 30, $"{N(burn)} с");
         double tCatch = sim.T;
+        True("время конца полёта ускорителя записано в события в момент захвата",
+             sim.Events.TryGetValue("overБ", out double tOver) && Math.Abs(tOver - tCatch) < 0.05,
+             sim.Events.ContainsKey("overБ") ? $"{N(sim.Events["overБ"])} при захвате {N(tCatch)}" : "нет события");
         while (sim.T < tCatch + 1000) Physics.Sim.Tick(sim, Const.DT);
         True("пойманный ускоритель через 1000 с стоит на месте относительно Земли", b.Speed < 0.5,
              $"{N(b.Speed * 3.6)} км/ч");

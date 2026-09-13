@@ -15,15 +15,14 @@ public sealed class Arc {
     private static readonly double[] NomTrans = { 0, 72, 135, 139, 426, 448, 1097, 2233 };
     public const int Window = 6;
     private readonly double[] _nom;
-    private readonly bool _trans;
     public string[] Names { get; }
     public bool[] Passed { get; }
     public double[] At { get; }
     public int First { get; private set; }
     public int Shown => Math.Min(Window, Names.Length);
+    public static string[] NamesOf(string mission) => mission == "trans" ? Trans : Orbital;
     public Arc(string mission) {
-        _trans = mission == "trans";
-        Names = _trans ? Trans : Orbital;
+        Names = NamesOf(mission);
         _nom = mission switch { "trans" => NomTrans, "high" => NomHigh, _ => NomOrbital };
         Passed = new bool[Names.Length];
         At = new double[Names.Length];
@@ -42,10 +41,19 @@ public sealed class Arc {
         };
     }
     public void Track(SimState sim) {
+        bool[] now = Now(sim);
+        for (int i = 0; i < Passed.Length; i++)
+            if (now[i] && !Passed[i]) {
+                Passed[i] = true;
+                At[i] = sim.T;
+            }
+        First = Math.Clamp(Last() - 2, 0, Names.Length - Shown);
+    }
+    public static bool[] Now(SimState sim) {
         Vehicle b = sim.Veh[0], s = sim.Veh[1];
         int st = s.Attached ? 0 : Stage(s);
         bool boosterOver = b.Caught || b.Landed || b.Crashed;
-        bool[] now = _trans
+        return sim.Mission == "trans"
             ? new[] {
                 b.Launched || sim.T >= 0, sim.Events.ContainsKey("maxq"), !s.Attached,
                 b.Mode == "boostback" || b.Mode == "coastB" || b.Mode == "landB" || boosterOver,
@@ -56,12 +64,6 @@ public sealed class Arc {
                 b.Mode == "boostback" || b.Mode == "coastB" || b.Mode == "landB" || boosterOver,
                 st >= 1, boosterOver, st >= 3, st >= 4, st >= 5, st >= 7,
             };
-        for (int i = 0; i < Passed.Length; i++)
-            if (now[i] && !Passed[i]) {
-                Passed[i] = true;
-                At[i] = sim.T;
-            }
-        First = Math.Clamp(Last() - 2, 0, Names.Length - Shown);
     }
     private int Last() {
         int last = -1;

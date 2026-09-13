@@ -43,7 +43,7 @@ public partial class OnAirView : Control {
     private void Clock(float k) {
         string t = NumFmt.Clock(_sim.T);
         Text(t[..^2], 52 * k, 44 * k + 38 * k, 46 * k, 500, OnAir.Ink);
-        Text(Phases.Air(_sim.FocusVeh().Mode), 52 * k, 44 * k + 38 * k + 36 * k, 24 * k, 400, OnAir.Ink2);
+        Text(Phases.Air(_sim.FocusVeh().Mode, _sim.FocusVeh().Kind == Kind.Ship),52 * k, 44 * k + 38 * k + 36 * k, 24 * k, 400, OnAir.Ink2);
     }
     private void Rocket(Vehicle f, bool stacked, Vector2 at, float box) {
         Part[] parts = stacked ? RocketArt.Stack()

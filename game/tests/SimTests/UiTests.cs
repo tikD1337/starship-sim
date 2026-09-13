@@ -176,7 +176,16 @@ internal static partial class Program {
         True("на ленте четыре вехи", r.Length == 4);
         True("на T+100 старт и max Q пройдены", r[0].Past && r[1].Past);
         True("разделение — следующая веха", !r[2].Past && r[2].Next);
-        True("орбита ещё далеко", !r[3].Past && !r[3].Next);
+        True("четвёртая веха ещё впереди", !r[3].Past && !r[3].Next);
+        while (sim.T < 600) Physics.Sim.Tick(sim, Const.DT);
+        Rail.Mark[] late = Rail.Of(sim);
+        True("после выхода на орбиту лента показывает, что дальше — сход с орбиты",
+             Array.Exists(late, m => m.Name == "сход с орбиты" && !m.Past),
+             string.Join(", ", Array.ConvertAll(late, m => m.Name + (m.Past ? "✓" : ""))));
+        Same("захват корабля подписан кораблём", Phases.Air("caught", true), "Корабль пойман башней");
+        Same("захват ускорителя — ускорителем", Phases.Air("caught", false), "Ускоритель пойман башней");
+        True("на посадке корабля есть камера с ловильных рук", Array.IndexOf(CamPlan.For("landS"), 10) >= 0,
+             string.Join(",", CamPlan.For("landS")));
         Same("фаза эфира на выведении", Phases.Air("ascent"), "Работа первой ступени");
         Same("фаза пульта осталась прежней", Phases.Console("ascent"), "Выведение");
         True("у каждого режима есть эфирное название", Phases.Air("landS").Length > 0

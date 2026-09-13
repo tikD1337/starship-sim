@@ -234,6 +234,7 @@ public static class Sim {
             else ManualGuide(sim, v, dt);
             Flight.StepVehicle(sim, v, dt);
             Thermal(sim, v, dt);
+            if (v.Landed || v.Crashed) sim.Once("over" + v.Tag);
         }
         if (s.Attached) {
             s.X = b.X; s.Y = b.Y; s.Vx = b.Vx; s.Vy = b.Vy; s.Th = b.Th; s.Om = b.Om;

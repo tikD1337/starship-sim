@@ -11,7 +11,8 @@ public static class CamPlan {
         "ascent2" or "coastS" or "circ" or "orbit" => new[] { 0, 2 },
         "deorbit" or "coastD" => new[] { 0, 1 },
         "entryS" => new[] { 1, 2 },
-        "flipS" or "landS" => new[] { 2, 1 },
+        "flipS" => new[] { 2, 1 },
+        "landS" => new[] { 2, 10, 8, 1 },
         _ => new[] { -1 },
     };
     private static int Rank(string mode) => mode switch {
