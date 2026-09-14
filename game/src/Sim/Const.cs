@@ -29,7 +29,10 @@ public static class Const {
         GLIDE_H = 25000, ENTRY_K0 = 1.08;
     public static double ENTRY_PROP = 60e3;
     public static double FLIP_STOP = 650, FLIP_H_SEA = 900;
-    public static double OM_ACC_MAX = 0.30, OM_ACC_FLIP = 0.45;
+    public static double OM_ACC_MAX = 0.30, OM_ACC_FLIP = 1.0;
+    public static double FLIP_BRAKE = 0.8, FLIP_KW = 4, FLIP_TW = 2.4, FLIP_END = 10, FLIP_OM_END = 8, FLIP_D = 380;
+    public static double SHIP_ALAT = 12, SHIP_TILT = 25, SHIP_GATE = 10, SHIP_GATE_V = 6, SHIP_AD = 6, SHIP_AB = 9,
+        SHIP_ENG_K = 1.3, SHIP_POLE = 0.9;
     public static double SECO_LEAD = 1.8, SECO_PERI = -800e3;
     public static double CIRC_TAPER = 150e3, CIRC_ONE = 80e3;
     public const double FLAP_S_FWD = 19.9, FLAP_S_AFT = 36.7;
@@ -39,7 +42,6 @@ public static class Const {
     public static double FIN_CN = 1.5;
     public static double GLIDE_KA = 400, GLIDE_A_LO = 45, GLIDE_A_HI = 70;
     public static double BELLY_TILT = 15, BELLY_VP0 = 150, BELLY_VP1 = 170, BELLY_LEAD = 1600;
-    public static double FLIP_DRIFT_K = 0.8;
     public static double BOOST_AOA = 24, BOOST_STRAIGHT_H = 4000, BOOST_SWITCH_H = 450;
     public static double ASC_KA = 5e-4, ASC_KV = 0.04, ASC_AVMAX = 40, ASC_THMAX = 140, DEO_AIM = 30e3;
     public const double DT = 0.01;

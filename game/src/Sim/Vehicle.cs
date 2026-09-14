@@ -29,6 +29,7 @@ public sealed class Vehicle {
     public bool SeekPad, Caught;
     public bool Rcs = true;
     public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT;
+    public bool ShipHold;
     public bool Venting, BurnLogged, IgnBurn;
     public double MissPred = double.NaN, PredAcc;
     public System.Collections.Generic.Dictionary<string, double> Sgn = new();

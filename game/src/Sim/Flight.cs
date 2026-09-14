@@ -64,7 +64,10 @@ public static class Flight {
             (gimAuth + flapAuth + rcsAuth - Math.Abs(Fsd * (v.Cp - cm))) / I);
         double aLim = Math.Min(v.Mode == "flipS" ? Const.OM_ACC_FLIP : Const.OM_ACC_MAX, aAvail);
         double err = Vehicle.AngDiff(v.ThCmd, v.Th);
-        double aDes = Const.Clamp(v.Kp * err - v.Kd * v.Om, -aLim, aLim);
+        double aDes = v.Mode == "flipS"
+            ? Const.Clamp((Math.Sign(err) * Math.Sqrt(2 * Const.FLIP_BRAKE * aLim * Math.Abs(err)) - v.Om) * Const.FLIP_KW,
+                          -aLim, aLim)
+            : Const.Clamp(v.Kp * err - v.Kd * v.Om, -aLim, aLim);
         double need = aDes * I;
         need -= Fsd * (v.Cp - cm);
         double g = 0;

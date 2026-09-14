@@ -236,7 +236,7 @@ public static class Guide {
                 v.ThCmd = Guidance.AimLift(v, v.AlphaCmd, Guidance.LiftSign(v, "up", rf.Up));
             }
             else {
-                double miss = sim.Downrange(v) + Guidance.FlipDrift(v);
+                double miss = sim.Downrange(v) + Const.FLIP_D;
                 double vp = Guidance.AimPro(v) * Const.R2D;
                 double flat = Const.Clamp((vp - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
                 double lead = miss + Const.BELLY_LEAD;
@@ -274,7 +274,8 @@ public static class Guide {
             v.Tmr += dt; v.Ign = true; v.NEng = 3;
             Guidance.LandingBurn(sim, v, dt, 3);
             v.ThCmd = 0;
-            if (Math.Abs(Vehicle.AngDiff(v.Th, 0)) < 30 * Const.D2R || v.Tmr > 4) {
+            if (Math.Abs(Vehicle.AngDiff(v.Th, 0)) < Const.FLIP_END * Const.D2R
+                && Math.Abs(v.Om) < Const.FLIP_OM_END * Const.D2R || v.Tmr > 4) {
                 v.Mode = "landS";
                 v.Ign = false; v.NEng = 0; v.Throttle = 0;
             }

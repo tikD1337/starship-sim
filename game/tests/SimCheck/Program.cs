@@ -203,7 +203,7 @@ internal static class Program {
                 F(alt), F(v.Vx), F(v.Vy), F(th), F(fill), seek ? "1" : "0", F(sim.T),
                 F(Guidance.PitchProg(sp)), F(o.Apo), F(o.Peri), F(o.E),
                 F(Guidance.AimRetro(v)), F(Guidance.AimPro(v)), F(Guidance.AimAlpha(v, 60)),
-                F(lr.X), F(lr.Up), F(Guidance.FlipDrift(v)), F(Guidance.StopAlt(v, 3)),
+                F(lr.X), F(lr.Up), F(Const.FLIP_D), F(Guidance.StopAlt(v, 3)),
                 F(Guidance.LandAim(sim, v, 40 * Const.D2R, 0)),
                 F(Guidance.BbNeed(sim, v)), F(Guidance.BoostbackAim(v)),
                 F(Guidance.BoosterMiss(sim, v, 0)),
@@ -244,7 +244,20 @@ internal static class Program {
             if (args[k] == "--secoperi") secoPeri = double.Parse(args[k + 1], Inv);
             if (args[k] == "--entprop") Const.ENTRY_PROP = double.Parse(args[k + 1], Inv);
             if (args[k] == "--glka") Const.GLIDE_KA = double.Parse(args[k + 1], Inv);
-            if (args[k] == "--driftk") Const.FLIP_DRIFT_K = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--flipbrake") Const.FLIP_BRAKE = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--flipkw") Const.FLIP_KW = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--flipend") Const.FLIP_END = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--salat") Const.SHIP_ALAT = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--stilt") Const.SHIP_TILT = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sgate") Const.SHIP_GATE = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sgatev") Const.SHIP_GATE_V = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sengk") Const.SHIP_ENG_K = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sad") Const.SHIP_AD = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sab") Const.SHIP_AB = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--flipom") Const.FLIP_OM_END = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--spole") Const.SHIP_POLE = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--flipd") Const.FLIP_D = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--fliptw") Const.FLIP_TW = double.Parse(args[k + 1], Inv);
             if (args[k] == "--alat") Const.LAND_ALAT = double.Parse(args[k + 1], Inv);
             if (args[k] == "--windk") Const.LAND_WIND_K = double.Parse(args[k + 1], Inv);
             if (args[k] == "--kdamp") Const.LAND_KDAMP = double.Parse(args[k + 1], Inv);
@@ -386,11 +399,12 @@ internal static class Program {
                     + $" wind={b.WindE:F1} q={(b.Q/1000):F1} aoa={(b.AoaDev*Const.R2D):F1}"
                     + $" bank={(b.Bank*Const.R2D):F0} fin={b.Fin:F2} v={b.Speed:F0}");
             if (lndDbg && (s.Mode == "entryS" && s.Alt < 6000 || s.Mode == "flipS" || s.Mode == "landS")
-                && i % 50 == 0)
+                && i % (s.Mode == "flipS" ? 10 : 50) == 0)
                 Console.Error.WriteLine($"LND t={sim.T:F1} {s.Mode} h={s.Alt:F0} vv={s.VVert:F1}"
                     + $" vh={s.VHor:F1} dr={sim.Downrange(s):F0} th={(s.Th*Const.R2D):F1}"
                     + $" tc={(s.ThCmd*Const.R2D):F1} n={s.NRun} thr={s.Throttle:F2}"
-                    + $" a={(s.Alpha*Const.R2D):F0} q={(s.Q/1000):F1}");
+                    + $" a={(s.Alpha*Const.R2D):F0} q={(s.Q/1000):F1} m={(s.Mass/1000):F0}"
+                    + $" om={(s.Om*Const.R2D):F0} gim={(s.Gimbal*Const.R2D):F1} F={(s.F/1e6):F2}");
             if (i % 100 == 0)
                 foreach (Vehicle v in sim.Veh) {
                     if (v.Tanks == null) continue;

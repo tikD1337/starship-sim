@@ -42,6 +42,7 @@ internal static partial class Program {
         BoosterReturn();
         BoosterSwing();
         ShipBellyFlop();
+        ShipLanding();
         TowerArms();
         FlightMarks();
         OrbitElements();
@@ -627,6 +628,28 @@ internal static partial class Program {
                 True($"{name}: переворот начинается почти с горизонтали", Math.Abs(atFlip) <= 20, $"{N(atFlip)}° от горизонта");
             True($"{name}: корабль {(mission == "orbital" ? "пойман башней" : "сел")}",
                  mission == "orbital" ? s.Caught : s.Landed && !s.Crashed, s.Mode);
+        }
+    }
+    private static void ShipLanding() {
+        Head("Посадка корабля как у настоящего: переворот за пару секунд, касание через ~20 с");
+        foreach ((string mission, string name) in new[] { ("orbital", "орбитальное"), ("high", "высокая орбита") }) {
+            var sim = new SimState { Mission = mission, AnomOn = false };
+            Physics.Sim.Reset(sim, 12345);
+            Vehicle s = sim.Veh[1];
+            double t0 = double.NaN, tFlip = double.NaN, tilt = 0;
+            for (int i = 0; i < 1_200_000 && !s.Landed && !s.Crashed && !s.Caught; i++) {
+                Physics.Sim.Tick(sim, Const.DT);
+                if (double.IsNaN(t0) && s.Mode == "flipS") t0 = sim.T;
+                if (double.IsNaN(t0)) continue;
+                double dev = Math.Abs(Vehicle.AngDiff(s.Th, 0)) * Const.R2D;
+                if (double.IsNaN(tFlip) && dev <= 15) tFlip = sim.T - t0;
+                if (!double.IsNaN(tFlip)) tilt = Math.Max(tilt, dev);
+            }
+            double burn = sim.T - t0;
+            True($"{name}: корабль пойман башней", s.Caught, s.Mode);
+            True($"{name}: переворот до 15° от вертикали не дольше 3 с после зажигания", tFlip <= 3, $"{N(tFlip)} с");
+            True($"{name}: от зажигания до захвата не дольше 24 с (у пятого полёта 20 с)", burn <= 24, $"{N(burn)} с");
+            True($"{name}: после переворота наклон не больше 30°", tilt <= 30, $"{N(tilt)}°");
         }
     }
     private static (bool, double, double, int, int) Swing(string mission, Wind wind) {
