@@ -2,6 +2,9 @@ using System;
 namespace Starship.Physics;
 public sealed class Dispersion {
     public double RhoK = 1, GustK, WindK = 1, WindB;
+    public bool RelightB, RelightS;
+    public int RelB, RelS;
+    private bool _firedB, _firedS;
     public readonly double[] DryK = { 1, 1 }, PropK = { 1, 1 };
     public readonly double[][] EngK = { new double[40], new double[8] };
     public static Dispersion Roll(uint seed) {
@@ -15,6 +18,10 @@ public sealed class Dispersion {
         }
         d.WindK = rng.About(0.15);
         d.WindB = (rng.Next() * 2 - 1) * 1.5;
+        d.RelightB = rng.Next() < Const.RELIGHT_P;
+        d.RelightS = rng.Next() < Const.RELIGHT_P;
+        d.RelB = (int)Math.Floor(rng.Next() * 10);
+        d.RelS = (int)Math.Floor(rng.Next() * 3);
         return d;
     }
     public void Apply(SimState sim) {
@@ -27,6 +34,18 @@ public sealed class Dispersion {
         }
         sim.RhoK = RhoK;
         ApplyWind(sim);
+    }
+    public void Tick(SimState sim) {
+        Vehicle b = sim.Veh[0], s = sim.Veh[1];
+        bool anom = sim.AnomOn && sim.Anom != null;
+        if (RelightB && !_firedB && b.Mode == "landB" && b.IgnBurn) {
+            _firedB = true;
+            if (!(anom && sim.Anom.Has("relightB"))) Anomalies.RelightFailB(b, RelB);
+        }
+        if (RelightS && !_firedS && s.Mode == "flipS") {
+            _firedS = true;
+            if (!(anom && sim.Anom.Has("relightS"))) Anomalies.RelightFailS(s, RelS);
+        }
     }
     public void ApplyWind(SimState sim) {
         sim.Wind.Gusts(GustK, sim.Seed);

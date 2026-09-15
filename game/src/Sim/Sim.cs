@@ -237,6 +237,7 @@ public static class Sim {
         double prev = sim.T;
         sim.T += dt;
         Anomalies.Tick(sim);
+        sim.Disp?.Tick(sim);
         ArmsTick(sim, dt);
         if (prev < 0 && sim.T >= 0) {
             b.Mode = "ascent"; b.Ign = true; b.NEng = 33; b.Throttle = 1;

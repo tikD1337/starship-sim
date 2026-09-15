@@ -74,20 +74,21 @@ public sealed class Anomalies {
             Key = "relightB", P = 0.08, Name = "двигатели ускорителя не зажглись на посадку",
             Stage = "relightB",
             When = (sim, a) => sim.Veh[0].Mode == "landB" && sim.Veh[0].IgnBurn,
-            Fire = (sim, a) => {
-                Vehicle b = sim.Veh[0];
-                b.Eng[3 + a.RelB % 10].Fail("не зажёгся на посадочную жигу");
-                b.Eng[3 + (a.RelB + 3) % 10].Fail("не зажёгся на посадочную жигу");
-            },
+            Fire = (sim, a) => RelightFailB(sim.Veh[0], a.RelB),
         },
         new() {
             Key = "relightS", P = 0.08, Name = "двигатель корабля не зажёгся на посадку",
             Stage = "relightS",
             When = (sim, a) => sim.Veh[1].Mode == "flipS",
-            Fire = (sim, a) => sim.Veh[1].Eng[a.RelS % 3].Fail("не зажёгся на переворот"),
+            Fire = (sim, a) => RelightFailS(sim.Veh[1], a.RelS),
         },
     };
     private static Engine Eng(Vehicle v, int idx) => v.Eng[idx % v.Eng.Count];
+    public static void RelightFailB(Vehicle b, int k) {
+        b.Eng[3 + k % 10].Fail("не зажёгся на посадочную жигу");
+        b.Eng[3 + (k + 3) % 10].Fail("не зажёгся на посадочную жигу");
+    }
+    public static void RelightFailS(Vehicle s, int k) => s.Eng[k % 3].Fail("не зажёгся на переворот");
     private static Vehicle Jammed(SimState sim, Anomalies a) => a.JamShip ? sim.Veh[1] : sim.Veh[0];
     public static Anomalies Roll(SimState sim, Rng rng) {
         var a = new Anomalies();

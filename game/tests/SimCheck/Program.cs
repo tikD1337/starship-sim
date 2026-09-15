@@ -220,6 +220,7 @@ internal static class Program {
         string anomKeys = null;
         uint seed = 12345u;
         int every = 2000;
+        string steerPath = null;
         bool entDbg = false;
         bool ascDbg = false;
         bool lndDbg = false;
@@ -278,7 +279,8 @@ internal static class Program {
             if (args[k] == "--deploy") deploy = true;
             if (args[k] == "--anom") anom = true;
             if (args[k] == "--disp") disp = true;
-            if (args[k] == "--nonav") { Const.NAV_POS_SIG = 0; Const.NAV_VEL_SIG = 0; }
+            if (args[k] == "--nonav") { Const.NAV_POS_SIG = 0; Const.NAV_VEL_SIG = 0; Const.NAV_LAG = 0; }
+            if (args[k] == "--steer") steerPath = args[k + 1];
             if (args[k] == "--navk") { double nk = double.Parse(args[k + 1], Inv); Const.NAV_POS_SIG *= nk; Const.NAV_VEL_SIG *= nk; }
             if (k + 1 >= args.Length) continue;
             if (args[k] == "--pay") pay = double.Parse(args[k + 1], Inv);
@@ -329,6 +331,9 @@ internal static class Program {
         double sTouch = double.NaN, bTouch = double.NaN, sVvPrev = 0, bVvPrev = 0;
         double sVhFlip = 0, sHoverT = 0, sTiltMax = 0;
         var wEst = new double[2]; var wFc = new double[2]; var wN = new double[2]; var wMax = new double[2];
+        var stT = new double[2]; var stSq = new double[2]; var stVar = new double[2]; var stRev = new int[2];
+        var stTh = new double[2]; var stSign = new int[2];
+        var steerCsv = steerPath != null ? new StringBuilder("t,veh,alt,dr,tilt,wind,west\n") : null;
         int sCut = 0;
         var cuts = new List<string>();
         double errMax = 0, errSum = 0, errT = 0; int omSign = 0, flips = 0;
@@ -370,6 +375,23 @@ internal static class Program {
                 if (s.Alt < 400 && tl > sTiltMax) sTiltMax = tl;
             }
             if (s.Mode == "landS" && s.Alt - Const.CATCH_H < 60 && !s.Landed) sHoverT += dt;
+            for (int k = 0; k < 2; k++) {
+                Vehicle w = sim.Veh[k];
+                bool fin = !w.Landed && !w.Attached && w.Alt < 1500 && (w.Mode == "landB" && w.IgnBurn || w.Mode == "landS");
+                if (!fin) { stTh[k] = double.NaN; continue; }
+                double tl = Vehicle.AngDiff(w.Th, 0) * Const.R2D;
+                if (!double.IsNaN(stTh[k])) {
+                    stVar[k] += Math.Abs(tl - stTh[k]);
+                    stSq[k] += tl * tl * dt; stT[k] += dt;
+                    double om = w.Om * Const.R2D;
+                    int sg = om > 0.5 ? 1 : om < -0.5 ? -1 : 0;
+                    if (sg != 0 && stSign[k] != 0 && sg != stSign[k]) stRev[k]++;
+                    if (sg != 0) stSign[k] = sg;
+                }
+                stTh[k] = tl;
+                if (steerCsv != null && i % 10 == 0)
+                    steerCsv.Append(FormattableString.Invariant($"{sim.T:F2},{k},{w.Alt:F2},{sim.Downrange(w):F2},{tl:F3},{w.WindE:F2},{w.WindEst:F2}\n"));
+            }
             for (int k = 0; k < 2; k++) {
                 Vehicle w = sim.Veh[k];
                 if (w.Landed || w.Attached || w.Alt > 1500 || !(w.Mode == "landB" || w.Mode == "landS")) continue;
@@ -454,6 +476,9 @@ internal static class Program {
                                 $"bTouch={Math.Abs(bTouch):F2}m/s sTouch={Math.Abs(sTouch):F2}m/s " +
                                 $"bIgnH={bIgnH:F0}m bIgnV={bIgnV:F0}kmh b13={b13T:F1}s bBurnG={bBurnG:F1}");
         Console.Error.WriteLine($"FLIP sVhMax={sVhFlip:F1}m/s sHover={sHoverT:F1}s sTiltMax={sTiltMax:F1}deg");
+        if (steerCsv != null) System.IO.File.WriteAllText(steerPath, steerCsv.ToString());
+        Console.Error.WriteLine($"STEER bTiltRms={Math.Sqrt(stSq[0] / Math.Max(stT[0], 1e-9)):F2} bRate={stVar[0] / Math.Max(stT[0], 1e-9):F2} bRev={stRev[0]} bT={stT[0]:F1} " +
+                                $"sTiltRms={Math.Sqrt(stSq[1] / Math.Max(stT[1], 1e-9)):F2} sRate={stVar[1] / Math.Max(stT[1], 1e-9):F2} sRev={stRev[1]} sT={stT[1]:F1}");
         Console.Error.WriteLine($"NAV bWindErr={wEst[0] / Math.Max(wN[0], 1e-9):F2} bFcErr={wFc[0] / Math.Max(wN[0], 1e-9):F2} bWindMax={wMax[0]:F1} " +
                                 $"sWindErr={wEst[1] / Math.Max(wN[1], 1e-9):F2} sFcErr={wFc[1] / Math.Max(wN[1], 1e-9):F2} sWindMax={wMax[1]:F1} " +
                                 $"rho={sim.RhoK:F3} bRho={b.RhoEst:F3} sRho={s.RhoEst:F3}");

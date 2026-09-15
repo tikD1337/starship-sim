@@ -30,6 +30,9 @@ public sealed class Vehicle {
     public bool Rcs = true;
     public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT, HeldVh, HeldOm, CatchH = Const.CATCH_H;
     public double NavH, NavX, NavVv, NavVh, WindBias, WindEst, RhoEst = 1, ObsAcc, FRef;
+    public double NzH, NzX, NzVv, NzVh;
+    public readonly double[] LagH = new double[32], LagX = new double[32], LagVv = new double[32], LagVh = new double[32];
+    public int LagI, LagN;
     public bool QDown, Splash;
     public string Site = "tower";
     public double AimDr, WaitT;

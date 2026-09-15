@@ -5,10 +5,20 @@ public static class Nav {
         if (sim.Disp == null) return;
         double kp = Math.Exp(-dt / Const.NAV_POS_TAU), kv = Math.Exp(-dt / Const.NAV_VEL_TAU);
         double sp = Const.NAV_POS_SIG * Math.Sqrt(1 - kp * kp), sv = Const.NAV_VEL_SIG * Math.Sqrt(1 - kv * kv);
-        v.NavH = v.NavH * kp + sp * Gauss(sim.NavRng);
-        v.NavX = v.NavX * kp + sp * Gauss(sim.NavRng);
-        v.NavVv = v.NavVv * kv + sv * Gauss(sim.NavRng);
-        v.NavVh = v.NavVh * kv + sv * Gauss(sim.NavRng);
+        v.NzH = v.NzH * kp + sp * Gauss(sim.NavRng);
+        v.NzX = v.NzX * kp + sp * Gauss(sim.NavRng);
+        v.NzVv = v.NzVv * kv + sv * Gauss(sim.NavRng);
+        v.NzVh = v.NzVh * kv + sv * Gauss(sim.NavRng);
+        double alt = v.Alt, dr = sim.Downrange(v), vv = v.VVert, vh = v.VHor;
+        int len = v.LagH.Length, i = v.LagI;
+        v.LagH[i] = alt; v.LagX[i] = dr; v.LagVv[i] = vv; v.LagVh[i] = vh;
+        int j = ((i - Math.Min(v.LagN, (int)Math.Round(Const.NAV_LAG / dt))) % len + len) % len;
+        v.NavH = v.NzH + v.LagH[j] - alt;
+        v.NavX = v.NzX + v.LagX[j] - dr;
+        v.NavVv = v.NzVv + v.LagVv[j] - vv;
+        v.NavVh = v.NzVh + v.LagVh[j] - vh;
+        v.LagI = (i + 1) % len;
+        v.LagN = Math.Min(v.LagN + 1, len - 1);
     }
     private static double Gauss(Rng r) {
         double u = Math.Max(r.Next(), 1e-12), w = r.Next();

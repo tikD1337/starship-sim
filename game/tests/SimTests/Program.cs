@@ -729,6 +729,36 @@ internal static partial class Program {
                  && Math.Abs(s.Alt + Const.DECK_H) < 0.1, $"{s.Mode}, {N(dr - Const.PAD_DR)} м от центра, высота {N(s.Alt)} м");
         }
         {
+            int nb = 0, ns = 0, both = 0;
+            const int seeds = 5000;
+            for (uint sd = 1; sd <= seeds; sd++) {
+                Dispersion d = Dispersion.Roll(sd);
+                if (d.RelightB) nb++;
+                if (d.RelightS) ns++;
+                if (d.RelightB && d.RelightS) both++;
+            }
+            True("без отказов двигатели на посадку изредка не зажигаются: около 2 % у каждой ступени",
+                 nb >= 0.015 * seeds && nb <= 0.025 * seeds && ns >= 0.015 * seeds && ns <= 0.025 * seeds && both < 0.002 * seeds,
+                 $"ускоритель {N(100.0 * nb / seeds)} %, корабль {N(100.0 * ns / seeds)} %, оба {both}");
+            uint sb = 1, ss = 1;
+            while (sb < seeds && !Dispersion.Roll(sb).RelightB) sb++;
+            while (ss < seeds && !(Dispersion.Roll(ss).RelightS && !Dispersion.Roll(ss).RelightB)) ss++;
+            SimState simB = Live(sb, true);
+            Vehicle bb = simB.Veh[0];
+            Finish(simB, bb);
+            True("естественный отказ на жиге ускорителя: захват отменён, приводнение",
+                 bb.Splash && bb.Landed && !bb.Crashed && Logged(simB, "уход в море"), $"зерно {sb}: {bb.Mode}, {N(simB.Downrange(bb))} м");
+            SimState simS = Live(ss, true);
+            Vehicle sv = simS.Veh[1];
+            Finish(simS, sv);
+            True("естественный отказ на перевороте корабля: посадка на площадку у башни",
+                 sv.Site == "pad" && sv.Landed && !sv.Crashed && Logged(simS, "уход на площадку у башни"),
+                 $"зерно {ss}: {sv.Mode}, {N(simS.Downrange(sv) - Const.PAD_DR)} м от центра");
+            SimState off = Live(sb, false);
+            Finish(off, off.Veh[0]);
+            True("без разброса того же зерна отказа нет", off.Veh[0].Caught, off.Veh[0].Mode);
+        }
+        {
             SimState sim = Live(12345, false);
             sim.Wind = Wind.Steady(22);
             Vehicle b = sim.Veh[0], s = sim.Veh[1];
@@ -776,10 +806,11 @@ internal static partial class Program {
         Vehicle b = sim.Veh[0];
         var navH = new System.Collections.Generic.List<double>();
         var navV = new System.Collections.Generic.List<double>();
-        double rhoMeco = double.NaN, errEst = 0, errFc = 0, n = 0;
+        double rhoMeco = double.NaN, errEst = 0, errFc = 0, n = 0, lagSum = 0, lagN = 0;
         for (int i = 0; i < 1_000_000 && !b.Landed && !b.Crashed; i++) {
             Physics.Sim.Tick(sim, Const.DT);
-            if (i % 100 == 0 && sim.T > 0) { navH.Add(b.NavH); navV.Add(b.NavVh); }
+            if (i % 100 == 0 && sim.T > 0 && Math.Abs(b.VVert) < 5) { navH.Add(b.NavH); navV.Add(b.NavVh); }
+            if (b.Mode == "coastB" && b.VVert < -300) { lagSum += (b.NAlt - b.Alt) / -b.VVert; lagN++; }
             if (double.IsNaN(rhoMeco) && sim.T > 60 && b.Mode != "ascent") rhoMeco = b.RhoEst;
             if (b.Mode == "landB" && b.Alt < 1500) {
                 errEst += Math.Abs(b.WindEst - b.WindE) * Const.DT;
@@ -788,6 +819,8 @@ internal static partial class Program {
             }
         }
         double sH = Spread(navH, out double mH), sV = Spread(navV, out _);
+        True("навигация запаздывает примерно на 0,1 с: на быстром спуске высота завышена на V·0,1",
+             lagN > 100 && Math.Abs(lagSum / lagN - Const.NAV_LAG) < 0.02, $"{N(lagSum / Math.Max(lagN, 1))} с");
         True("ошибка навигации по высоте порядка метра", sH > 0.3 && sH < 1.6 && Math.Abs(mH) < 0.8,
              $"СКО {N(sH)} м, среднее {N(mH)} м");
         True("ошибка навигации по скорости — сотые доли м/с", sV > 0.02 && sV < 0.2, $"СКО {N(sV)} м/с");
@@ -804,7 +837,7 @@ internal static partial class Program {
             SimState sim = Live(12345, false);
             Vehicle v = sim.Veh[idx];
             double jump = double.NaN, turn = double.NaN, speed = double.NaN, tCatch = double.NaN;
-            double tilt2 = double.NaN, slide2 = double.NaN, stowAlt = double.NaN;
+            double tilt2 = double.NaN, slide2 = double.NaN, stowAlt = double.NaN, sagV1 = double.NaN, sag1 = double.NaN, tilt1 = double.NaN;
             for (int i = 0; i < 1_600_000 && double.IsNaN(stowAlt); i++) {
                 double x0 = v.X, y0 = v.Y, th0 = v.Th, vx0 = v.Vx, vy0 = v.Vy;
                 bool was = v.Caught;
@@ -816,6 +849,10 @@ internal static partial class Program {
                     turn = Math.Abs(Vehicle.AngDiff(v.Th, th0)) * Const.R2D;
                     speed = Math.Sqrt(vx0 * vx0 + vy0 * vy0);
                 }
+                if (!double.IsNaN(tCatch) && double.IsNaN(sagV1) && sim.T - tCatch >= 1.2) {
+                    sagV1 = Math.Abs(sim.ArmSagV); sag1 = Math.Abs(sim.ArmSag - Const.ARM_SAG_REST);
+                    tilt1 = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
+                }
                 if (!double.IsNaN(tCatch) && double.IsNaN(tilt2) && sim.T - tCatch >= 2.5) {
                     tilt2 = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
                     slide2 = Math.Abs(v.HeldVh);
@@ -824,6 +861,9 @@ internal static partial class Program {
             }
             True($"{name}: в кадре захвата положение не прыгает", jump < 0.1, $"{N(jump)} м");
             True($"{name}: в кадре захвата наклон не прыгает", turn < 0.2, $"{N(turn)}°");
+            True($"{name}: через 1,2 с каретка погасила удар (скорость < 0,1 м/с, у положения покоя ±0,1 м)",
+                 sagV1 < 0.1 && sag1 < 0.1, $"{N(sagV1)} м/с, {N(sag1)} м");
+            True($"{name}: через 1,2 с корпус почти выпрямлен (< 1°)", tilt1 < 1, $"{N(tilt1)}°");
             True($"{name}: через 2,5 с корпус выпрямлен на рельсах", tilt2 < 0.3, $"{N(tilt2)}°");
             True($"{name}: через 2,5 с скольжение по рельсам погашено", slide2 < 0.05, $"{N(slide2)} м/с");
             True($"{name}: опущен ровно на стол", Math.Abs(stowAlt) < 0.05, $"высота {N(stowAlt)} м");
