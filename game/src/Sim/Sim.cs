@@ -176,7 +176,8 @@ public static class Sim {
                 if (v.SeekPad && !v.Landed && !v.Crashed && v.Launched && v.Alt < Const.ARM_APPROACH_H && v.VVert < 0)
                 { serve = v; break; }
         Vehicle at = held ?? serve;
-        double armWant = at == null && !b.Launched ? Const.ARM_PARK : Const.CATCH_H + (at ?? b).CatchPinY;
+        double armWant = at == null && !b.Launched ? Const.ARM_PARK
+            : (held != null ? held.CatchH : Const.CATCH_H) + (at ?? b).CatchPinY;
         sim.ArmY += Const.Clamp(armWant - sim.ArmY, -5.0 * dt, 5.0 * dt);
         double gapWant = Const.ARM_GAP_PARK;
         if (held != null) gapWant = 0;
@@ -194,12 +195,12 @@ public static class Sim {
             sim.ArmSag += ds;
             Lower(held, ds);
             if (sim.T - sim.ArmHeldT > Const.ARM_HOLD_T && Math.Abs(sim.ArmSagV) < 0.05) {
-                double d = Math.Min(Const.ARM_LOWER * dt, Const.CATCH_H - sim.ArmDrop);
+                double d = Math.Min(Const.ARM_LOWER * dt, Math.Max(held.Alt, 0));
                 if (d > 0) {
                     sim.ArmDrop += d;
                     Lower(held, d);
                 }
-                if (sim.ArmDrop >= Const.CATCH_H - 0.01) {
+                if (held.Alt <= 0.005) {
                     held.Stowed = true;
                     held.StowT = sim.T;
                     sim.LogMsg($"{held.Tag}: установлен на стартовый стол", 1);
@@ -212,6 +213,13 @@ public static class Sim {
             sim.ArmSag = Math.Max(0, sim.ArmSag - 0.5 * dt);
             if (sim.ArmDrop > 0) sim.ArmDrop = Math.Max(0, sim.ArmDrop - Const.ARM_LOWER * dt);
         }
+    }
+    private static void Settle(Vehicle v, double dt, ref double ang, double r) {
+        ang -= v.HeldVh * dt / r;
+        v.HeldVh *= Math.Exp(-dt / Const.ARM_SLIDE_TAU);
+        double w = 2 * Math.PI / Const.ARM_TILT_PERIOD, th = Vehicle.AngDiff(v.Th, 0);
+        v.HeldOm += (-w * w * th - 2 * Const.ARM_TILT_ZETA * w * v.HeldOm) * dt;
+        v.Th += v.HeldOm * dt;
     }
     private static void Lower(Vehicle v, double d) {
         double k = (v.R - d) / v.R;
@@ -240,6 +248,7 @@ public static class Sim {
             if (v.Landed) {
                 double a = Math.Atan2(v.X, v.Y) - Const.W * dt;
                 double rr = Math.Sqrt(v.X * v.X + v.Y * v.Y);
+                if (v.Caught && !v.Stowed) Settle(v, dt, ref a, rr);
                 v.X = rr * Math.Sin(a); v.Y = rr * Math.Cos(a);
                 v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X;
                 v.Heat = 0; v.Q = 0; v.Acc = 0;

@@ -44,6 +44,7 @@ internal static partial class Program {
         ShipBellyFlop();
         ShipLanding();
         LiveFlight();
+        ArmCatch();
         TowerArms();
         FlightMarks();
         OrbitElements();
@@ -650,6 +651,38 @@ internal static partial class Program {
             Vehicle s = sim.Veh[1];
             for (int i = 0; i < 1_400_000 && !(s.Landed || s.Crashed); i++) Physics.Sim.Tick(sim, Const.DT);
             True("порыв у рук не проводит корабль мимо захвата (ветер 15 м/с, зерно 9)", s.Caught, s.Mode);
+        }
+    }
+    private static void ArmCatch() {
+        Head("Захват без телепорта: ступень ложится на рельсы и успокаивается");
+        foreach (int idx in new[] { 0, 1 }) {
+            string name = idx == 0 ? "ускоритель" : "корабль";
+            SimState sim = Live(12345, false);
+            Vehicle v = sim.Veh[idx];
+            double jump = double.NaN, turn = double.NaN, speed = double.NaN, tCatch = double.NaN;
+            double tilt2 = double.NaN, slide2 = double.NaN, stowAlt = double.NaN;
+            for (int i = 0; i < 1_600_000 && double.IsNaN(stowAlt); i++) {
+                double x0 = v.X, y0 = v.Y, th0 = v.Th, vx0 = v.Vx, vy0 = v.Vy;
+                bool was = v.Caught;
+                Physics.Sim.Tick(sim, Const.DT);
+                if (!was && v.Caught) {
+                    tCatch = sim.T;
+                    double px = x0 + vx0 * Const.DT, py = y0 + vy0 * Const.DT;
+                    jump = Math.Sqrt((v.X - px) * (v.X - px) + (v.Y - py) * (v.Y - py));
+                    turn = Math.Abs(Vehicle.AngDiff(v.Th, th0)) * Const.R2D;
+                    speed = Math.Sqrt(vx0 * vx0 + vy0 * vy0);
+                }
+                if (!double.IsNaN(tCatch) && double.IsNaN(tilt2) && sim.T - tCatch >= 2.5) {
+                    tilt2 = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
+                    slide2 = Math.Abs(v.HeldVh);
+                }
+                if (v.Stowed) stowAlt = v.Alt;
+            }
+            True($"{name}: в кадре захвата положение не прыгает", jump < 0.1, $"{N(jump)} м");
+            True($"{name}: в кадре захвата наклон не прыгает", turn < 0.2, $"{N(turn)}°");
+            True($"{name}: через 2,5 с корпус выпрямлен на рельсах", tilt2 < 0.3, $"{N(tilt2)}°");
+            True($"{name}: через 2,5 с скольжение по рельсам погашено", slide2 < 0.05, $"{N(slide2)} м/с");
+            True($"{name}: опущен ровно на стол", Math.Abs(stowAlt) < 0.05, $"высота {N(stowAlt)} м");
         }
     }
     private static void TowerArms() {

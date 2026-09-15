@@ -110,9 +110,8 @@ public static class Flight {
             double tilt = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
             if (dr < Const.CATCH_DR && vd < Const.CATCH_VV && vd > -2.5 &&
                 vh < Const.CATCH_VH && tilt < Const.CATCH_TILT) {
-                double ang = Math.Atan2(v.X, v.Y), rr = Const.RE + Const.CATCH_H;
-                v.X = rr * Math.Sin(ang); v.Y = rr * Math.Cos(ang);
-                v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X; v.Om = 0; v.Th = 0;
+                v.HeldVh = v.VHor; v.HeldOm = v.Om; v.CatchH = v.Alt;
+                v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X; v.Om = 0;
                 v.Caught = true; v.Landed = true; v.Mode = "caught"; v.CatchVd = vd;
                 v.Ign = false; v.NEng = 0; v.F = 0;
                 Quench(v);
