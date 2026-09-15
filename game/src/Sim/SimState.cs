@@ -24,7 +24,7 @@ public sealed class SimState {
     public string Mission = "orbital";
     public double TargetApo = 220e3, TargetPeri = 200e3, SecoPeri = 190e3, MecoFill = 0.19, MecoV = 1450;
     public Action OnSeparate;
-    public Rng Rng = new();
+    public Rng Rng = new(), NavRng = new();
     public Anomalies Anom;
     public Wind Wind = Wind.Calm();
     public double ArmGap = Const.ARM_GAP_PARK, ArmDrop, ArmY = Const.ARM_PARK, ArmSag, ArmSagV, ArmHeldT = double.NaN;
@@ -44,5 +44,6 @@ public sealed class SimState {
         return new Vec2(Const.RE * Math.Sin(a), Const.RE * Math.Cos(a));
     }
     public double Downrange(Vehicle v) => (PadAngle(T) - Math.Atan2(v.X, v.Y)) * Const.RE;
+    public double NavDr(Vehicle v) => Downrange(v) + v.NavX;
     public Vehicle FocusVeh() => Focus == "ship" ? Veh[1] : Veh[0];
 }

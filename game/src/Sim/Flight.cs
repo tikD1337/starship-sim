@@ -5,6 +5,17 @@ public static class Flight {
         foreach (Engine e in v.Eng) { e.On = false; e.Spool = 0; e.F = 0; e.Md = 0; e.Pc = 0; e.Thr = 0; }
         v.Mdot = 0;
     }
+    public static void SpoolAttached(Vehicle v, double dt) {
+        v.EngAcc += dt;
+        if (v.EngAcc >= 0.02) {
+            Pressurant.Step(v, v.EngAcc);
+            EngineSet.Update(v, v.EngAcc, v.Mate != null ? v.Mate.Pa : 0);
+            v.EngAcc = 0;
+        }
+        EngStats st = EngineSet.Stats(v);
+        v.Mdot = st.Md; v.NRun = st.Run;
+        v.Prop = Math.Max(0, v.Prop - st.Md * dt);
+    }
     public static void StepVehicle(SimState sim, Vehicle v, double dt) {
         if (!v.Alive || v.Landed || v.Attached) return;
         double h = v.Alt;
@@ -82,14 +93,9 @@ public static class Flight {
         double rcsT = Const.Clamp(need, -rcsAuth, rcsAuth);
         v.RcsUse = rcsAuth > 1 ? rcsT / rcsAuth : 0;
         double torque = Fsd * (v.Cp - cm) - v.F * Math.Sin(g) * cm + fl * flapAuth + rcsT;
-        double FaX = Fax * ax.X + Fsd * sd.X, FaY = Fax * ax.Y + Fsd * sd.Y;
-        if (v.Bank > 0.01 && sp > 1) {
-            double dx = vr.X / sp, dy = vr.Y / sp;
-            double alng = FaX * dx + FaY * dy;
-            double lx = FaX - alng * dx, ly = FaY - alng * dy;
-            double cb = Math.Cos(v.Bank);
-            FaX = alng * dx + lx * cb; FaY = alng * dy + ly * cb;
-        }
+        Vec2 fa = Aero.World(v, af, vr);
+        double FaX = fa.X, FaY = fa.Y;
+        Nav.Observe(sim, v, FaX, FaY, af.Drag, h, dt);
         double tvx = (ax.X * Math.Cos(g) + sd.X * Math.Sin(g)) * v.F;
         double tvy = (ax.Y * Math.Cos(g) + sd.Y * Math.Sin(g)) * v.F;
         double Fx = tvx + FaX, Fy = tvy + FaY;

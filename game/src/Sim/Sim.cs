@@ -143,6 +143,7 @@ public static class Sim {
         sim.SecoPeri = sim.Mission == "trans" ? -150e3 : Const.SECO_PERI;
         sim.Seed = seed;
         sim.Rng.Seed(seed);
+        sim.NavRng.Seed(unchecked(seed * 3266489917u + 374761393u));
         sim.Anom = Anomalies.Roll(sim, sim.Rng);
         sim.RhoK = 1;
         var windRng = new Rng();
@@ -254,7 +255,12 @@ public static class Sim {
                 v.Heat = 0; v.Q = 0; v.Acc = 0;
                 continue;
             }
-            if (v.Attached) continue;
+            if (v.Attached) {
+                if (v.Mate != null) v.RhoEst = v.Mate.RhoEst;
+                if (v.Ign) Flight.SpoolAttached(v, dt);
+                continue;
+            }
+            Nav.Step(sim, v, dt);
             if (sim.Mode == "auto") Guide.Step(sim, v, dt);
             else ManualGuide(sim, v, dt);
             Flight.StepVehicle(sim, v, dt);

@@ -1,7 +1,7 @@
 using System;
 namespace Starship.Physics;
 public sealed class Dispersion {
-    public double RhoK = 1, GustK;
+    public double RhoK = 1, GustK, WindK = 1, WindB;
     public readonly double[] DryK = { 1, 1 }, PropK = { 1, 1 };
     public readonly double[][] EngK = { new double[40], new double[8] };
     public static Dispersion Roll(uint seed) {
@@ -13,6 +13,8 @@ public sealed class Dispersion {
             d.PropK[i] = rng.About(0.004);
             for (int j = 0; j < d.EngK[i].Length; j++) d.EngK[i][j] = rng.About(0.015);
         }
+        d.WindK = rng.About(0.15);
+        d.WindB = (rng.Next() * 2 - 1) * 1.5;
         return d;
     }
     public void Apply(SimState sim) {
@@ -24,6 +26,10 @@ public sealed class Dispersion {
             for (int j = 0; j < v.Eng.Count; j++) v.Eng[j].P.Cf *= EngK[i][j % EngK[i].Length];
         }
         sim.RhoK = RhoK;
+        ApplyWind(sim);
+    }
+    public void ApplyWind(SimState sim) {
         sim.Wind.Gusts(GustK, sim.Seed);
+        sim.Wind.Sound(WindK, WindB);
     }
 }

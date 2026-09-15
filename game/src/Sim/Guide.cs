@@ -23,17 +23,16 @@ public static class Guide {
         switch (v.Mode) {
         case "ascent": {
             v.NEng = 33; v.Ign = true;
-            v.ThCmd = sim.T < 7 ? 0 : Guidance.PitchProg(sp);
-            v.Throttle = 1;
-            if (v.Q > 32e3) v.Throttle = 0.74;
-            if (v.Q > 25e3 && v.Q <= 32e3 && sim.T > 40) v.Throttle = 0.86;
-            if (v.Q < 18e3 && sim.T > 75) v.Throttle = 1;
+            v.ThCmd = h < Const.ASC_CLEAR_H ? 0 : Guidance.PitchProg(sp);
+            if (v.Q > Const.ASC_Q_IN) v.QDown = true;
+            else if (v.Q < Const.ASC_Q_OUT) v.QDown = false;
+            v.Throttle = !v.QDown ? 1 : v.Q > 32e3 ? 0.74 : 0.86;
             if (v.Acc > 3.6) v.Throttle = Const.Clamp(v.Throttle * 3.6 / v.Acc, 0.4, 1);
             if (v.Q < 8e3 && sim.T > 60) sim.Once("maxq-pass");
             if (v.MaxQ > 1e3 && v.Q < v.MaxQ * 0.85)
                 sim.Once("maxq", () => sim.LogMsg($"Max Q пройден — {(v.MaxQ / 1000):F1} кПа на H={(h / 1000):F1} км", 1));
             if (v.Prop <= sim.MecoFill * v.PropMax || sp > sim.MecoV) {
-                v.Mode = "meco"; v.Tmr = 0;
+                v.Mode = "meco"; v.Tmr = 0; v.FRef = v.F;
                 sim.LogMsg($"MECO: отсечка маршевых. V={sp:F0} м/с, H={(h / 1000):F1} км", 2);
             }
             break;
@@ -41,11 +40,24 @@ public static class Guide {
         case "meco": {
             v.Tmr += dt; v.NEng = 3; v.Throttle = 0.4;
             Vehicle s = v.Mate;
-            if (v.Tmr > 0.6 && !s.Ign) {
+            if (!s.Ign && (v.F < Const.HOT_IGN_F * v.FRef || v.Tmr > Const.HOT_IGN_T)) {
                 s.Ign = true; s.NEng = 6; s.Throttle = 1;
                 sim.LogMsg("Запуск двигателей корабля — горячее разделение", 1);
             }
-            if (v.Tmr > 2.2) Separate(sim);
+            if (!s.Ign) break;
+            int need = 0, lit = 0;
+            foreach (Engine e in s.Eng) {
+                if (!e.Failed) need++;
+                if (e.On && e.Pc >= Const.HOT_PC * Pump.PC_NOM) lit++;
+            }
+            if (lit >= Math.Min(s.NEng, need) && need > 0) {
+                sim.LogMsg($"Корабль на режиме: {lit} двигателей, давление в камерах выше {Const.HOT_PC * Pump.PC_NOM:F0} МПа", 1);
+                Separate(sim);
+            }
+            else if (v.Tmr > Const.HOT_SEP_T) {
+                sim.LogMsg($"Корабль не вышел на режим ({lit} из {Math.Min(s.NEng, need)}) — разделение по страховке", 2);
+                Separate(sim);
+            }
             break;
         }
         case "flip": {
@@ -212,7 +224,7 @@ public static class Guide {
             v.EntAcc += dt;
             if (v.EntAcc > Const.ENTRY_PRED_DT && v.SeekPad && h > Const.GLIDE_H) {
                 v.EntAcc = 0;
-                double qq = 0.5 * Atmosphere.At(h, sim.RhoK).Rho * sp * sp;
+                double qq = 0.5 * Atmosphere.At(h, v.RhoEst).Rho * sp * sp;
                 if (qq > 200) {
                     double aA = Math.Abs(v.Alpha), sa = Math.Sin(aA), ca = Math.Abs(Math.Cos(aA));
                     double cnm = 2 * Math.Abs(sa * ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa;

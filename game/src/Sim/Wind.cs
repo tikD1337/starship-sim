@@ -7,7 +7,7 @@ public sealed class Wind {
     private readonly bool _still;
     private readonly double[] _layAlt = new double[4], _layThick = new double[4], _laySpeed = new double[4];
     private readonly double[] _gW = new double[4], _gK = new double[4], _gP = new double[4], _gA = new double[4];
-    private double _gust;
+    private double _gust, _fcK = 1, _fcB;
     public double Jet => _jet;
     public double Surface => _surf;
     private static double Norm(Rng rng) {
@@ -51,6 +51,8 @@ public sealed class Wind {
         if (h > TopAlt - 10e3) v *= (TopAlt - h) / 10e3;
         return v;
     }
+    public void Sound(double k, double b) { _fcK = k; _fcB = b; }
+    public double Forecast(double h) => _still || double.IsNaN(h) || h < 0 || h > TopAlt ? 0 : At(h) * _fcK + _fcB;
     public void Gusts(double k, uint seed) {
         var rng = new Rng();
         rng.Seed(unchecked(seed * 2246822519u + 3266489917u));

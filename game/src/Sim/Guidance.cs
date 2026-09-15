@@ -113,16 +113,16 @@ public static class Guidance {
         return h;
     }
     public static double LandAim(SimState sim, Vehicle v, double maxTilt, double aMaxIn) {
-        double g = Const.MU / (v.R * v.R), h = v.Alt, vv = v.VVert;
+        double g = Const.MU / (v.R * v.R), h = v.NAlt, vv = v.NVv;
         double hT = v.SeekPad ? Const.CATCH_H : 0;
         double dh = Math.Max(h - hT, 0.5);
         double tgo = Math.Max(2 * dh / Math.Max(-vv, 1), 7);
         double aVert = Math.Max(vv * vv / (2 * dh) + g, 0.5);
         if (!v.SeekPad) {
-            double a2 = Const.Clamp(-v.VHor * 0.55, -3, 3);
+            double a2 = Const.Clamp(-v.NVh * 0.55, -3, 3);
             return Steer(v, Const.Clamp(Math.Atan2(a2, aVert), -maxTilt, maxTilt));
         }
-        double dr = sim.Downrange(v), vh = v.VHor;
+        double dr = sim.NavDr(v), vh = v.NVh;
         double aMax = aMaxIn > 0 ? aMaxIn : aVert * 1.6;
         double lat = Math.Sqrt(Math.Max(aMax * aMax - aVert * aVert, 0.04));
         if (dh < 500) lat = Math.Min(lat, Const.LAND_ALAT);
@@ -140,9 +140,9 @@ public static class Guidance {
             aLat = -k1 * dr - k2 * vh;
         }
         else aLat = -6 * (dr + vh * tgo) / (tgo * tgo) + 2 * vh / tgo;
-        if (v.WindE != 0 && dh < Const.LAND_WIND_H) {
-            double rho = Atmosphere.At(h, sim.RhoK).Rho;
-            aLat -= Const.LAND_WIND_K * 0.5 * rho * v.WindE * Math.Abs(v.WindE)
+        if (v.WindEst != 0 && dh < Const.LAND_WIND_H) {
+            double rho = Atmosphere.At(h, v.RhoEst).Rho;
+            aLat -= Const.LAND_WIND_K * 0.5 * rho * v.WindEst * Math.Abs(v.WindEst)
                     * v.Dia * v.FullLen / v.Mass;
         }
         aLat = Const.Clamp(aLat, -lat, lat);
@@ -161,25 +161,25 @@ public static class Guidance {
     private readonly struct Burn {
         public readonly double H, HT, DhS, Dh, G, FOne, Drag, Vv, VDes, FNow0, Dr, Tgo;
         public Burn(SimState sim, Vehicle v, int nEng) {
-            H = v.Alt;
-            Air at = Atmosphere.At(H, sim.RhoK);
+            H = v.NAlt;
+            Air at = Atmosphere.At(H, v.RhoEst);
             G = Const.MU / (v.R * v.R);
             FOne = Math.Max(1, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
-            Drag = 0.5 * at.Rho * v.VVert * v.VVert * v.A * 0.75;
+            Drag = 0.5 * at.Rho * v.NVv * v.NVv * v.A * 0.75;
             FNow0 = (v.Ign ? v.NEng : nEng) * FOne;
             HT = !v.SeekPad ? 0 : v.Kind == Kind.Booster ? Const.CATCH_H - Const.CATCH_WIN / 2 : Const.CATCH_H;
             double f = (v.Kind == Kind.Booster ? Const.LAND_B_END : nEng)
                        * Math.Max(0, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
             double anet = Math.Max(1, f / v.Mass - G);
             VDes = -(2.5 + Math.Sqrt(2 * anet * 0.72 * Math.Max(H - HT - 8, 0)));
-            Vv = v.VVert;
+            Vv = v.NVv;
             DhS = H - HT;
             Dh = Math.Max(DhS, 0.5);
-            Dr = v.SeekPad ? sim.Downrange(v) : 0;
+            Dr = v.SeekPad ? sim.NavDr(v) : 0;
             double aLat = Math.Max(0.5, Math.Min(Const.LAND_ALAT,
                 nEng * FOne / v.Mass * Math.Sin(20 * Const.D2R)));
             Tgo = Math.Max(Dh / (0.5 * (Math.Max(-Vv, 0) + Const.LAND_VTD)),
-                           LatTime(Dr, v.VHor, aLat));
+                           LatTime(Dr, v.NVh, aLat));
         }
     }
     private static void Ignite(SimState sim, Vehicle v, int nEng, in Burn e) {
@@ -229,14 +229,14 @@ public static class Guidance {
         double aLat = Math.Max(0.5, Math.Min(Const.LAND_ALAT,
             aMaxN * Math.Sin(20 * Const.D2R)));
         if (e.DhS < 40) return Align(v, e, dt, dr);
-        return Math.Max(e.VDes, -e.Dh / Math.Max(LatTime(dr, v.VHor, aLat), 3));
+        return Math.Max(e.VDes, -e.Dh / Math.Max(LatTime(dr, v.NVh, aLat), 3));
     }
     private static double Align(Vehicle v, in Burn e, double dt, double dr) {
         if (v.Kind == Kind.Ship && v.SeekPad && e.DhS < 3 && e.DhS > -Const.CATCH_WIN + 3
-            && (Math.Abs(dr) > 0.75 * Const.CATCH_DR || Math.Abs(v.VHor) > 0.7 * Const.CATCH_VH))
+            && (Math.Abs(dr) > 0.75 * Const.CATCH_DR || Math.Abs(v.NVh) > 0.7 * Const.CATCH_VH))
             return 0;
         double vSafe = -Math.Max(Const.LAND_VTD, e.DhS * 0.34);
-        double vNeed = -e.DhS / Math.Max(LatTime(dr, v.VHor, Const.LAND_ALAT), 1.5);
+        double vNeed = -e.DhS / Math.Max(LatTime(dr, v.NVh, Const.LAND_ALAT), 1.5);
         if (vNeed <= vSafe) return vSafe;
         v.HoldT += dt;
         return v.HoldT < Const.HOLD_MAX ? vNeed : vSafe;
@@ -284,16 +284,16 @@ public static class Guidance {
         return want;
     }
     private static void ShipApproach(SimState sim, Vehicle v, in Burn e, int nEng, double dt) {
-        double dz = e.HT + Const.SHIP_GATE - e.H, vx = v.VHor;
+        double dz = e.HT + Const.SHIP_GATE - e.H, vx = v.NVh;
         double tV = FallTime(Math.Max(-dz, 0), Math.Max(-e.Vv, 0), Const.SHIP_GATE_V, Const.SHIP_AD, Const.SHIP_AB);
         double tL = 1;
         for (int i = 0; i < 120 && Math.Max(Math.Abs(Zem0(-e.Dr, vx, 0, tL)), Math.Abs(ZemT(-e.Dr, vx, 0, tL))) > Const.SHIP_ALAT; i++)
             tL *= 1.04;
         double T = Math.Max(Math.Max(tV, tL), 1.5);
         double aX = Zem0(-e.Dr, vx, 0, Math.Max(T, 6 / Const.SHIP_POLE));
-        if (v.WindE != 0 && e.H < Const.LAND_WIND_H) {
-            double rho = Atmosphere.At(e.H, sim.RhoK).Rho;
-            aX -= Const.LAND_WIND_K * 0.5 * rho * v.WindE * Math.Abs(v.WindE) * v.Dia * v.FullLen / v.Mass;
+        if (v.WindEst != 0 && e.H < Const.LAND_WIND_H) {
+            double rho = Atmosphere.At(e.H, v.RhoEst).Rho;
+            aX -= Const.LAND_WIND_K * 0.5 * rho * v.WindEst * Math.Abs(v.WindEst) * v.Dia * v.FullLen / v.Mass;
         }
         double aZ = Math.Max(Zem0(dz, e.Vv, -Const.SHIP_GATE_V, T) + e.G - e.Drag / v.Mass, 0.5);
         if (v.Mode == "flipS") {
@@ -341,7 +341,7 @@ public static class Guidance {
             ax = -g * ux; ay = -g * uy;
             double rvx = pvx + Const.W * py, rvy = pvy - Const.W * px;
             double sp = Math.Sqrt(rvx * rvx + rvy * rvy);
-            Air at = Atmosphere.At(h, sim.RhoK);
+            Air at = Atmosphere.At(h, v.RhoEst);
             if (sp < 1 || at.Rho <= 0) return;
             double th = Math.Atan2(-rvx * ex - rvy * ey, -rvx * ux - rvy * uy)
                         + (h > Const.BOOST_STRAIGHT_H ? a0 : 0);
@@ -365,7 +365,7 @@ public static class Guidance {
             if (h <= Const.CATCH_H) break;
             double rvx = vx + Const.W * y, rvy = vy - Const.W * x;
             double sp = Math.Sqrt(rvx * rvx + rvy * rvy);
-            double qq = 0.5 * Atmosphere.At(h, sim.RhoK).Rho * sp * sp;
+            double qq = 0.5 * Atmosphere.At(h, v.RhoEst).Rho * sp * sp;
             double dt = qq < 50 ? 2 : (qq < 5e3 ? 0.5 : 0.2);
             Acc(x, y, vx, vy, out double ax1, out double ay1);
             double hd = dt / 2;
@@ -419,7 +419,7 @@ public static class Guidance {
         }
         void Acc(double px, double py, double pvx, double pvy, double ph, out double ax, out double ay) {
             double r = Math.Sqrt(px * px + py * py), h = r - Const.RE;
-            Air at = Atmosphere.At(h, sim.RhoK);
+            Air at = Atmosphere.At(h, v.RhoEst);
             double g = Const.MU / (r * r);
             ax = -g * px / r; ay = -g * py / r;
             double rvx = pvx + Const.W * py, rvy = pvy - Const.W * px;
@@ -441,7 +441,7 @@ public static class Guidance {
             if (!double.IsFinite(r) || h > Const.PRED_H_MAX || t > Const.PRED_T_MAX) break;
             gx = x; gy = y; gt = t;
             if (h <= Const.FLIP_H) break;
-            Air at = Atmosphere.At(h, sim.RhoK);
+            Air at = Atmosphere.At(h, v.RhoEst);
             double rvx = vx + Const.W * y, rvy = vy - Const.W * x;
             double sp = Math.Sqrt(rvx * rvx + rvy * rvy);
             double q = 0.5 * at.Rho * sp * sp;
