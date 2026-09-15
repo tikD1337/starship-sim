@@ -170,7 +170,9 @@ public partial class Main : Node {
         _rig.Pitch = a.Flt("--pitch", 0.14f);
         _rig.Dist = a.Flt("--dist", 300f);
         if (a.Has("--cam")) {
-            _rig.EnterCam(a.Int("--cam", 0));
+            int ci = a.Int("--cam", 0);
+            if (ci < 0) _rig.Cur = CamRig.Kind.Orbit;
+            else _rig.EnterCam(ci);
             _dir.Locked = true;
             _scr.Show(2);
             _dir.Manual = true;

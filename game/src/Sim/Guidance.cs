@@ -114,7 +114,7 @@ public static class Guidance {
     }
     public static double LandAim(SimState sim, Vehicle v, double maxTilt, double aMaxIn) {
         double g = Const.MU / (v.R * v.R), h = v.NAlt, vv = v.NVv;
-        double hT = v.SeekPad ? Const.CATCH_H : 0;
+        double hT = v.Catch ? Const.CATCH_H : SimState.Surface(v.SeekPad ? v.AimDr : sim.Downrange(v));
         double dh = Math.Max(h - hT, 0.5);
         double tgo = Math.Max(2 * dh / Math.Max(-vv, 1), 7);
         double aVert = Math.Max(vv * vv / (2 * dh) + g, 0.5);
@@ -167,7 +167,7 @@ public static class Guidance {
             FOne = Math.Max(1, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
             Drag = 0.5 * at.Rho * v.NVv * v.NVv * v.A * 0.75;
             FNow0 = (v.Ign ? v.NEng : nEng) * FOne;
-            HT = !v.SeekPad ? 0 : v.Kind == Kind.Booster ? Const.CATCH_H - Const.CATCH_WIN / 2 : Const.CATCH_H;
+            HT = v.Catch ? CatchHT(v) : SimState.Surface(v.SeekPad ? v.AimDr : sim.Downrange(v));
             double f = (v.Kind == Kind.Booster ? Const.LAND_B_END : nEng)
                        * Math.Max(0, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
             double anet = Math.Max(1, f / v.Mass - G);
@@ -182,8 +182,10 @@ public static class Guidance {
                            LatTime(Dr, v.NVh, aLat));
         }
     }
+    public static double CatchHT(Vehicle v) => v.Kind == Kind.Booster ? Const.CATCH_H - Const.CATCH_WIN / 2 : Const.CATCH_H;
     private static void Ignite(SimState sim, Vehicle v, int nEng, in Burn e) {
-        double stopH = v.Kind == Kind.Ship ? Const.LAND_STOP_S : Const.CATCH_H + Const.BOOST_SWITCH_H;
+        double stopH = (v.Kind == Kind.Ship ? Const.LAND_STOP_S : Const.CATCH_H + Const.BOOST_SWITCH_H)
+                       + (v.Catch ? 0 : e.HT - CatchHT(v));
         if (v.Ign || v.Prop <= 0) return;
         double stop = v.Kind == Kind.Ship
             ? StopAlt(v, nEng)
@@ -204,8 +206,12 @@ public static class Guidance {
         int need = nEng;
         for (int k = 1; k <= nEng; k++)
             if (k * e.FOne / v.Mass - e.G >= aNeed * 1.35 + 1.5) { need = k; break; }
-        if (v.Kind == Kind.Booster)
-            return v.NEng == Const.LAND_B_END || need <= Const.LAND_B_END ? Const.LAND_B_END : nEng;
+        if (v.Kind == Kind.Booster) {
+            int nb = v.NEng > 0 && v.NEng <= Const.LAND_B_END || need <= Const.LAND_B_END ? Math.Min(Const.LAND_B_END, nEng) : nEng;
+            if (!v.Catch && nb <= Const.LAND_B_END)
+                while (nb > 1 && nb * e.FOne * Const.LAND_THR_MIN > v.Mass * e.G * 0.95) nb--;
+            return nb;
+        }
         v.CutT += dt;
         int want = need;
         int two = Math.Min(2, nEng);
@@ -232,7 +238,7 @@ public static class Guidance {
         return Math.Max(e.VDes, -e.Dh / Math.Max(LatTime(dr, v.NVh, aLat), 3));
     }
     private static double Align(Vehicle v, in Burn e, double dt, double dr) {
-        if (v.Kind == Kind.Ship && v.SeekPad && e.DhS < 3 && e.DhS > -Const.CATCH_WIN + 3
+        if (v.Kind == Kind.Ship && v.Catch && e.DhS < 3 && e.DhS > -Const.CATCH_WIN + 3
             && (Math.Abs(dr) > 0.75 * Const.CATCH_DR || Math.Abs(v.NVh) > 0.7 * Const.CATCH_VH))
             return 0;
         double vSafe = -Math.Max(Const.LAND_VTD, e.DhS * 0.34);
@@ -318,7 +324,13 @@ public static class Guidance {
         double lim = (e.DhS < Const.LAND_DH_END ? Const.LAND_TILT_END : Const.SHIP_TILT) * Const.D2R;
         v.ThCmd = Const.Clamp(SteerP(v, Const.Clamp(want, -lim, lim), Const.SHIP_POLE), -2 * lim, 2 * lim);
     }
+    private static int Avail(Vehicle v) {
+        int n = 0;
+        foreach (Engine en in v.Eng) if (!en.Failed && EngineSet.Relights(v, en)) n++;
+        return n;
+    }
     public static void LandingBurn(SimState sim, Vehicle v, double dt, int nEng) {
+        nEng = Math.Max(1, Math.Min(nEng, Avail(v)));
         var e = new Burn(sim, v, nEng);
         Ignite(sim, v, nEng, e);
         if (!v.Ign) return;
@@ -374,7 +386,7 @@ public static class Guidance {
             vx += ax2 * dt; vy += ay2 * dt; t += dt;
             if (h > 200e3 && t > 1200) break;
         }
-        return (SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE;
+        return (SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE - v.AimDr;
     }
     public static double BoosterLift(SimState sim, Vehicle v) {
         double lo = -1, hi = 1;
@@ -450,7 +462,7 @@ public static class Guidance {
             if (h <= Const.GLIDE_H && sp > 1 && at.Rho > 0) {
                 double ux = x / r, uy = y / r, ex = -uy, ey = ux;
                 double dx = rvx / sp, dy = rvy / sp, rx = -dy, ry = dx;
-                double dr = (SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE + Const.FLIP_D;
+                double dr = (SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE + Const.FLIP_D - v.AimDr;
                 Coef(h, sp, at, out _, out double cl);
                 phiCmd = GlideBank(dr, rvx * ex + rvy * ey, h, rvx * ux + rvy * uy,
                                    cl, Math.Abs(rx * ex + ry * ey));
@@ -462,7 +474,7 @@ public static class Guidance {
             x += (vx + ax1 * hd) * dt; y += (vy + ay1 * hd) * dt;
             vx += ax2 * dt; vy += ay2 * dt; t += dt;
         }
-        return new EntryPred((SimState.PadAngle(sim.T + gt) - Math.Atan2(gx, gy)) * Const.RE + Const.FLIP_D, gt);
+        return new EntryPred((SimState.PadAngle(sim.T + gt) - Math.Atan2(gx, gy)) * Const.RE + Const.FLIP_D - v.AimDr, gt);
     }
     public static double BbNeed(SimState sim, Vehicle v) {
         double g = Const.MU / (v.R * v.R), vv = v.VVert, h = v.Alt;

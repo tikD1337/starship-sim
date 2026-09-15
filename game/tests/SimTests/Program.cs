@@ -47,6 +47,7 @@ internal static partial class Program {
         ArmCatch();
         Estimation();
         ConditionEvents();
+        Fallback();
         TowerArms();
         FlightMarks();
         OrbitElements();
@@ -674,6 +675,68 @@ internal static partial class Program {
         string log = "";
         foreach (LogEntry l in sim.Log) if (l.M.Contains("разделение по страховке") || l.M.Contains("на режиме")) log = l.M;
         return (pitchH, pitchT, flips, tMeco, tIgn, tSep, frac, lit, log);
+    }
+    private static SimState Scripted(string key, uint seed = 5) {
+        var sim = new SimState { Mission = "orbital", AnomOn = true, AnomScript = new System.Collections.Generic.HashSet<string> { key } };
+        Physics.Sim.Reset(sim, seed);
+        return sim;
+    }
+    private static void Finish(SimState sim, Vehicle v, double tip = 0) {
+        for (int i = 0; i < 1_400_000 && !(v.Landed || v.Crashed); i++) Physics.Sim.Tick(sim, Const.DT);
+        for (double t = 0; t < tip; t += Const.DT) Physics.Sim.Tick(sim, Const.DT);
+    }
+    private static bool Logged(SimState sim, string part) {
+        foreach (LogEntry l in sim.Log) if (l.M.Contains(part)) return true;
+        return false;
+    }
+    private static void Fallback() {
+        Head("Запасная посадка: площадка у башни или море, если что-то случилось");
+        True("стол башни на нуле, земля и море на 16 м ниже", SimState.Surface(0) == 0 && SimState.Surface(200) == -Const.DECK_H);
+        True("к востоку за берегом море, площадка на суше", SimState.Water(Const.COAST_DR + 10) && !SimState.Water(Const.PAD_DR) && !SimState.Water(0));
+        {
+            SimState sim = Live(12345, false);
+            Finish(sim, sim.Veh[0]);
+            True("без отказов опрос даёт GO и ускоритель ловится", Logged(sim, "GO на захват") && sim.Veh[0].Caught, sim.Veh[0].Mode);
+        }
+        {
+            SimState sim = Scripted("copvLeak");
+            Vehicle b = sim.Veh[0];
+            Finish(sim, b, 30);
+            double dr = sim.Downrange(b);
+            True("утечка наддува: захват отменён до тормозного импульса, ускоритель уходит в море",
+                 b.Site == "sea" && Logged(sim, "утечка газа наддува: уход в море"), b.Site);
+            True("и мягко приводняется у точки в 6 км", b.Landed && !b.Crashed && b.Splash && Math.Abs(dr - Const.SEA_DR) < 150,
+                 $"{b.Mode}, {N(dr)} м");
+            True("на воде ступень заваливается набок", Math.Abs(Math.Abs(Vehicle.AngDiff(b.Th, 0)) - Math.PI / 2) < 0.05,
+                 $"{N(Math.Abs(b.Th) * Const.R2D)}°");
+        }
+        {
+            SimState sim = Scripted("relightB");
+            Vehicle b = sim.Veh[0];
+            Finish(sim, b);
+            True("два двигателя не зажглись на жиге: ускоритель уходит от башни и приводняется",
+                 b.Landed && !b.Crashed && b.Splash && !b.Caught && Logged(sim, "посадочных двигателей: уход в море"),
+                 $"{b.Mode}, {N(sim.Downrange(b))} м");
+        }
+        {
+            SimState sim = Scripted("relightS");
+            Vehicle s = sim.Veh[1];
+            Finish(sim, s);
+            double dr = sim.Downrange(s);
+            True("двигатель корабля не зажёгся на перевороте: уход на площадку у башни",
+                 s.Site == "pad" && Logged(sim, "уход на площадку у башни"), s.Site);
+            True("корабль садится на площадку, а не в руки", s.Landed && !s.Crashed && !s.Caught && Math.Abs(dr - Const.PAD_DR) < 15
+                 && Math.Abs(s.Alt + Const.DECK_H) < 0.1, $"{s.Mode}, {N(dr - Const.PAD_DR)} м от центра, высота {N(s.Alt)} м");
+        }
+        {
+            SimState sim = Live(12345, false);
+            sim.Wind = Wind.Steady(22);
+            Vehicle b = sim.Veh[0], s = sim.Veh[1];
+            Finish(sim, s);
+            True("ветер 22 м/с: обе ступени не идут к башне и приводняются",
+                 b.Splash && s.Splash && !b.Crashed && !s.Crashed && Logged(sim, "ветер у башни"),
+                 $"Б {b.Mode} {N(sim.Downrange(b))} м, К {s.Mode} {N(sim.Downrange(s))} м");
+        }
     }
     private static void ConditionEvents() {
         Head("События по условиям: тангаж, дроссель у Max Q и горячее разделение без таймеров");

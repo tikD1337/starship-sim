@@ -128,11 +128,14 @@ public static class EngineSet {
         double thr = v.Ign ? Const.Clamp(v.Throttle, 0, 1) : 0;
         int live = 0;
         foreach (Engine e in v.Eng) {
-            bool want = !e.Failed && live < n && v.Ign;
+            bool want = !e.Failed && live < n && v.Ign && Relights(v, e);
             if (want) live++;
             e.Update(dt, pa, thr, want);
         }
     }
+    public static bool Relights(Vehicle v, Engine e) => v.Kind == Kind.Booster
+        ? e.Id < 13 || v.Mode == "ascent" || v.Mode == "idle"
+        : !e.IsVac || !(v.Mode == "flipS" || v.Mode == "landS");
     public static EngStats Stats(Vehicle v) {
         double f = 0, md = 0;
         int run = 0, fail = 0;

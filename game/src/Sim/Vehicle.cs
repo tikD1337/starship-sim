@@ -30,7 +30,10 @@ public sealed class Vehicle {
     public bool Rcs = true;
     public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT, HeldVh, HeldOm, CatchH = Const.CATCH_H;
     public double NavH, NavX, NavVv, NavVh, WindBias, WindEst, RhoEst = 1, ObsAcc, FRef;
-    public bool QDown;
+    public bool QDown, Splash;
+    public string Site = "tower";
+    public double AimDr, WaitT;
+    public bool Catch => SeekPad && Site == "tower";
     public bool ShipHold;
     public bool Venting, BurnLogged, IgnBurn;
     public double MissPred = double.NaN, PredAcc;

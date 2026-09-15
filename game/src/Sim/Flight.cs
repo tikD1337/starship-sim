@@ -109,7 +109,7 @@ public static class Flight {
         v.Om *= 1 - Const.OM_DAMP * dt;
         v.Th += v.Om * dt;
         if (v.Th > Math.PI) v.Th -= 2 * Math.PI; else if (v.Th < -Math.PI) v.Th += 2 * Math.PI;
-        if (v.SeekPad && !v.Caught && !v.Crashed && v.Launched &&
+        if (v.Catch && !v.Caught && !v.Crashed && v.Launched &&
             v.Alt <= Const.CATCH_H && v.Alt > Const.CATCH_H - Const.CATCH_WIN &&
             (v.Mode == "landB" || v.Mode == "landS")) {
             double dr = Math.Abs(sim.Downrange(v)), vd = -v.VVert, vh = Math.Abs(v.VHor);
@@ -134,22 +134,26 @@ public static class Flight {
             v.Om = 0; v.Th = 0; v.Acc = 0;
             return;
         }
-        if (v.Alt <= 0) {
+        double gdr = sim.Downrange(v), gnd = SimState.Surface(gdr);
+        if (v.Alt <= gnd) {
             double vd = -v.VVert, vh = Math.Abs(v.VHor), tilt = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
             double ang = Math.Atan2(v.X, v.Y);
-            v.X = Const.RE * Math.Sin(ang); v.Y = Const.RE * Math.Cos(ang);
+            v.X = (Const.RE + gnd) * Math.Sin(ang); v.Y = (Const.RE + gnd) * Math.Cos(ang);
             v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X; v.Om = 0;
             v.Landed = true; v.Ign = false; v.NEng = 0; v.F = 0;
+            v.Splash = SimState.Water(gdr); v.HeldVh = v.VHor;
             Quench(v);
-            bool far = Math.Abs(sim.Downrange(v)) > 120e3;
             if (vd < 7 && vh < 6 && tilt < 12) {
                 v.Mode = "landed";
-                string tail = far ? ", " + (sim.Downrange(v) / 1000).ToString("F0") + " км от старта" : "";
-                sim.LogMsg($"{v.Tag}: {(far ? "ПРИВОДНЕНИЕ" : "КАСАНИЕ")} — посадка выполнена ({vd:F1} м/с{tail})", 1);
+                string tail = Math.Abs(gdr) > 120e3 ? $", {gdr / 1000:F0} км от старта"
+                    : v.Splash ? $", {gdr / 1000:F1} км от башни"
+                    : v.SeekPad && v.Site == "pad" ? $", {Math.Abs(gdr - v.AimDr):F1} м от центра площадки" : "";
+                string what = v.Splash ? "ПРИВОДНЕНИЕ" : v.SeekPad && v.Site == "pad" ? "ПОСАДКА НА ПЛОЩАДКУ" : "КАСАНИЕ";
+                sim.LogMsg($"{v.Tag}: {what} — посадка выполнена ({vd:F1} м/с{tail})", 1);
             }
             else {
                 v.Crashed = true; v.Mode = "crashed";
-                sim.LogMsg($"{v.Tag}: РАЗРУШЕНИЕ при ударе о поверхность ({vd:F0} м/с, крен {tilt:F0}°)", 3);
+                sim.LogMsg($"{v.Tag}: РАЗРУШЕНИЕ при ударе о {(v.Splash ? "воду" : "поверхность")} ({vd:F0} м/с, крен {tilt:F0}°)", 3);
             }
         }
         double aoaDev = Math.Min(Math.Abs(v.Alpha), Math.PI - Math.Abs(v.Alpha));

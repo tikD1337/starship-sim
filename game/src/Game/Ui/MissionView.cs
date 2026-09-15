@@ -20,6 +20,8 @@ public sealed class MissionView {
         ("copvLeak", "наддув"),
         ("ctrlJam", "плоскость"),
         ("tileLoss", "плитки"),
+        ("relightB", "жига Б"),
+        ("relightS", "жига К"),
     };
     public string Script;
     public bool RecordsShown => _recs.Visible;

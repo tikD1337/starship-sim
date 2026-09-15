@@ -7,7 +7,7 @@ public static class CamPlan {
         "flip" or "boostback" => new[] { 4, 3 },
         "coastB" => new[] { 3, 5 },
         "landB" => new[] { 4, 5, 12, 10, 7 },
-        "caught" or "landed" => new[] { 10, 12, 7, 8 },
+        "caught" or "landed" => new[] { 10, 12, 7, 8, 5, 2 },
         "ascent2" or "coastS" or "circ" or "orbit" => new[] { 0, 2 },
         "deorbit" or "coastD" => new[] { 0, 1 },
         "entryS" => new[] { 1, 2 },

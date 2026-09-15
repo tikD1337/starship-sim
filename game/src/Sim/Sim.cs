@@ -174,7 +174,7 @@ public static class Sim {
             if (v.Caught && v.SeekPad && !v.Stowed) { held = v; break; }
         if (held == null)
             foreach (Vehicle v in sim.Veh)
-                if (v.SeekPad && !v.Landed && !v.Crashed && v.Launched && v.Alt < Const.ARM_APPROACH_H && v.VVert < 0)
+                if (v.Catch && !v.Landed && !v.Crashed && v.Launched && v.Alt < Const.ARM_APPROACH_H && v.VVert < 0)
                 { serve = v; break; }
         Vehicle at = held ?? serve;
         double armWant = at == null && !b.Launched ? Const.ARM_PARK
@@ -222,6 +222,12 @@ public static class Sim {
         v.HeldOm += (-w * w * th - 2 * Const.ARM_TILT_ZETA * w * v.HeldOm) * dt;
         v.Th += v.HeldOm * dt;
     }
+    private static void TipOver(Vehicle v, double dt) {
+        double th = Vehicle.AngDiff(v.Th, 0), side = th != 0 ? Math.Sign(th) : v.HeldVh >= 0 ? 1 : -1;
+        if (Math.Abs(th) >= Math.PI / 2) { v.HeldOm = 0; v.Th = side * Math.PI / 2; return; }
+        v.HeldOm += (Const.TIP_K * Math.Sin(Math.Abs(th) + 0.03) * side - 0.4 * v.HeldOm) * dt;
+        v.Th = Const.Clamp(v.Th + v.HeldOm * dt, -Math.PI / 2, Math.PI / 2);
+    }
     private static void Lower(Vehicle v, double d) {
         double k = (v.R - d) / v.R;
         v.X *= k; v.Y *= k;
@@ -250,6 +256,7 @@ public static class Sim {
                 double a = Math.Atan2(v.X, v.Y) - Const.W * dt;
                 double rr = Math.Sqrt(v.X * v.X + v.Y * v.Y);
                 if (v.Caught && !v.Stowed) Settle(v, dt, ref a, rr);
+                if (v.Splash && !v.Crashed) TipOver(v, dt);
                 v.X = rr * Math.Sin(a); v.Y = rr * Math.Cos(a);
                 v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X;
                 v.Heat = 0; v.Q = 0; v.Acc = 0;

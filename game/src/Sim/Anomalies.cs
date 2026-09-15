@@ -22,7 +22,7 @@ public sealed class AnomalySpec {
 public sealed class Anomalies {
     public List<string> List = new();
     public HashSet<string> Flags = new(), Done = new();
-    public int IgnIdx, OutIdx, PumpIdx;
+    public int IgnIdx, OutIdx, PumpIdx, RelB, RelS;
     public double OutT, PumpK, CopvK, JamK, TileK;
     public bool JamShip;
     public bool Has(string k) => Flags.Contains(k);
@@ -70,6 +70,22 @@ public sealed class Anomalies {
             When = (sim, a) => sim.Veh[1].Heat > 60,
             Fire = (sim, a) => sim.LogMsg("К: потеря части плиток — местный нагрев выше расчётного", 2),
         },
+        new() {
+            Key = "relightB", P = 0.08, Name = "двигатели ускорителя не зажглись на посадку",
+            Stage = "relightB",
+            When = (sim, a) => sim.Veh[0].Mode == "landB" && sim.Veh[0].IgnBurn,
+            Fire = (sim, a) => {
+                Vehicle b = sim.Veh[0];
+                b.Eng[3 + a.RelB % 10].Fail("не зажёгся на посадочную жигу");
+                b.Eng[3 + (a.RelB + 3) % 10].Fail("не зажёгся на посадочную жигу");
+            },
+        },
+        new() {
+            Key = "relightS", P = 0.08, Name = "двигатель корабля не зажёгся на посадку",
+            Stage = "relightS",
+            When = (sim, a) => sim.Veh[1].Mode == "flipS",
+            Fire = (sim, a) => sim.Veh[1].Eng[a.RelS % 3].Fail("не зажёгся на переворот"),
+        },
     };
     private static Engine Eng(Vehicle v, int idx) => v.Eng[idx % v.Eng.Count];
     private static Vehicle Jammed(SimState sim, Anomalies a) => a.JamShip ? sim.Veh[1] : sim.Veh[0];
@@ -90,6 +106,8 @@ public sealed class Anomalies {
         a.JamShip = rng.Next() < 0.5;
         a.JamK = 0.35 + rng.Next() * 0.25;
         a.TileK = 1.25 + rng.Next() * 0.35;
+        a.RelB = (int)Math.Floor(rng.Next() * 10);
+        a.RelS = (int)Math.Floor(rng.Next() * 3);
         return a;
     }
     public static void Apply(SimState sim) {
