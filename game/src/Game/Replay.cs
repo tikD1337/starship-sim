@@ -8,14 +8,14 @@ namespace Starship.Game;
 public sealed class Replay {
     public string Mission = "orbital";
     public uint Seed = 12345u;
-    public bool Anom;
+    public bool Anom, Disp;
     public string Script;
     public readonly List<(double T, string K, double A)> Ev = new();
     private int _at;
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
     public const string Dir = "user://replays";
-    public void Head(string mission, uint seed, bool anom, string script) {
-        Mission = mission; Seed = seed; Anom = anom; Script = script;
+    public void Head(string mission, uint seed, bool anom, string script, bool disp) {
+        Mission = mission; Seed = seed; Anom = anom; Script = script; Disp = disp;
         Ev.Clear();
         _at = 0;
     }
@@ -31,6 +31,7 @@ public sealed class Replay {
         f.StoreLine("mission " + Mission);
         f.StoreLine("seed " + Seed.ToString(Inv));
         f.StoreLine("anom " + (Anom ? "1" : "0"));
+        f.StoreLine("disp " + (Disp ? "1" : "0"));
         f.StoreLine("script " + (Script ?? "-"));
         foreach ((double t, string k, double a) in Ev)
             f.StoreLine(string.Format(Inv, "{0:F2} {1} {2:R}", t, k, a));
@@ -40,7 +41,7 @@ public sealed class Replay {
         using FileAccess f = FileAccess.Open(path, FileAccess.ModeFlags.Read);
         if (f == null) return null;
         ReplayText.Data d = ReplayText.Parse(f.GetAsText().Split('\n'), Game.Mission.Keys);
-        var r = new Replay { Mission = d.Mission, Seed = d.Seed, Anom = d.Anom, Script = d.Script };
+        var r = new Replay { Mission = d.Mission, Seed = d.Seed, Anom = d.Anom, Script = d.Script, Disp = d.Disp };
         r.Ev.AddRange(d.Ev);
         return r;
     }

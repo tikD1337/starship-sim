@@ -276,6 +276,8 @@ internal static partial class Program {
              ok.Mission == "high" && ok.Seed == 777 && ok.Anom && ok.Script == "engine-out" && ok.Ev.Count == 2
              && ok.Ev[1].T == 13 && ok.Ev[1].K == "sep",
              $"{ok.Mission}, зерно {ok.Seed}, событий {ok.Ev.Count}");
+        True("разброс записан в заголовке и читается", ok.Disp == false
+             && ReplayText.Parse(new[] { "mission high", "seed 5", "disp 1" }, keys).Disp);
         ReplayText.Data far = ReplayText.Parse(new[] { "mission ../../../../Users/Public/x" }, keys);
         Same("название задания не из списка заменяется на орбитальное", far.Mission, "orbital");
         bool threw = false;

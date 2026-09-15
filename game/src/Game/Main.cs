@@ -7,7 +7,7 @@ public partial class Main : Node {
     private static readonly string[] Flags = {
         "--free", "--screen", "--theme", "--eng", "--noshadow", "--noglow", "--shot", "--t", "--dbg", "--camcheck",
         "--dist", "--deploy", "--pitch", "--yaw", "--cam", "--focus", "--tab",
-        "--mission", "--anom", "--seed", "--cuts", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
+        "--mission", "--anom", "--seed", "--nodisp", "--cuts", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
     };
     private SimState _sim;
     private StackView _stack;
@@ -36,6 +36,7 @@ public partial class Main : Node {
     private string _missionKey = "orbital";
     private bool _anomOn;
     private uint _seed = 12345u;
+    private bool _disp = true;
     private string _script;
     private readonly Replay _rec = new();
     private FlightTape _tape;
@@ -45,7 +46,7 @@ public partial class Main : Node {
     private int _frame;
     public override void _Ready() {
         Log.Sink = (m, lv) => GD.Print(m);
-        _sim = new SimState { Mission = "orbital", AnomOn = false };
+        _sim = new SimState { Mission = "orbital", AnomOn = false, Disperse = true };
         Physics.Sim.Reset(_sim, 12345u);
         Look.Load();
         _scr = Screens.Build(this);
@@ -79,7 +80,7 @@ public partial class Main : Node {
         _shot = new Shot(this);
         _perf = new Perf(this);
         _missionView = MissionView.Build(_eng.MissionCard, _eng.MissionCaption, _scr,
-            key => StartFlight(key, _anomOn, _seed),
+            key => StartFlight(key, _anomOn, NewSeed()),
             () => StartFlight(_missionKey, !_anomOn, _seed),
             key => { _script = key; StartFlight(_missionKey, key != null || _anomOn, _seed); });
         _tape = FlightTape.Build(_scr);
@@ -88,7 +89,8 @@ public partial class Main : Node {
         _ctl.Saved = path => _sim.LogMsg(path != null
             ? "Прогон записан: " + path : "Записать прогон не удалось", 2);
         _ctl.Restart = () => StartFlight(_missionKey, _anomOn, _seed);
-        _ctl.NextMission = () => StartFlight(NextKey(_missionKey), _anomOn, _seed);
+        _ctl.NewFlight = () => StartFlight(_missionKey, _anomOn, NewSeed());
+        _ctl.NextMission = () => StartFlight(NextKey(_missionKey), _anomOn, NewSeed());
         _ctl.ToggleAnom = () => StartFlight(_missionKey, !_anomOn, _seed);
         _ctl.ShowRecords = () => _missionView.ToggleRecords(_missionKey);
         _ctl.ShowTape = () => {
@@ -107,16 +109,18 @@ public partial class Main : Node {
             if (Mission.Keys[i] == key) return Mission.Keys[(i + 1) % Mission.Keys.Length];
         return Mission.Keys[0];
     }
+    private static uint NewSeed() => (uint)System.Random.Shared.NextInt64(1, uint.MaxValue);
     private void StartFlight(string key, bool anom, uint seed) {
         _missionKey = key;
         _anomOn = anom;
         _seed = seed;
         _sim.Mission = key;
         _sim.AnomOn = anom;
+        _sim.Disperse = _disp;
         _sim.AnomScript = _script == null ? null
             : new System.Collections.Generic.HashSet<string> { _script };
         _missionView.Script = _script;
-        _rec.Head(key, seed, anom, _script);
+        _rec.Head(key, seed, anom, _script, _disp);
         _ctl.Rec = _rec;
         _ctl.Play = null;
         _saved = false;
@@ -139,7 +143,8 @@ public partial class Main : Node {
         _script = a.Str("--script", _script);
         string key = a.Str("--mission", _missionKey);
         if (System.Array.IndexOf(Mission.Keys, key) < 0) key = _missionKey;
-        StartFlight(key, a.Has("--anom"), (uint)a.Int("--seed", (int)_seed));
+        _disp = !a.Has("--nodisp");
+        StartFlight(key, a.Has("--anom"), a.Has("--seed") ? (uint)a.Int("--seed", (int)_seed) : NewSeed());
         if (a.Has("--camcheck")) { GetTree().Quit(CamCheck.Run(_lib) == 0 ? 0 : 1); return; }
         if (a.Has("--theme")) Look.SetTheme(Themes.Parse(a.Str("--theme"), Look.Current), false);
         if (a.Has("--noshadow")) _rigWorld.NoShadow();
@@ -196,6 +201,7 @@ public partial class Main : Node {
         Replay r = path == null ? null : Replay.Load(path);
         if (r == null) { _sim.LogMsg("Записи прогона не нашлось", 2); return; }
         _script = r.Script;
+        _disp = r.Disp;
         StartFlight(r.Mission, r.Anom, r.Seed);
         r.Rewind();
         _ctl.Rec = null;

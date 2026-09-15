@@ -25,7 +25,6 @@ public sealed class Anomalies {
     public int IgnIdx, OutIdx, PumpIdx;
     public double OutT, PumpK, CopvK, JamK, TileK;
     public bool JamShip;
-    public double DryK = 1, PropK = 1, CfK = 1, RhoK = 1;
     public bool Has(string k) => Flags.Contains(k);
     public static readonly AnomalySpec[] Table = {
         new() {
@@ -91,20 +90,11 @@ public sealed class Anomalies {
         a.JamShip = rng.Next() < 0.5;
         a.JamK = 0.35 + rng.Next() * 0.25;
         a.TileK = 1.25 + rng.Next() * 0.35;
-        a.DryK = rng.About(0.006);
-        a.PropK = rng.About(0.004);
-        a.CfK = rng.About(0.005);
-        a.RhoK = rng.About(0.03);
         return a;
     }
     public static void Apply(SimState sim) {
         Anomalies A = sim.Anom;
         if (A == null || !sim.AnomOn) return;
-        foreach (Vehicle v in sim.Veh) {
-            v.Prop *= A.PropK; v.PropMax = v.Prop;
-            v.Dry *= A.DryK;
-            foreach (Engine e in v.Eng) e.P.Cf *= A.CfK;
-        }
         foreach (AnomalySpec s in Table)
             if (s.Apply != null && A.Has(s.Key)) s.Apply(sim, A);
     }

@@ -144,11 +144,13 @@ public static class Sim {
         sim.Seed = seed;
         sim.Rng.Seed(seed);
         sim.Anom = Anomalies.Roll(sim, sim.Rng);
-        sim.RhoK = sim.AnomOn ? sim.Anom.RhoK : 1;
+        sim.RhoK = 1;
         var windRng = new Rng();
         windRng.Seed(unchecked(seed * 2654435761u + 1u));
         sim.Wind = Wind.Roll(windRng);
         MakeVehicles(sim);
+        sim.Disp = sim.Disperse || sim.AnomOn ? Dispersion.Roll(seed) : null;
+        sim.Disp?.Apply(sim);
         sim.T = -10;
         sim.Log.Clear();
         sim.Marks.Clear();

@@ -12,7 +12,7 @@ public sealed class Controls {
     public double Speed = 1.0;
     private const double MaxStepPerFrame = 0.60;
     public bool Paused;
-    public Action Restart, NextMission, ToggleAnom, ToggleSmoke, ToggleFlat, ShowRecords;
+    public Action Restart, NewFlight, NextMission, ToggleAnom, ToggleSmoke, ToggleFlat, ShowRecords;
     public Action ShowTape, StepOne, ManualCam;
     public bool TapeOn;
     public Action<int> StepMark;
@@ -92,8 +92,9 @@ public sealed class Controls {
             case Key.Bracketright: Speed = Math.Min(64, Speed * 2); break;
             case Key.Bracketleft: Speed = Math.Max(0.125, Speed / 2); break;
             case Key.R:
-                if (Restart != null) Restart();
-                else Physics.Sim.Reset(_sim, _sim.Seed);
+                if (k.ShiftPressed ? Restart == null : NewFlight == null) Physics.Sim.Reset(_sim, _sim.Seed);
+                else if (k.ShiftPressed) Restart();
+                else NewFlight();
                 break;
             case Key.Escape: _host.GetTree().Quit(); break;
             case Key.B: {

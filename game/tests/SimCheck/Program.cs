@@ -216,7 +216,7 @@ internal static class Program {
     private static void DumpMission(string[] args) {
         string mission = args.Length > 1 && !args[1].StartsWith("--") ? args[1] : "orbital";
         double pay = double.NaN, fill = double.NaN, vsep = double.NaN;
-        bool quiet = false, deploy = false, anom = false, showLog = false;
+        bool quiet = false, deploy = false, anom = false, showLog = false, disp = false;
         string anomKeys = null;
         uint seed = 12345u;
         int every = 2000;
@@ -277,6 +277,7 @@ internal static class Program {
             if (args[k] == "--log") showLog = true;
             if (args[k] == "--deploy") deploy = true;
             if (args[k] == "--anom") anom = true;
+            if (args[k] == "--disp") disp = true;
             if (k + 1 >= args.Length) continue;
             if (args[k] == "--pay") pay = double.Parse(args[k + 1], Inv);
             if (args[k] == "--vsep") vsep = double.Parse(args[k + 1], Inv);
@@ -297,7 +298,7 @@ internal static class Program {
             if (args[k] == "--thrmin") Const.LAND_THR_MIN = double.Parse(args[k + 1], Inv);
         }
         Log.Sink = (m, lv) => Console.Error.WriteLine("ENG " + m);
-        var sim = new SimState { Mission = mission, AnomOn = anom || anomKeys != null };
+        var sim = new SimState { Mission = mission, AnomOn = anom || anomKeys != null, Disperse = disp };
         if (anomKeys != null)
             sim.AnomScript = new System.Collections.Generic.HashSet<string>(anomKeys.Split(','));
         if (mission == "high") { sim.TargetApo = 520e3; sim.TargetPeri = 500e3; }
@@ -306,7 +307,10 @@ internal static class Program {
         if (anom)
             Console.Error.WriteLine("ANOM seed=" + seed + " list=" + string.Join(" | ", sim.Anom.List));
         if (!double.IsNaN(secoPeri)) sim.SecoPeri = secoPeri;
-        if (!double.IsNaN(windSurf)) sim.Wind = Wind.Steady(windSurf);
+        if (!double.IsNaN(windSurf)) {
+            sim.Wind = Wind.Steady(windSurf);
+            if (sim.Disp != null) sim.Wind.Gusts(sim.Disp.GustK, seed);
+        }
         if (!double.IsNaN(fill)) sim.MecoFill = fill;
         if (!double.IsNaN(vsep)) sim.MecoV = vsep;
         if (!double.IsNaN(pay)) { sim.Payload = pay; Physics.Sim.MakeVehicles(sim); }

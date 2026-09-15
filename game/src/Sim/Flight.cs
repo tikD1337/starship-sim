@@ -10,7 +10,7 @@ public static class Flight {
         double h = v.Alt;
         Air at = Atmosphere.At(h, sim.RhoK);
         Vec2 up = v.Up, ax = v.Axis, sd = v.Side;
-        v.WindE = sim.Wind.At(h);
+        v.WindE = sim.Wind.At(h, sim.T);
         Vec2 vr = v.VAir;
         double sp = vr.Len;
         double M = sp / at.A, q = 0.5 * at.Rho * sp * sp;

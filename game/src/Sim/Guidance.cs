@@ -232,6 +232,9 @@ public static class Guidance {
         return Math.Max(e.VDes, -e.Dh / Math.Max(LatTime(dr, v.VHor, aLat), 3));
     }
     private static double Align(Vehicle v, in Burn e, double dt, double dr) {
+        if (v.Kind == Kind.Ship && v.SeekPad && e.DhS < 3 && e.DhS > -Const.CATCH_WIN + 3
+            && (Math.Abs(dr) > 0.75 * Const.CATCH_DR || Math.Abs(v.VHor) > 0.7 * Const.CATCH_VH))
+            return 0;
         double vSafe = -Math.Max(Const.LAND_VTD, e.DhS * 0.34);
         double vNeed = -e.DhS / Math.Max(LatTime(dr, v.VHor, Const.LAND_ALAT), 1.5);
         if (vNeed <= vSafe) return vSafe;

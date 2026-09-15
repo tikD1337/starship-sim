@@ -43,6 +43,7 @@ internal static partial class Program {
         BoosterSwing();
         ShipBellyFlop();
         ShipLanding();
+        LiveFlight();
         TowerArms();
         FlightMarks();
         OrbitElements();
@@ -574,6 +575,81 @@ internal static partial class Program {
                  $"разворотов {turns}, на входе {N(dr0)} м, наибольший {N(drMax)} м");
             True($"{name}: корпус не перекладывается через вертикаль больше раза", flips <= 1,
                  $"перекладок {flips}");
+        }
+    }
+    private static SimState Live(uint seed, bool disp, string mission = "orbital") {
+        var sim = new SimState { Mission = mission, AnomOn = false, Disperse = disp };
+        Physics.Sim.Reset(sim, seed);
+        return sim;
+    }
+    private static (double X, double Y, double Prop) RunTo(SimState sim, double t) {
+        while (sim.T < t) Physics.Sim.Tick(sim, Const.DT);
+        Vehicle b = sim.Veh[0];
+        return (b.X, b.Y, b.Prop);
+    }
+    private static double Spread(System.Collections.Generic.IEnumerable<double> xs, out double mean) {
+        double s = 0, s2 = 0; int n = 0;
+        foreach (double x in xs) { s += x; s2 += x * x; n++; }
+        mean = s / Math.Max(n, 1);
+        return Math.Sqrt(Math.Max(s2 / Math.Max(n, 1) - mean * mean, 0));
+    }
+    private static void LiveFlight() {
+        Head("Живой полёт: одно зерно — один полёт, разные зёрна — разные полёты");
+        var a = RunTo(Live(777, true), 120);
+        var a2 = RunTo(Live(777, true), 120);
+        True("одно зерно с разбросом повторяет полёт до бита", a == a2,
+             $"{N(a.X - a2.X)} м по X");
+        var c = RunTo(Live(778, true), 120);
+        double dx = Math.Sqrt((a.X - c.X) * (a.X - c.X) + (a.Y - c.Y) * (a.Y - c.Y));
+        True("другое зерно — другой полёт", dx > 5, $"к T+120 разошлись на {N(dx)} м");
+
+        Head("Живой полёт: естественный разброс отдельно от отказов");
+        SimState off = Live(777, false);
+        bool flat = off.RhoK == 1 && off.Veh[0].Dry == Spec.Booster.Dry && off.Veh[1].Dry == Spec.Ship.Dry + off.Payload;
+        foreach (Vehicle v in off.Veh) foreach (Engine e in v.Eng) flat &= e.P.Cf == 1;
+        True("без разброса всё по таблице", flat);
+        SimState on = Live(777, true);
+        var cf = new System.Collections.Generic.List<double>();
+        foreach (Engine e in on.Veh[0].Eng) cf.Add(e.P.Cf);
+        double sd = Spread(cf, out double cfMean);
+        double lo = double.MaxValue, hi = double.MinValue;
+        foreach (double k in cf) { lo = Math.Min(lo, k); hi = Math.Max(hi, k); }
+        True("у каждого двигателя своя тяга (±2 %)", sd > 0.003 && lo >= 0.98 && hi <= 1.02,
+             $"разброс {N(sd * 100)} %, от {N(lo)} до {N(hi)}");
+        True("плотность воздуха отличается от таблицы, но не больше чем на 5 %",
+             on.RhoK != 1 && Math.Abs(on.RhoK - 1) <= 0.05, $"{N(on.RhoK)}");
+        True("масса ступеней отличается от таблицы меньше чем на 1 %",
+             on.Veh[0].Dry != Spec.Booster.Dry && Math.Abs(on.Veh[0].Dry / Spec.Booster.Dry - 1) < 0.01,
+             $"{N(on.Veh[0].Dry / 1000)} т");
+
+        Head("Живой полёт: порывы ветра");
+        var gust = new System.Collections.Generic.List<double>();
+        for (double t = 0; t < 900; t += 0.5) gust.Add(on.Wind.At(8e3, t));
+        double gSd = Spread(gust, out double gMean);
+        True("на 8 км ветер меняется со временем", gSd > 0.3 && gSd < 5, $"СКО {N(gSd)} м/с");
+        True("порывы не сдвигают средний ветер", Math.Abs(gMean - on.Wind.At(8e3)) < 0.6,
+             $"{N(gMean)} против {N(on.Wind.At(8e3))} м/с");
+        var still = new System.Collections.Generic.List<double>();
+        for (double t = 0; t < 300; t += 0.5) still.Add(off.Wind.At(8e3, t));
+        True("без разброса ветер неподвижен", Spread(still, out _) == 0);
+        var high = new System.Collections.Generic.List<double>();
+        for (double t = 0; t < 300; t += 0.5) high.Add(on.Wind.At(45e3, t));
+        True("выше 40 км порывов нет", Spread(high, out _) < 1e-9);
+
+        Head("Живой полёт: с разбросом обе ступени ловятся");
+        foreach (uint seed in new uint[] { 1, 2, 3 }) {
+            SimState sim = Live(seed, true);
+            Vehicle b = sim.Veh[0], s = sim.Veh[1];
+            for (int i = 0; i < 1_400_000 && !(s.Landed || s.Crashed); i++) Physics.Sim.Tick(sim, Const.DT);
+            True($"зерно {seed}: ускоритель и корабль пойманы", b.Caught && s.Caught, $"Б {b.Mode}, К {s.Mode}");
+        }
+        {
+            SimState sim = Live(9, true);
+            sim.Wind = Wind.Steady(15);
+            sim.Wind.Gusts(sim.Disp.GustK, 9);
+            Vehicle s = sim.Veh[1];
+            for (int i = 0; i < 1_400_000 && !(s.Landed || s.Crashed); i++) Physics.Sim.Tick(sim, Const.DT);
+            True("порыв у рук не проводит корабль мимо захвата (ветер 15 м/с, зерно 9)", s.Caught, s.Mode);
         }
     }
     private static void TowerArms() {

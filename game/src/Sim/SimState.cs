@@ -8,7 +8,8 @@ public sealed class LogEntry {
 }
 public sealed class SimState {
     public double T = -10, Dt = Const.DT, RhoK = 1, Payload = 60e3;
-    public bool AnomOn = true;
+    public bool AnomOn = true, Disperse;
+    public Dispersion Disp;
     public System.Collections.Generic.HashSet<string> AnomScript;
     public uint Seed;
     public List<Vehicle> Veh = new();
