@@ -122,6 +122,19 @@ public static class Sim {
         v.Mode = "crashed";
         sim.LogMsg($"{v.Tag}: ПРОГАР теплозащиты — корпус разрушен на входе", 3);
     }
+    public static void SetManual(SimState sim, bool man) {
+        if (man == (sim.Mode == "man")) return;
+        if (man) {
+            sim.Mode = "man";
+            sim.ManThr = sim.FocusVeh().Throttle;
+            sim.LogMsg("Ручное управление: тяга и тангаж со стрелок, крен на «,» и «.»", 1);
+        }
+        else {
+            sim.Mode = "auto";
+            sim.ManEng = null;
+            sim.LogMsg("Управление возвращено штатному наведению", 1);
+        }
+    }
     public static void MakeVehicles(SimState sim) {
         var b = new Vehicle(Kind.Booster, sim.Payload);
         var s = new Vehicle(Kind.Ship, sim.Payload);
@@ -142,7 +155,7 @@ public static class Sim {
         sim.MecoV = 1800;
         sim.SecoPeri = sim.Mission == "trans" ? -150e3 : Const.SECO_PERI;
         sim.Seed = seed;
-        sim.Rng.Seed(seed);
+        sim.Rng.Seed(Rng.Mix(seed));
         sim.NavRng.Seed(unchecked(seed * 3266489917u + 374761393u));
         sim.Anom = Anomalies.Roll(sim, sim.Rng);
         sim.RhoK = 1;

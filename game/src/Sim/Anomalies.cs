@@ -9,6 +9,11 @@ public sealed class Rng {
         return _s / 4294967296.0;
     }
     public double About(double k) => 1 + (Next() * 2 - 1) * k;
+    public static uint Mix(uint x) {
+        x ^= x >> 16; x = unchecked(x * 0x7feb352du);
+        x ^= x >> 15; x = unchecked(x * 0x846ca68bu);
+        return x ^ (x >> 16);
+    }
 }
 public sealed class AnomalySpec {
     public string Key;

@@ -41,7 +41,7 @@ public sealed class Wind {
         if (_still || double.IsNaN(h) || h < 0 || h > TopAlt) return 0;
         double d = (h - JetAlt) / JetWidth;
         double v = _jet * Math.Exp(-d * d);
-        if (h < SurfTop) v += _surf * (1 - h / SurfTop);
+        if (h < SurfTop) v += _surf * (1 - 0.65 * h / SurfTop);
         else v += _surf * 0.35 * Math.Exp(-(h - SurfTop) / 4e3);
         for (int i = 0; i < 4; i++) {
             if (_layThick[i] <= 0 || _laySpeed[i] == 0) continue;

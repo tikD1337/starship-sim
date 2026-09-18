@@ -462,6 +462,10 @@ internal static partial class Program {
              Math.Abs(Wind.Steady(12).At(0) - 12) < 1e-9
              && Math.Abs(Wind.Steady(12).At(30e3)) < 0.5,
              $"{N(Wind.Steady(12).At(0))} м/с у земли, {N(Wind.Steady(12).At(30e3))} на 30 км");
+        double jump = 0;
+        for (double h = 50; h < 5000; h += 50) jump = Math.Max(jump, Math.Abs(Wind.Steady(12).At(h + 1) - Wind.Steady(12).At(h - 1)));
+        True("приземный ветер с высотой меняется плавно, без скачка на 1200 м (пункт 58)", jump < 0.1,
+             $"наибольший скачок за 2 м — {N(jump)} м/с");
         double aCalm = AscentAoA(Wind.Calm());
         double aWind = AscentAoA(w);
         True("без ветра угол атаки на 8…14 км мал", aCalm < 5, $"{N(aCalm)}°");
@@ -727,6 +731,20 @@ internal static partial class Program {
                  s.Site == "pad" && Logged(sim, "уход на площадку у башни"), s.Site);
             True("корабль садится на площадку, а не в руки", s.Landed && !s.Crashed && !s.Caught && Math.Abs(dr - Const.PAD_DR) < 15
                  && Math.Abs(s.Alt + Const.DECK_H) < 0.1, $"{s.Mode}, {N(dr - Const.PAD_DR)} м от центра, высота {N(s.Alt)} м");
+        }
+        {
+            const int n = 400;
+            string off = "";
+            foreach (AnomalySpec spec in Anomalies.Table) {
+                int hits = 0;
+                for (uint sd = 1; sd <= n; sd++) {
+                    var sim = new SimState { Mission = "orbital", AnomOn = true };
+                    Physics.Sim.Reset(sim, sd);
+                    if (sim.Anom.Has(spec.Key)) hits++;
+                }
+                if (hits < 0.4 * spec.P * n || hits > 2 * spec.P * n) off += $"{spec.Key} {hits}/{n} при {spec.P:P0}; ";
+            }
+            True("на подряд идущих зёрнах отказы выпадают с заявленной частотой (пункт 50)", off.Length == 0, off);
         }
         {
             int nb = 0, ns = 0, both = 0;

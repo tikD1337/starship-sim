@@ -29,7 +29,7 @@ public sealed class Controls {
         _accum += delta * Speed;
         double budget = Math.Min(MaxStepPerFrame, delta * Speed * 1.5);
         while (_accum > Const.DT && budget > 0) {
-            Play?.Apply(_sim, this);
+            Play?.Apply(_sim);
             Physics.Sim.Tick(_sim, Const.DT);
             _accum -= Const.DT;
             budget -= Const.DT;
@@ -55,10 +55,8 @@ public sealed class Controls {
         Rec?.Put(_sim.T, "thr", thr);
         Rec?.Put(_sim.T, "bank", bank);
         if ((pitch != 0 || thr != 0 || bank != 0) && _sim.Mode != "man") {
-            _sim.Mode = "man";
-            _sim.ManThr = _sim.FocusVeh().Throttle;
             Rec?.Put(_sim.T, "man", 1);
-            _sim.LogMsg("Ручное управление: тяга и тангаж со стрелок, крен на «,» и «.»", 1);
+            Physics.Sim.SetManual(_sim, true);
         }
     }
     public void Event(InputEvent e) {
@@ -114,7 +112,7 @@ public sealed class Controls {
             case Key.Pagedown: _rig.Speed /= 2f; _rig.FastSpeed /= 2f; break;
             case Key.Home: _rig.Speed = 48f; _rig.FastSpeed = 340f; break;
             case Key.T: ToggleRcs(); break;
-            case Key.F9: Saved?.Invoke(Rec?.Save()); break;
+            case Key.F9: Saved?.Invoke(Rec == null ? null : ReplayFiles.Save(Rec)); break;
             case Key.F10: Replay?.Invoke(); break;
             case Key.V: SwitchFocus(); break;
             case Key.Key0: BackToAuto(); break;
@@ -156,8 +154,6 @@ public sealed class Controls {
     private void BackToAuto() {
         if (_sim.Mode == "auto") return;
         Rec?.Put(_sim.T, "man", 0);
-        _sim.Mode = "auto";
-        _sim.ManEng = null;
-        _sim.LogMsg("Управление возвращено штатному наведению", 1);
+        Physics.Sim.SetManual(_sim, false);
     }
 }

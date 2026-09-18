@@ -85,7 +85,8 @@ public partial class Main : Node {
             key => { _script = key; StartFlight(_missionKey, key != null || _anomOn, _seed); });
         _tape = FlightTape.Build(_scr);
         _ctl.Rec = _rec;
-        _ctl.Replay = () => PlayBack(Starship.Game.Replay.Newest());
+        _eng.Record = (k, a) => _ctl.Rec?.Put(_sim.T, k, a);
+        _ctl.Replay = () => PlayBack(ReplayFiles.Newest());
         _ctl.Saved = path => _sim.LogMsg(path != null
             ? "Прогон записан: " + path : "Записать прогон не удалось", 2);
         _ctl.Restart = () => StartFlight(_missionKey, _anomOn, _seed);
@@ -98,7 +99,7 @@ public partial class Main : Node {
             if (_tape.SummaryShown) _missionView.HideFinal(); else _missionView.ShowFinalAgain();
         };
         _ctl.StepMark = dir => { double? t = FlightTape.Step(_sim, dir); if (t != null) SeekTo(t.Value); };
-        _ctl.StepOne = () => { _ctl.Play?.Apply(_sim, _ctl); Physics.Sim.Tick(_sim, Const.DT); };
+        _ctl.StepOne = () => { _ctl.Play?.Apply(_sim); Physics.Sim.Tick(_sim, Const.DT); };
         _ctl.ToggleSmoke = () => _smoke.Off = !_smoke.Off;
         _ctl.ToggleFlat = () => { _flat = !_flat; if (_flat) _rigWorld.FlatLight(); else _rigWorld.NormalLight(); };
         foreach (string name in _scr.MouseGrabs()) GD.Print("UI_MOUSE_GRAB " + name);
@@ -200,7 +201,7 @@ public partial class Main : Node {
         _perf.Spin = a.Has("--spin");
     }
     private void PlayBack(string path) {
-        Replay r = path == null ? null : Replay.Load(path);
+        Replay r = path == null ? null : ReplayFiles.Load(path);
         if (r == null) { _sim.LogMsg("Записи прогона не нашлось", 2); return; }
         _script = r.Script;
         _disp = r.Disp;
@@ -213,7 +214,7 @@ public partial class Main : Node {
     private void FastForward(double toT) {
         int guard = 0;
         while (_sim.T < toT && guard++ < 3_000_000) {
-            _ctl.Play?.Apply(_sim, _ctl);
+            _ctl.Play?.Apply(_sim);
             Physics.Sim.Tick(_sim, Const.DT);
             if (guard % 50 != 0) continue;
             _eng.PushTele(_sim);
@@ -224,10 +225,20 @@ public partial class Main : Node {
         Replay play = _ctl.Play;
         double span = Math.Max(_sim.T, toT);
         if (toT < _sim.T) {
+            Replay src = play ?? _rec.Copy();
             StartFlight(_missionKey, _anomOn, _seed);
-            if (play != null) { play.Rewind(); _ctl.Play = play; _ctl.Rec = null; }
+            src.Rewind();
+            _ctl.Play = src;
+            _ctl.Rec = null;
+            FastForward(toT);
+            if (play == null) {
+                src.Keep(toT);
+                _rec.From(src);
+                _ctl.Play = null;
+                _ctl.Rec = _rec;
+            }
         }
-        FastForward(toT);
+        else FastForward(toT);
         _tape.Widen(span);
         _ctl.Paused = true;
     }
@@ -252,9 +263,9 @@ public partial class Main : Node {
         _tape.Visible = _ctl.Play != null || _mission.Over;
         _ctl.TapeOn = _tape.Visible;
         _tape.Update(_sim);
-        if (_mission.Over && !_saved && _ctl.Play == null) {
+        if (_mission.Over && !_saved && _ctl.Play == null && !_shot.Armed) {
             _saved = true;
-            string path = _rec.Save();
+            string path = ReplayFiles.Save(_rec);
             if (path != null) _sim.LogMsg("Прогон записан: " + path + " — F10 повторить", 1);
         }
         _perf.Add(Perf.Part.Mission);

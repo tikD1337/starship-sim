@@ -61,6 +61,14 @@ public static class ParamDefs {
         bool warn = r.LowIsBad ? x <= r.Warn : x >= r.Warn;
         return warn ? "warn" : "";
     }
+    public static bool Apply(ParamRow r, Vehicle v, PEngine e, double x) {
+        if (r == null || v == null || !r.Editable || !double.IsFinite(x)) return false;
+        x = Math.Clamp(x, r.Lo, r.Hi);
+        if (r.Scope == Scope.Vehicle) r.SetVeh?.Invoke(v, x);
+        else if (r.Stage || e == null) foreach (PEngine en in v.Eng) r.Set?.Invoke(en.P, x);
+        else r.Set?.Invoke(e.P, x);
+        return true;
+    }
     public static ParamRow Row(string key) {
         foreach (ParamGroup g in Groups)
             foreach (ParamSection s in g.Sections)

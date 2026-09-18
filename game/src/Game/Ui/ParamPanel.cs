@@ -15,6 +15,7 @@ public sealed class ParamPanel {
     private Vehicle _v;
     private PEngine _e;
     public event Action<int> Picked;
+    public Action<string, double> Record;
     public static ParamPanel Build(Control parent) {
         var p = new ParamPanel();
         (PanelContainer box, VBoxContainer body, _) = Widgets.Section(parent, null);
@@ -128,10 +129,10 @@ public sealed class ParamPanel {
         double cur = r.Scope == Scope.Vehicle ? (r.GetVeh?.Invoke(_v) ?? 0)
                    : _e != null ? (r.Get?.Invoke(_e.P) ?? 0) : 0;
         if (Math.Abs(x - cur) <= Math.Pow(10, -r.Digits) * 0.5) return;
-        if (r.Scope == Scope.Vehicle) r.SetVeh?.Invoke(_v, x);
-        else if (r.Stage) foreach (PEngine e in _v.Eng) r.Set?.Invoke(e.P, x);
-        else if (_e != null) r.Set?.Invoke(_e.P, x);
-        else return;
+        if (r.Scope == Scope.Engine && !r.Stage && _e == null) return;
+        if (!ParamDefs.Apply(r, _v, _e, x)) return;
+        int ei = r.Scope == Scope.Vehicle || r.Stage ? -1 : _v.Eng.IndexOf(_e);
+        Record?.Invoke(Replay.ParamKey(r.Key, _sim != null ? _sim.Veh.IndexOf(_v) : 0, ei), x);
         string who = r.Scope == Scope.Vehicle || r.Stage ? Widgets.StageName(_v) : _e.Name;
         _sim?.LogMsg($"{who}: «{r.Label}» → {NumFmt.F(x, r.Digits)}", 1);
     }
