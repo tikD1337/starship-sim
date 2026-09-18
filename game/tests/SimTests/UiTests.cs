@@ -146,6 +146,20 @@ internal static partial class Program {
         True("точка тоже годится", NumFmt.TryParse("2.5", out double d) && d == 2.5, N(d));
         True("мусор и пустое не проходят", !NumFmt.TryParse("abc", out _) && !NumFmt.TryParse("", out _)
                                            && !NumFmt.TryParse(null, out _));
+        True("NaN и бесконечность не число (пункт 51)", !NumFmt.TryParse("NaN", out _) && !NumFmt.TryParse("Infinity", out _)
+             && !NumFmt.TryParse("-Infinity", out _) && !NumFmt.TryParse("∞", out _) && !NumFmt.TryParse("1e999", out _));
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 12345);
+        Vehicle v = sim.Veh[0];
+        ParamRow rpm = ParamDefs.Row("rpmSet"), tank = ParamDefs.Row("pTankF");
+        double rpm0 = v.Eng[0].P.RpmSet;
+        True("NaN не доходит до двигателя", !ParamDefs.Apply(rpm, v, v.Eng[0], double.NaN) && v.Eng[0].P.RpmSet == rpm0,
+             $"{N(v.Eng[0].P.RpmSet)}");
+        True("бесконечность тоже", !ParamDefs.Apply(rpm, v, v.Eng[0], double.PositiveInfinity) && v.Eng[0].P.RpmSet == rpm0);
+        True("число правит один двигатель и зажимается в пределы", ParamDefs.Apply(rpm, v, v.Eng[0], 1e9)
+             && v.Eng[0].P.RpmSet == rpm.Hi && v.Eng[1].P.RpmSet == rpm0, $"{N(v.Eng[0].P.RpmSet)}");
+        True("параметр ступени правит все двигатели", ParamDefs.Apply(tank, v, v.Eng[0], 500)
+             && v.Eng[0].P.PTankF == 500 && v.Eng[32].P.PTankF == 500);
     }
     private static void UiAir() {
         Head("Эфир: палитра, силуэт, лента фаз");
@@ -276,6 +290,8 @@ internal static partial class Program {
              ok.Mission == "high" && ok.Seed == 777 && ok.Anom && ok.Script == "engine-out" && ok.Ev.Count == 2
              && ok.Ev[1].T == 13 && ok.Ev[1].K == "sep",
              $"{ok.Mission}, зерно {ok.Seed}, событий {ok.Ev.Count}");
+        True("разброс записан в заголовке и читается", ok.Disp == false
+             && ReplayText.Parse(new[] { "mission high", "seed 5", "disp 1" }, keys).Disp);
         ReplayText.Data far = ReplayText.Parse(new[] { "mission ../../../../Users/Public/x" }, keys);
         Same("название задания не из списка заменяется на орбитальное", far.Mission, "orbital");
         bool threw = false;
@@ -288,6 +304,78 @@ internal static partial class Program {
             "NaN pitch 1", "1.00 thr Infinity", "2.00 bank 1e999", "3.00 thr -1e999", "4.00 pitch 0.5" }, keys);
         True("события с NaN и бесконечностью отбрасываются", nan.Ev.Count == 1 && nan.Ev[0].A == 0.5,
              $"осталось {nan.Ev.Count}");
+        UiReplayFixes();
+        UiRecords();
+    }
+    private static void UiRecords() {
+        Head("Рекорды: повреждённый файл не роняет таблицу (пункт 59)");
+        var ok = RecordsText.Parse("{\"orbital\": {\"s\": 1234, \"g\": \"A\", \"t\": \"16.09.2026\"}, \"trans\": 800}");
+        True("целый файл читается, и старый формат (одно число) тоже",
+             ok.Count == 2 && ok["orbital"].Score == 1234 && ok["orbital"].Grade == "A" && ok["trans"].Score == 800,
+             $"записей {ok.Count}");
+        string[] broken = {
+            "{\"orbital\": {\"g\": \"A\"}, \"high\": {\"s\": 700}}",
+            "{\"orbital\": {\"s\": \"много\"}, \"high\": {\"s\": 700, \"g\": 5}}",
+            "{\"orbital\": {\"s\": 1234, \"g\": \"A\"", "[1, 2, 3]", "", "не json", "{\"high\": {\"s\": 1e30}}",
+        };
+        string bad = "";
+        int kept = 0;
+        foreach (string b in broken) {
+            try { var d = RecordsText.Parse(b); if (d.TryGetValue("high", out var h) && h.Score == 700) kept++; }
+            catch (Exception e) { bad += e.GetType().Name + " "; }
+        }
+        True("битые файлы и записи не бросают исключений", bad.Length == 0, bad);
+        True("из частично битого файла целые записи сохраняются", kept == 2, $"уцелело {kept} из 2");
+    }
+    private static void UiReplayFixes() {
+        Head("Запись прогона: пункты 52–57");
+        var r = new Starship.Game.Replay();
+        r.Head("orbital", 5, false, null, true);
+        for (int i = 0; i < 1000; i++) {
+            double t = i * 0.016;
+            r.Put(t, "pitch", 0); r.Put(t, "thr", 0); r.Put(t, "bank", 0);
+        }
+        True("неподвижные оси не раздувают запись (пункт 57)", r.Ev.Count == 3, $"событий {r.Ev.Count} за 1000 кадров");
+        r.Put(20, "pitch", 1); r.Put(20, "thr", 0); r.Put(21, "pitch", 0);
+        True("изменение оси записывается", r.Ev.Count == 5, $"событий {r.Ev.Count}");
+        r.Put(30, "sat", 1); r.Put(31, "sat", 1); r.Put(32, "rcs", 0); r.Put(33, "rcs", 0);
+        True("повторные действия не теряются: два спутника, два переключения ДМТ", r.Ev.Count == 9, $"событий {r.Ev.Count}");
+
+        var t1 = new DateTime(2026, 9, 18, 10, 0, 0);
+        string n1 = r.FileName(t1), n2 = r.FileName(t1.AddSeconds(7));
+        True("в имени записи есть время, два полёта не затирают друг друга (пункт 54)",
+             n1 != n2 && n1.StartsWith("orbital-") && n1.EndsWith(".txt"), $"{n1} и {n2}");
+        string newest = Starship.Game.Replay.Newest(new (string, ulong)[] {
+            ("orbital-195412.txt", 100), ("orbital-0003.txt", 300), ("high-0009.txt", 200), ("notes.md", 900) });
+        Same("F10 берёт самую свежую запись по времени, а не по имени (пункт 55)", newest, "orbital-0003.txt");
+
+        var c = r.Copy();
+        c.Keep(21);
+        True("копия записи режется по времени для перемотки, оригинал цел (пункт 56)",
+             c.Ev.Count == 5 && r.Ev.Count == 9 && c.Seed == 5 && c.Disp, $"в копии {c.Ev.Count}, в оригинале {r.Ev.Count}");
+        c.Put(22, "pitch", 0);
+        True("после обрезки ось с прежним значением не дублируется", c.Ev.Count == 5, $"{c.Ev.Count}");
+
+        var live = new SimState { Mission = "orbital", AnomOn = false };
+        var play = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(live, 12345); Physics.Sim.Reset(play, 12345);
+        var rec = new Starship.Game.Replay();
+        rec.Head("orbital", 12345, false, null, false);
+        while (live.T < 50) Physics.Sim.Tick(live, Const.DT);
+        double thrAuto = live.Veh[0].Throttle;
+        live.ManPitchAxis = 1; rec.Put(live.T, "pitch", 1);
+        rec.Put(live.T, "man", 1); Physics.Sim.SetManual(live, true);
+        string rk = Starship.Game.Replay.ParamKey("rpmSet", 0, 5);
+        rec.Put(live.T, rk, 30000); ParamDefs.Apply(ParamDefs.Row("rpmSet"), live.Veh[0], live.Veh[0].Eng[5], 30000);
+        while (live.T < 60) Physics.Sim.Tick(live, Const.DT);
+        rec.Rewind();
+        while (play.T < 60) { rec.Apply(play); Physics.Sim.Tick(play, Const.DT); }
+        True("ручной режим в повторе берёт тягу автомата, как вживую (пункт 52)",
+             live.ManThr == thrAuto && thrAuto < 1 && play.ManThr == live.ManThr, $"вживую {N(live.ManThr)}, в повторе {N(play.ManThr)}");
+        True("правка параметра пульта записана и повторена (пункт 53)",
+             play.Veh[0].Eng[5].P.RpmSet == 30000, $"{N(play.Veh[0].Eng[5].P.RpmSet)} об/мин");
+        True("повтор совпадает с живым полётом", live.Veh[0].X == play.Veh[0].X && live.Veh[0].Y == play.Veh[0].Y,
+             $"расхождение {N(Math.Abs(live.Veh[0].X - play.Veh[0].X))} м");
     }
     private static void UiArmGeom() {
         Head("Руки башни: угол поворота от зазора до обшивки");

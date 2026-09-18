@@ -91,8 +91,9 @@ public partial class BroadcastView : Control {
         float left = blockRight - 272 * k;
         Text(name, right ? blockRight : left, bottom - 112 * k, 15 * k, 600, OnAir.Ink2, right, 2.4f * k);
         Row(left, bottom - 74 * k, k, "СКОРОСТЬ", NumFmt.F(v.Speed * 3.6, 0), "км/ч");
+        double agl = v.Alt - SimState.Surface(_sim.Downrange(v));
         Row(left, bottom - 36 * k, k, "ВЫСОТА",
-            v.Alt >= 1000 ? NumFmt.F(v.Alt / 1000, 0) : NumFmt.F(v.Alt, 0), v.Alt >= 1000 ? "км" : "м");
+            agl >= 1000 ? NumFmt.F(agl / 1000, 0) : NumFmt.F(agl, 0), agl >= 1000 ? "км" : "м");
         float fill = (float)Math.Clamp(v.Fill, 0, 1);
         Tank(left, bottom - 16 * k, k, "LOX", fill);
         Tank(left, bottom - 4 * k, k, "CH4", fill);

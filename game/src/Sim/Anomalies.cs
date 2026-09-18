@@ -9,6 +9,11 @@ public sealed class Rng {
         return _s / 4294967296.0;
     }
     public double About(double k) => 1 + (Next() * 2 - 1) * k;
+    public static uint Mix(uint x) {
+        x ^= x >> 16; x = unchecked(x * 0x7feb352du);
+        x ^= x >> 15; x = unchecked(x * 0x846ca68bu);
+        return x ^ (x >> 16);
+    }
 }
 public sealed class AnomalySpec {
     public string Key;
@@ -22,10 +27,9 @@ public sealed class AnomalySpec {
 public sealed class Anomalies {
     public List<string> List = new();
     public HashSet<string> Flags = new(), Done = new();
-    public int IgnIdx, OutIdx, PumpIdx;
+    public int IgnIdx, OutIdx, PumpIdx, RelB, RelS;
     public double OutT, PumpK, CopvK, JamK, TileK;
     public bool JamShip;
-    public double DryK = 1, PropK = 1, CfK = 1, RhoK = 1;
     public bool Has(string k) => Flags.Contains(k);
     public static readonly AnomalySpec[] Table = {
         new() {
@@ -71,8 +75,25 @@ public sealed class Anomalies {
             When = (sim, a) => sim.Veh[1].Heat > 60,
             Fire = (sim, a) => sim.LogMsg("К: потеря части плиток — местный нагрев выше расчётного", 2),
         },
+        new() {
+            Key = "relightB", P = 0.08, Name = "двигатели ускорителя не зажглись на посадку",
+            Stage = "relightB",
+            When = (sim, a) => sim.Veh[0].Mode == "landB" && sim.Veh[0].IgnBurn,
+            Fire = (sim, a) => RelightFailB(sim.Veh[0], a.RelB),
+        },
+        new() {
+            Key = "relightS", P = 0.08, Name = "двигатель корабля не зажёгся на посадку",
+            Stage = "relightS",
+            When = (sim, a) => sim.Veh[1].Mode == "flipS",
+            Fire = (sim, a) => RelightFailS(sim.Veh[1], a.RelS),
+        },
     };
     private static Engine Eng(Vehicle v, int idx) => v.Eng[idx % v.Eng.Count];
+    public static void RelightFailB(Vehicle b, int k) {
+        b.Eng[3 + k % 10].Fail("не зажёгся на посадочную жигу");
+        b.Eng[3 + (k + 3) % 10].Fail("не зажёгся на посадочную жигу");
+    }
+    public static void RelightFailS(Vehicle s, int k) => s.Eng[k % 3].Fail("не зажёгся на переворот");
     private static Vehicle Jammed(SimState sim, Anomalies a) => a.JamShip ? sim.Veh[1] : sim.Veh[0];
     public static Anomalies Roll(SimState sim, Rng rng) {
         var a = new Anomalies();
@@ -91,20 +112,13 @@ public sealed class Anomalies {
         a.JamShip = rng.Next() < 0.5;
         a.JamK = 0.35 + rng.Next() * 0.25;
         a.TileK = 1.25 + rng.Next() * 0.35;
-        a.DryK = rng.About(0.006);
-        a.PropK = rng.About(0.004);
-        a.CfK = rng.About(0.005);
-        a.RhoK = rng.About(0.03);
+        a.RelB = (int)Math.Floor(rng.Next() * 10);
+        a.RelS = (int)Math.Floor(rng.Next() * 3);
         return a;
     }
     public static void Apply(SimState sim) {
         Anomalies A = sim.Anom;
         if (A == null || !sim.AnomOn) return;
-        foreach (Vehicle v in sim.Veh) {
-            v.Prop *= A.PropK; v.PropMax = v.Prop;
-            v.Dry *= A.DryK;
-            foreach (Engine e in v.Eng) e.P.Cf *= A.CfK;
-        }
         foreach (AnomalySpec s in Table)
             if (s.Apply != null && A.Has(s.Key)) s.Apply(sim, A);
     }

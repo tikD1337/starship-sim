@@ -28,7 +28,15 @@ public sealed class Vehicle {
     public double EntK = Const.ENTRY_K0;
     public bool SeekPad, Caught;
     public bool Rcs = true;
-    public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT;
+    public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT, HeldVh, HeldOm, CatchH = Const.CATCH_H;
+    public double NavH, NavX, NavVv, NavVh, WindBias, WindEst, RhoEst = 1, ObsAcc, FRef;
+    public double NzH, NzX, NzVv, NzVh;
+    public readonly double[] LagH = new double[32], LagX = new double[32], LagVv = new double[32], LagVh = new double[32];
+    public int LagI, LagN;
+    public bool QDown, Splash;
+    public string Site = "tower";
+    public double AimDr, WaitT;
+    public bool Catch => SeekPad && Site == "tower";
     public bool ShipHold;
     public bool Venting, BurnLogged, IgnBurn;
     public double MissPred = double.NaN, PredAcc;
@@ -63,6 +71,9 @@ public sealed class Vehicle {
     public double FullLen => Len + (Stacked && Mate != null ? Mate.Len : 0);
     public double R => Math.Sqrt(X * X + Y * Y);
     public double Alt => R - Const.RE;
+    public double NAlt => Alt + NavH;
+    public double NVv => VVert + NavVv;
+    public double NVh => VHor + NavVh;
     public double Fill => Prop / PropMax;
     public Vec2 Up { get { double r = R; return new Vec2(X / r, Y / r); } }
     public Vec2 East { get { Vec2 u = Up; return new Vec2(-u.Y, u.X); } }

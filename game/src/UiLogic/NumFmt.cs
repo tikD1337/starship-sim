@@ -40,7 +40,9 @@ public static class NumFmt {
         if (string.IsNullOrWhiteSpace(s)) return false;
         string t = s.Replace(Thin, ' ').Replace('\u00A0', ' ').Replace(" ", "")
                     .Replace(Minus, '-').Replace(',', '.');
-        return double.TryParse(t, NumberStyles.Float, Inv, out x);
+        if (double.TryParse(t, NumberStyles.Float, Inv, out x) && double.IsFinite(x)) return true;
+        x = 0;
+        return false;
     }
     public static string Hms(double t) {
         int s = (int)Math.Floor(Math.Abs(t));

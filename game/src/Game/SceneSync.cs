@@ -10,7 +10,7 @@ public readonly struct Origin {
         return new Origin(sim.Downrange(v), Math.Max(v.Alt, 0));
     }
     public Vector3 Place(double dr, double alt) =>
-        new((float)(dr - X), (float)(Math.Max(alt, 0) - Y), 0f);
+        new((float)(dr - X), (float)(Math.Max(alt, SimState.Surface(dr)) - Y), 0f);
 }
 public readonly struct ShipPose {
     public readonly Vector3 Mid;
@@ -45,7 +45,7 @@ public sealed class SceneSync {
     }
     private void Sea(SimState sim, Origin org) {
         foreach (Vehicle v in sim.Veh)
-            if (v.Landed && Math.Abs(sim.Downrange(v)) > 60e3) _splash.Fire(sim.Downrange(v));
+            if (v.Landed && v.Splash) _splash.Fire(sim.Downrange(v));
         _splash.Update(org);
     }
     private ShipPose Bodies(SimState sim, Origin org, double dt) {

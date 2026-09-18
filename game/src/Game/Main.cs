@@ -7,7 +7,7 @@ public partial class Main : Node {
     private static readonly string[] Flags = {
         "--free", "--screen", "--theme", "--eng", "--noshadow", "--noglow", "--shot", "--t", "--dbg", "--camcheck",
         "--dist", "--deploy", "--pitch", "--yaw", "--cam", "--focus", "--tab",
-        "--mission", "--anom", "--seed", "--cuts", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
+        "--mission", "--anom", "--seed", "--nodisp", "--cuts", "--nosmoke", "--flat", "--debugcam", "--perf", "--spin", "--cold", "--shotat", "--vsync", "--replay", "--recs", "--tape", "--script", "--pgrp", "--pset",
     };
     private SimState _sim;
     private StackView _stack;
@@ -36,6 +36,7 @@ public partial class Main : Node {
     private string _missionKey = "orbital";
     private bool _anomOn;
     private uint _seed = 12345u;
+    private bool _disp = true;
     private string _script;
     private readonly Replay _rec = new();
     private FlightTape _tape;
@@ -45,7 +46,7 @@ public partial class Main : Node {
     private int _frame;
     public override void _Ready() {
         Log.Sink = (m, lv) => GD.Print(m);
-        _sim = new SimState { Mission = "orbital", AnomOn = false };
+        _sim = new SimState { Mission = "orbital", AnomOn = false, Disperse = true };
         Physics.Sim.Reset(_sim, 12345u);
         Look.Load();
         _scr = Screens.Build(this);
@@ -79,16 +80,18 @@ public partial class Main : Node {
         _shot = new Shot(this);
         _perf = new Perf(this);
         _missionView = MissionView.Build(_eng.MissionCard, _eng.MissionCaption, _scr,
-            key => StartFlight(key, _anomOn, _seed),
+            key => StartFlight(key, _anomOn, NewSeed()),
             () => StartFlight(_missionKey, !_anomOn, _seed),
             key => { _script = key; StartFlight(_missionKey, key != null || _anomOn, _seed); });
         _tape = FlightTape.Build(_scr);
         _ctl.Rec = _rec;
-        _ctl.Replay = () => PlayBack(Starship.Game.Replay.Newest());
+        _eng.Record = (k, a) => _ctl.Rec?.Put(_sim.T, k, a);
+        _ctl.Replay = () => PlayBack(ReplayFiles.Newest());
         _ctl.Saved = path => _sim.LogMsg(path != null
             ? "Прогон записан: " + path : "Записать прогон не удалось", 2);
         _ctl.Restart = () => StartFlight(_missionKey, _anomOn, _seed);
-        _ctl.NextMission = () => StartFlight(NextKey(_missionKey), _anomOn, _seed);
+        _ctl.NewFlight = () => StartFlight(_missionKey, _anomOn, NewSeed());
+        _ctl.NextMission = () => StartFlight(NextKey(_missionKey), _anomOn, NewSeed());
         _ctl.ToggleAnom = () => StartFlight(_missionKey, !_anomOn, _seed);
         _ctl.ShowRecords = () => _missionView.ToggleRecords(_missionKey);
         _ctl.ShowTape = () => {
@@ -96,7 +99,7 @@ public partial class Main : Node {
             if (_tape.SummaryShown) _missionView.HideFinal(); else _missionView.ShowFinalAgain();
         };
         _ctl.StepMark = dir => { double? t = FlightTape.Step(_sim, dir); if (t != null) SeekTo(t.Value); };
-        _ctl.StepOne = () => { _ctl.Play?.Apply(_sim, _ctl); Physics.Sim.Tick(_sim, Const.DT); };
+        _ctl.StepOne = () => { _ctl.Play?.Apply(_sim); Physics.Sim.Tick(_sim, Const.DT); };
         _ctl.ToggleSmoke = () => _smoke.Off = !_smoke.Off;
         _ctl.ToggleFlat = () => { _flat = !_flat; if (_flat) _rigWorld.FlatLight(); else _rigWorld.NormalLight(); };
         foreach (string name in _scr.MouseGrabs()) GD.Print("UI_MOUSE_GRAB " + name);
@@ -107,16 +110,18 @@ public partial class Main : Node {
             if (Mission.Keys[i] == key) return Mission.Keys[(i + 1) % Mission.Keys.Length];
         return Mission.Keys[0];
     }
+    private static uint NewSeed() => (uint)System.Random.Shared.NextInt64(1, uint.MaxValue);
     private void StartFlight(string key, bool anom, uint seed) {
         _missionKey = key;
         _anomOn = anom;
         _seed = seed;
         _sim.Mission = key;
         _sim.AnomOn = anom;
+        _sim.Disperse = _disp;
         _sim.AnomScript = _script == null ? null
             : new System.Collections.Generic.HashSet<string> { _script };
         _missionView.Script = _script;
-        _rec.Head(key, seed, anom, _script);
+        _rec.Head(key, seed, anom, _script, _disp);
         _ctl.Rec = _rec;
         _ctl.Play = null;
         _saved = false;
@@ -139,7 +144,8 @@ public partial class Main : Node {
         _script = a.Str("--script", _script);
         string key = a.Str("--mission", _missionKey);
         if (System.Array.IndexOf(Mission.Keys, key) < 0) key = _missionKey;
-        StartFlight(key, a.Has("--anom"), (uint)a.Int("--seed", (int)_seed));
+        _disp = !a.Has("--nodisp");
+        StartFlight(key, a.Has("--anom"), a.Has("--seed") ? (uint)a.Int("--seed", (int)_seed) : NewSeed());
         if (a.Has("--camcheck")) { GetTree().Quit(CamCheck.Run(_lib) == 0 ? 0 : 1); return; }
         if (a.Has("--theme")) Look.SetTheme(Themes.Parse(a.Str("--theme"), Look.Current), false);
         if (a.Has("--noshadow")) _rigWorld.NoShadow();
@@ -165,7 +171,9 @@ public partial class Main : Node {
         _rig.Pitch = a.Flt("--pitch", 0.14f);
         _rig.Dist = a.Flt("--dist", 300f);
         if (a.Has("--cam")) {
-            _rig.EnterCam(a.Int("--cam", 0));
+            int ci = a.Int("--cam", 0);
+            if (ci < 0) _rig.Cur = CamRig.Kind.Orbit;
+            else _rig.EnterCam(ci);
             _dir.Locked = true;
             _scr.Show(2);
             _dir.Manual = true;
@@ -193,9 +201,10 @@ public partial class Main : Node {
         _perf.Spin = a.Has("--spin");
     }
     private void PlayBack(string path) {
-        Replay r = path == null ? null : Replay.Load(path);
+        Replay r = path == null ? null : ReplayFiles.Load(path);
         if (r == null) { _sim.LogMsg("Записи прогона не нашлось", 2); return; }
         _script = r.Script;
+        _disp = r.Disp;
         StartFlight(r.Mission, r.Anom, r.Seed);
         r.Rewind();
         _ctl.Rec = null;
@@ -205,7 +214,7 @@ public partial class Main : Node {
     private void FastForward(double toT) {
         int guard = 0;
         while (_sim.T < toT && guard++ < 3_000_000) {
-            _ctl.Play?.Apply(_sim, _ctl);
+            _ctl.Play?.Apply(_sim);
             Physics.Sim.Tick(_sim, Const.DT);
             if (guard % 50 != 0) continue;
             _eng.PushTele(_sim);
@@ -216,10 +225,20 @@ public partial class Main : Node {
         Replay play = _ctl.Play;
         double span = Math.Max(_sim.T, toT);
         if (toT < _sim.T) {
+            Replay src = play ?? _rec.Copy();
             StartFlight(_missionKey, _anomOn, _seed);
-            if (play != null) { play.Rewind(); _ctl.Play = play; _ctl.Rec = null; }
+            src.Rewind();
+            _ctl.Play = src;
+            _ctl.Rec = null;
+            FastForward(toT);
+            if (play == null) {
+                src.Keep(toT);
+                _rec.From(src);
+                _ctl.Play = null;
+                _ctl.Rec = _rec;
+            }
         }
-        FastForward(toT);
+        else FastForward(toT);
         _tape.Widen(span);
         _ctl.Paused = true;
     }
@@ -244,9 +263,9 @@ public partial class Main : Node {
         _tape.Visible = _ctl.Play != null || _mission.Over;
         _ctl.TapeOn = _tape.Visible;
         _tape.Update(_sim);
-        if (_mission.Over && !_saved && _ctl.Play == null) {
+        if (_mission.Over && !_saved && _ctl.Play == null && !_shot.Armed) {
             _saved = true;
-            string path = _rec.Save();
+            string path = ReplayFiles.Save(_rec);
             if (path != null) _sim.LogMsg("Прогон записан: " + path + " — F10 повторить", 1);
         }
         _perf.Add(Perf.Part.Mission);

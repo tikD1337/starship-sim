@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using Starship.Game.Ui;
 using Starship.Physics;
 namespace Starship.Game;
 public enum Aim { Wait, Done, Fail }
@@ -145,16 +146,8 @@ public sealed class Mission {
         if (!FileAccess.FileExists(RecPath)) return;
         using FileAccess f = FileAccess.Open(RecPath, FileAccess.ModeFlags.Read);
         if (f == null) return;
-        var json = Json.ParseString(f.GetAsText());
-        if (json.VariantType != Variant.Type.Dictionary) return;
-        foreach (var kv in (Godot.Collections.Dictionary)json) {
-            if (kv.Value.VariantType == Variant.Type.Dictionary) {
-                var d = (Godot.Collections.Dictionary)kv.Value;
-                _recs[kv.Key.AsString()] = new Rec((int)d["s"].AsDouble(),
-                                                   d["g"].AsString(), d["t"].AsString());
-            }
-            else _recs[kv.Key.AsString()] = new Rec((int)kv.Value.AsDouble(), "", "");
-        }
+        foreach (var kv in RecordsText.Parse(f.GetAsText()))
+            _recs[kv.Key] = new Rec(kv.Value.Score, kv.Value.Grade, kv.Value.When);
     }
     public static int BestOf(string key) {
         Load();

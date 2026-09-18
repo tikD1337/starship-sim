@@ -93,6 +93,6 @@ public sealed class Splash {
     }
     public void Update(Origin org) {
         _root.Visible = _fired;
-        if (_fired) _root.Position = org.Place(_dr, 0);
+        if (_fired) _root.Position = org.Place(_dr, -Physics.Const.DECK_H);
     }
 }
