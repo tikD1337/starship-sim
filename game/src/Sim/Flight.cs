@@ -5,12 +5,23 @@ public static class Flight {
         foreach (Engine e in v.Eng) { e.On = false; e.Spool = 0; e.F = 0; e.Md = 0; e.Pc = 0; e.Thr = 0; }
         v.Mdot = 0;
     }
+    public static void SpoolAttached(Vehicle v, double dt) {
+        v.EngAcc += dt;
+        if (v.EngAcc >= 0.02) {
+            Pressurant.Step(v, v.EngAcc);
+            EngineSet.Update(v, v.EngAcc, v.Mate != null ? v.Mate.Pa : 0);
+            v.EngAcc = 0;
+        }
+        EngStats st = EngineSet.Stats(v);
+        v.Mdot = st.Md; v.NRun = st.Run;
+        v.Prop = Math.Max(0, v.Prop - st.Md * dt);
+    }
     public static void StepVehicle(SimState sim, Vehicle v, double dt) {
         if (!v.Alive || v.Landed || v.Attached) return;
         double h = v.Alt;
         Air at = Atmosphere.At(h, sim.RhoK);
         Vec2 up = v.Up, ax = v.Axis, sd = v.Side;
-        v.WindE = sim.Wind.At(h);
+        v.WindE = sim.Wind.At(h, sim.T);
         Vec2 vr = v.VAir;
         double sp = vr.Len;
         double M = sp / at.A, q = 0.5 * at.Rho * sp * sp;
@@ -64,7 +75,10 @@ public static class Flight {
             (gimAuth + flapAuth + rcsAuth - Math.Abs(Fsd * (v.Cp - cm))) / I);
         double aLim = Math.Min(v.Mode == "flipS" ? Const.OM_ACC_FLIP : Const.OM_ACC_MAX, aAvail);
         double err = Vehicle.AngDiff(v.ThCmd, v.Th);
-        double aDes = Const.Clamp(v.Kp * err - v.Kd * v.Om, -aLim, aLim);
+        double aDes = v.Mode == "flipS"
+            ? Const.Clamp((Math.Sign(err) * Math.Sqrt(2 * Const.FLIP_BRAKE * aLim * Math.Abs(err)) - v.Om) * Const.FLIP_KW,
+                          -aLim, aLim)
+            : Const.Clamp(v.Kp * err - v.Kd * v.Om, -aLim, aLim);
         double need = aDes * I;
         need -= Fsd * (v.Cp - cm);
         double g = 0;
@@ -79,14 +93,9 @@ public static class Flight {
         double rcsT = Const.Clamp(need, -rcsAuth, rcsAuth);
         v.RcsUse = rcsAuth > 1 ? rcsT / rcsAuth : 0;
         double torque = Fsd * (v.Cp - cm) - v.F * Math.Sin(g) * cm + fl * flapAuth + rcsT;
-        double FaX = Fax * ax.X + Fsd * sd.X, FaY = Fax * ax.Y + Fsd * sd.Y;
-        if (v.Bank > 0.01 && sp > 1) {
-            double dx = vr.X / sp, dy = vr.Y / sp;
-            double alng = FaX * dx + FaY * dy;
-            double lx = FaX - alng * dx, ly = FaY - alng * dy;
-            double cb = Math.Cos(v.Bank);
-            FaX = alng * dx + lx * cb; FaY = alng * dy + ly * cb;
-        }
+        Vec2 fa = Aero.World(v, af, vr);
+        double FaX = fa.X, FaY = fa.Y;
+        Nav.Observe(sim, v, FaX, FaY, af.Drag, h, dt);
         double tvx = (ax.X * Math.Cos(g) + sd.X * Math.Sin(g)) * v.F;
         double tvy = (ax.Y * Math.Cos(g) + sd.Y * Math.Sin(g)) * v.F;
         double Fx = tvx + FaX, Fy = tvy + FaY;
@@ -100,16 +109,15 @@ public static class Flight {
         v.Om *= 1 - Const.OM_DAMP * dt;
         v.Th += v.Om * dt;
         if (v.Th > Math.PI) v.Th -= 2 * Math.PI; else if (v.Th < -Math.PI) v.Th += 2 * Math.PI;
-        if (v.SeekPad && !v.Caught && !v.Crashed && v.Launched &&
+        if (v.Catch && !v.Caught && !v.Crashed && v.Launched &&
             v.Alt <= Const.CATCH_H && v.Alt > Const.CATCH_H - Const.CATCH_WIN &&
             (v.Mode == "landB" || v.Mode == "landS")) {
             double dr = Math.Abs(sim.Downrange(v)), vd = -v.VVert, vh = Math.Abs(v.VHor);
             double tilt = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
             if (dr < Const.CATCH_DR && vd < Const.CATCH_VV && vd > -2.5 &&
                 vh < Const.CATCH_VH && tilt < Const.CATCH_TILT) {
-                double ang = Math.Atan2(v.X, v.Y), rr = Const.RE + Const.CATCH_H;
-                v.X = rr * Math.Sin(ang); v.Y = rr * Math.Cos(ang);
-                v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X; v.Om = 0; v.Th = 0;
+                v.HeldVh = v.VHor; v.HeldOm = v.Om; v.CatchH = v.Alt;
+                v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X; v.Om = 0;
                 v.Caught = true; v.Landed = true; v.Mode = "caught"; v.CatchVd = vd;
                 v.Ign = false; v.NEng = 0; v.F = 0;
                 Quench(v);
@@ -126,22 +134,26 @@ public static class Flight {
             v.Om = 0; v.Th = 0; v.Acc = 0;
             return;
         }
-        if (v.Alt <= 0) {
+        double gdr = sim.Downrange(v), gnd = SimState.Surface(gdr);
+        if (v.Alt <= gnd) {
             double vd = -v.VVert, vh = Math.Abs(v.VHor), tilt = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
             double ang = Math.Atan2(v.X, v.Y);
-            v.X = Const.RE * Math.Sin(ang); v.Y = Const.RE * Math.Cos(ang);
+            v.X = (Const.RE + gnd) * Math.Sin(ang); v.Y = (Const.RE + gnd) * Math.Cos(ang);
             v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X; v.Om = 0;
             v.Landed = true; v.Ign = false; v.NEng = 0; v.F = 0;
+            v.Splash = SimState.Water(gdr); v.HeldVh = v.VHor;
             Quench(v);
-            bool far = Math.Abs(sim.Downrange(v)) > 120e3;
             if (vd < 7 && vh < 6 && tilt < 12) {
                 v.Mode = "landed";
-                string tail = far ? ", " + (sim.Downrange(v) / 1000).ToString("F0") + " км от старта" : "";
-                sim.LogMsg($"{v.Tag}: {(far ? "ПРИВОДНЕНИЕ" : "КАСАНИЕ")} — посадка выполнена ({vd:F1} м/с{tail})", 1);
+                string tail = Math.Abs(gdr) > 120e3 ? $", {gdr / 1000:F0} км от старта"
+                    : v.Splash ? $", {gdr / 1000:F1} км от башни"
+                    : v.SeekPad && v.Site == "pad" ? $", {Math.Abs(gdr - v.AimDr):F1} м от центра площадки" : "";
+                string what = v.Splash ? "ПРИВОДНЕНИЕ" : v.SeekPad && v.Site == "pad" ? "ПОСАДКА НА ПЛОЩАДКУ" : "КАСАНИЕ";
+                sim.LogMsg($"{v.Tag}: {what} — посадка выполнена ({vd:F1} м/с{tail})", 1);
             }
             else {
                 v.Crashed = true; v.Mode = "crashed";
-                sim.LogMsg($"{v.Tag}: РАЗРУШЕНИЕ при ударе о поверхность ({vd:F0} м/с, крен {tilt:F0}°)", 3);
+                sim.LogMsg($"{v.Tag}: РАЗРУШЕНИЕ при ударе о {(v.Splash ? "воду" : "поверхность")} ({vd:F0} м/с, крен {tilt:F0}°)", 3);
             }
         }
         double aoaDev = Math.Min(Math.Abs(v.Alpha), Math.PI - Math.Abs(v.Alpha));

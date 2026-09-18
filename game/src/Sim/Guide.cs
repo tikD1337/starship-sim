@@ -23,17 +23,16 @@ public static class Guide {
         switch (v.Mode) {
         case "ascent": {
             v.NEng = 33; v.Ign = true;
-            v.ThCmd = sim.T < 7 ? 0 : Guidance.PitchProg(sp);
-            v.Throttle = 1;
-            if (v.Q > 32e3) v.Throttle = 0.74;
-            if (v.Q > 25e3 && v.Q <= 32e3 && sim.T > 40) v.Throttle = 0.86;
-            if (v.Q < 18e3 && sim.T > 75) v.Throttle = 1;
+            v.ThCmd = h < Const.ASC_CLEAR_H ? 0 : Guidance.PitchProg(sp);
+            if (v.Q > Const.ASC_Q_IN) v.QDown = true;
+            else if (v.Q < Const.ASC_Q_OUT) v.QDown = false;
+            v.Throttle = !v.QDown ? 1 : v.Q > 32e3 ? 0.74 : 0.86;
             if (v.Acc > 3.6) v.Throttle = Const.Clamp(v.Throttle * 3.6 / v.Acc, 0.4, 1);
             if (v.Q < 8e3 && sim.T > 60) sim.Once("maxq-pass");
             if (v.MaxQ > 1e3 && v.Q < v.MaxQ * 0.85)
                 sim.Once("maxq", () => sim.LogMsg($"Max Q пройден — {(v.MaxQ / 1000):F1} кПа на H={(h / 1000):F1} км", 1));
             if (v.Prop <= sim.MecoFill * v.PropMax || sp > sim.MecoV) {
-                v.Mode = "meco"; v.Tmr = 0;
+                v.Mode = "meco"; v.Tmr = 0; v.FRef = v.F;
                 sim.LogMsg($"MECO: отсечка маршевых. V={sp:F0} м/с, H={(h / 1000):F1} км", 2);
             }
             break;
@@ -41,17 +40,31 @@ public static class Guide {
         case "meco": {
             v.Tmr += dt; v.NEng = 3; v.Throttle = 0.4;
             Vehicle s = v.Mate;
-            if (v.Tmr > 0.6 && !s.Ign) {
+            if (!s.Ign && (v.F < Const.HOT_IGN_F * v.FRef || v.Tmr > Const.HOT_IGN_T)) {
                 s.Ign = true; s.NEng = 6; s.Throttle = 1;
                 sim.LogMsg("Запуск двигателей корабля — горячее разделение", 1);
             }
-            if (v.Tmr > 2.2) Separate(sim);
+            if (!s.Ign) break;
+            int need = 0, lit = 0;
+            foreach (Engine e in s.Eng) {
+                if (!e.Failed) need++;
+                if (e.On && e.Pc >= Const.HOT_PC * Pump.PC_NOM) lit++;
+            }
+            if (lit >= Math.Min(s.NEng, need) && need > 0) {
+                sim.LogMsg($"Корабль на режиме: {lit} двигателей, давление в камерах выше {Const.HOT_PC * Pump.PC_NOM:F0} МПа", 1);
+                Separate(sim);
+            }
+            else if (v.Tmr > Const.HOT_SEP_T) {
+                sim.LogMsg($"Корабль не вышел на режим ({lit} из {Math.Min(s.NEng, need)}) — разделение по страховке", 2);
+                Separate(sim);
+            }
             break;
         }
         case "flip": {
             v.Ign = false; v.NEng = 0; v.Tmr += dt;
             v.ThCmd = Guidance.BoostbackAim(v);
             if (v.Tmr > 4 || Math.Abs(Vehicle.AngDiff(v.ThCmd, v.Th)) < 12 * Const.D2R) {
+                PollBooster(sim, v);
                 v.Mode = "boostback"; v.Ign = true; v.NEng = 13; v.Throttle = 1;
                 sim.LogMsg("Б: разворот выполнен, включение 13 двигателей — тормозной импульс", 1);
             }
@@ -67,6 +80,7 @@ public static class Guide {
             if (near < 25e3) { v.NEng = 3; v.Throttle = near < 4e3 ? 0.4 : 1; }
             if (near < 250 || v.Prop < 0.025 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Throttle = 1; v.Mode = "coastB";
+                if (v.Catch && Math.Abs(Mp(v)) > Const.GO_MISS_B) Divert(sim, v, "sea", Const.SEA_DR, $"расчётный промах {Mp(v):F0} м");
                 sim.LogMsg($"Б: конец тормозного импульса, топливо {(v.Prop / 1000):F0} т, расчётный промах {Mp(v):F0} м", 1);
             }
             break;
@@ -78,12 +92,14 @@ public static class Guide {
             break;
         }
         case "landB": {
-            if (v.SeekPad && h < 3500 && Math.Abs(sim.Downrange(v)) > 2000) {
+            if (v.SeekPad && h < 3500 && Math.Abs(sim.Downrange(v) - v.AimDr) > 2000) {
                 v.SeekPad = false;
-                sim.LogMsg($"Б: башня недосягаема ({(sim.Downrange(v) / 1000):F1} км) — посадка вне площадки", 2);
+                sim.LogMsg($"Б: {(v.Site == "tower" ? "башня недосягаема" : "цель недосягаема")} ({((sim.Downrange(v) - v.AimDr) / 1000):F1} км) — посадка вне площадки", 2);
             }
             if (!v.IgnBurn) DescentB(sim, v, dt);
+            else sim.Once("reach" + v.Tag, () => Reach(sim, v, Const.REACH_B));
             Guidance.LandingBurn(sim, v, dt, v.Spec.NLand);
+            LatePoll(sim, v, dt);
             break;
         }
         case "ascent2": {
@@ -201,6 +217,7 @@ public static class Guide {
             v.BankCmd = Const.ENTRY_BANK0 * Const.D2R;
             Guidance.VentProp(sim, v, dt);
             if (h < 120e3) {
+                if (v.SeekPad) PollShip(sim, v, "на входе");
                 v.Mode = "entryS";
                 sim.LogMsg("К: вход в атмосферу — «брюхом» к потоку, α≈60°", 2);
             }
@@ -212,7 +229,7 @@ public static class Guide {
             v.EntAcc += dt;
             if (v.EntAcc > Const.ENTRY_PRED_DT && v.SeekPad && h > Const.GLIDE_H) {
                 v.EntAcc = 0;
-                double qq = 0.5 * Atmosphere.At(h, sim.RhoK).Rho * sp * sp;
+                double qq = 0.5 * Atmosphere.At(h, v.RhoEst).Rho * sp * sp;
                 if (qq > 200) {
                     double aA = Math.Abs(v.Alpha), sa = Math.Sin(aA), ca = Math.Abs(Math.Cos(aA));
                     double cnm = 2 * Math.Abs(sa * ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa;
@@ -236,7 +253,7 @@ public static class Guide {
                 v.ThCmd = Guidance.AimLift(v, v.AlphaCmd, Guidance.LiftSign(v, "up", rf.Up));
             }
             else {
-                double miss = sim.Downrange(v) + Guidance.FlipDrift(v);
+                double miss = sim.Downrange(v) + Const.FLIP_D - v.AimDr;
                 double vp = Guidance.AimPro(v) * Const.R2D;
                 double flat = Const.Clamp((vp - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
                 double lead = miss + Const.BELLY_LEAD;
@@ -252,19 +269,21 @@ public static class Guide {
                 double lacc = v.Q * v.A * Math.Max(0, cn2 * ca2 - ca20 * sa2) / v.Mass;
                 v.BankCmd = (1 - flat) * Guidance.GlideBank(lead, v.VHor, h, v.VVert, lacc, Math.Abs(rf.East));
                 sim.Once("glide" + v.Tag, () =>
-                    sim.LogMsg($"{v.Tag}: терминальное наведение — гашение сноса, до башни {(-sim.Downrange(v) / 1000):F0} км", 2));
+                    sim.LogMsg($"{v.Tag}: терминальное наведение — гашение сноса, до {(v.Site == "sea" ? "точки приводнения" : "башни")} {((v.AimDr - sim.Downrange(v)) / 1000):F0} км", 2));
                 v.ThCmd = Guidance.AimLift(v, v.AlphaCmd, Guidance.LiftSign(v, "east", rf.East));
             }
             if (aPrev > 0)
                 v.AlphaCmd = aPrev + Const.Clamp(v.AlphaCmd - aPrev,
                     -Const.ALPHA_RATE * dt, Const.ALPHA_RATE * dt);
             if (v.Heat > v.MaxHeat) v.MaxHeat = v.Heat;
-            if (v.SeekPad ? h < Const.FLIP_H && Guidance.StopAlt(v, 3) < Const.FLIP_STOP
+            if (h < Const.GLIDE_H && v.SeekPad) sim.Once("poll" + v.Tag, () => PollShip(sim, v, "на 25 км"));
+            if (v.SeekPad ? h < Const.FLIP_H && Guidance.StopAlt(v, 3) < Const.FLIP_STOP + (v.Catch ? 0 : SimState.Surface(v.AimDr) - Const.CATCH_H)
                           : h < Const.FLIP_H_SEA) {
-                if (v.SeekPad && Math.Abs(sim.Downrange(v)) > 3000) {
+                if (v.SeekPad && Math.Abs(sim.Downrange(v) - v.AimDr) > 3000) {
                     v.SeekPad = false;
                     sim.LogMsg($"К: башня недосягаема ({(sim.Downrange(v) / 1000):F0} км) — посадка вне площадки", 2);
                 }
+                Reach(sim, v, Const.REACH_S);
                 v.Mode = "flipS"; v.Tmr = 0; v.Ign = true; v.NEng = 3; v.Throttle = 1;
                 sim.LogMsg("К: переворот и посадочная жига", 2);
             }
@@ -273,8 +292,10 @@ public static class Guide {
         case "flipS": {
             v.Tmr += dt; v.Ign = true; v.NEng = 3;
             Guidance.LandingBurn(sim, v, dt, 3);
+            LatePoll(sim, v, dt);
             v.ThCmd = 0;
-            if (Math.Abs(Vehicle.AngDiff(v.Th, 0)) < 30 * Const.D2R || v.Tmr > 4) {
+            if (Math.Abs(Vehicle.AngDiff(v.Th, 0)) < Const.FLIP_END * Const.D2R
+                && Math.Abs(v.Om) < Const.FLIP_OM_END * Const.D2R || v.Tmr > 4) {
                 v.Mode = "landS";
                 v.Ign = false; v.NEng = 0; v.Throttle = 0;
             }
@@ -282,6 +303,7 @@ public static class Guide {
         }
         case "landS":
             Guidance.LandingBurn(sim, v, dt, 3);
+            LatePoll(sim, v, dt);
             break;
         }
     }
@@ -303,5 +325,66 @@ public static class Guide {
         v.ThCmd = Guidance.AimRetro(v) + (miss > 0 ? dl : -dl);
     }
     private static double Mp(Vehicle v) => double.IsNaN(v.MissPred) ? 0 : v.MissPred;
+    public static void Divert(SimState sim, Vehicle v, string site, double aim, string why) {
+        v.Site = site;
+        v.AimDr = aim;
+        v.HoldT = 0; v.WaitT = 0; v.ShipHold = false;
+        string where = site == "pad" ? "уход на площадку у башни" : "уход в море";
+        sim.LogMsg($"{v.Tag}: захват отменён — {why}: {where}", 2);
+    }
+    private static void Reach(SimState sim, Vehicle v, double r) {
+        if (!v.SeekPad || v.Site != "sea") return;
+        double dr = sim.Downrange(v);
+        double aim = Math.Max(Const.Clamp(v.AimDr, dr - r, dr + r), Const.COAST_DR + 300);
+        if (Math.Abs(aim - v.AimDr) < 1) return;
+        v.AimDr = aim;
+        sim.LogMsg($"{v.Tag}: точка приводнения перенесена ближе — {aim / 1000:F1} км от башни", 1);
+    }
+    private static int Dead(Vehicle v, int n) {
+        int d = 0;
+        for (int i = 0; i < n && i < v.Eng.Count; i++) if (v.Eng[i].Failed) d++;
+        return d;
+    }
+    private static void PollBooster(SimState sim, Vehicle v) {
+        if (!v.Catch) return;
+        int dead = Dead(v, 13);
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H));
+        string why = dead >= 2 ? $"{dead} из 13 посадочных двигателей неисправны"
+            : v.CopvK < 1 ? "утечка газа наддува"
+            : v.CtrlK < 1 ? "заедание решётчатого руля"
+            : v.Prop < Const.GO_PROP_B ? $"топлива на посадку {v.Prop / 1000:F0} т"
+            : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"
+            : null;
+        if (why == null) sim.LogMsg("Б: опрос перед тормозным импульсом — GO на захват башней", 1);
+        else Divert(sim, v, "sea", Const.SEA_DR, why);
+    }
+    private static void PollShip(SimState sim, Vehicle v, string at) {
+        if (!v.Catch) return;
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H));
+        string why = v.Dmg > Const.GO_DMG_S ? $"повреждение теплозащиты {v.Dmg * 100:F0} %"
+            : v.CtrlK < 1 ? "заедание привода закрылка"
+            : v.Prop < Const.GO_PROP_S ? $"топлива на посадку {v.Prop / 1000:F0} т"
+            : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"
+            : null;
+        if (why == null) sim.LogMsg($"К: опрос {at} — GO на захват башней", 1);
+        else Divert(sim, v, "sea", Const.SEA_DR, why);
+    }
+    private static void LatePoll(SimState sim, Vehicle v, double dt) {
+        if (!v.Catch || !v.Ign || v.Landed) return;
+        bool booster = v.Kind == Kind.Booster;
+        string site = booster ? "sea" : "pad";
+        double aim = booster ? Math.Max(Const.COAST_DR + 200, sim.Downrange(v)) : Const.PAD_DR;
+        int dead = booster ? Dead(v, 13) : Dead(v, 3);
+        if (booster ? dead >= 2 : dead >= 1) {
+            Divert(sim, v, site, aim, $"не зажглись {dead} {(booster ? "из 13" : "из 3")} посадочных двигателей");
+            return;
+        }
+        double dh = v.Alt - Const.CATCH_H;
+        if (dh < 3 && dh > -Const.CATCH_WIN) v.WaitT += dt;
+        if (v.WaitT > Const.WAIT_MAX)
+            Divert(sim, v, site, aim, $"не удалось войти в окно захвата за {Const.WAIT_MAX:F0} с");
+        else if (dh <= -Const.CATCH_WIN)
+            Divert(sim, v, site, aim, "ступень прошла ниже рук");
+    }
     private static double Em(Vehicle v) => double.IsNaN(v.EntMiss) ? 0 : v.EntMiss;
 }

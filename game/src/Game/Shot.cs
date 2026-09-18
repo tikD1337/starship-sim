@@ -8,6 +8,7 @@ public sealed class Shot {
     private Vector3 _relPrev;
     private float _jitMax;
     public Shot(Node host) { _host = host; }
+    public bool Armed => _path != null;
     public void Arm(string path, int frame) {
         _path = path;
         _at = frame;

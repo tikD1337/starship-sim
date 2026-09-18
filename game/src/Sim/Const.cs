@@ -7,7 +7,8 @@ public static class Const {
     public const double CATCH_H = 62, ARM_PARK = 116, ARM_LOWER = 1.2, ARM_HAUL = 420, CATCH_DR = 8,
         CATCH_WIN = 14, CATCH_VV = 4.0, CATCH_VH = 3.5, CATCH_TILT = 6, LAND_VTD = 1.1;
     public const double ARM_GAP_PARK = 24, ARM_GAP_READY = 1.5, ARM_GAP_RATE = 1.2, ARM_APPROACH_H = 8000;
-    public const double ARM_SAG_REST = 0.5, ARM_SAG_PERIOD = 1.8, ARM_SAG_ZETA = 0.45, ARM_HOLD_T = 4;
+    public const double ARM_SAG_REST = 0.5, ARM_SAG_PERIOD = 1.2, ARM_SAG_ZETA = 0.75, ARM_HOLD_T = 4,
+        ARM_SLIDE_TAU = 0.35, ARM_TILT_PERIOD = 1.2, ARM_TILT_ZETA = 0.8;
     public static double LAND_ALAT = 4.0;
     public static double LAND_TLAG = 2.5, LAND_KLAT = 0.6, LAND_DHPD = 300, LAND_TILT_NEAR = 16;
     public static double LAND_KDAMP = 2.4, LAND_TILT_END = 7, LAND_DH_END = 18;
@@ -17,6 +18,14 @@ public static class Const {
     public const int LAND_B_END = 3;
     public static double LAND_THR_MIN = 0.40, LAND_PROJ = 0.5;
     public static double LAND_WIND_K = 2.0, LAND_WIND_H = 3000;
+    public const double DECK_H = 16, MOUNT_R = 23, COAST_DR = 700, LAND_W = 30000, PAD_DR = -450, SEA_DR = 6000;
+    public static double GO_MISS_B = 1500, GO_PROP_B = 75e3, GO_PROP_S = 25e3, GO_DMG_S = 0.15, GO_WIND = 20,
+        WAIT_MAX = 12, TIP_K = 0.4, REACH_S = 500, REACH_B = 700, RELIGHT_P = 0.02;
+    public static double ASC_CLEAR_H = 87, ASC_Q_IN = 25.5e3, ASC_Q_OUT = 24.5e3,
+        HOT_IGN_F = 0.15, HOT_IGN_T = 1.5, HOT_PC = 0.85, HOT_SEP_T = 3.5;
+    public static double NAV_LAG = 0.1, NAV_POS_SIG = 0.8, NAV_POS_TAU = 20, NAV_VEL_SIG = 0.08, NAV_VEL_TAU = 4,
+        NAV_OBS_DT = 0.05, NAV_OBS_H = 5000, NAV_OBS_SMIN = 2e-3, NAV_WIND_TAU = 1.5,
+        NAV_RHO_H = 60e3, NAV_RHO_Q = 2000, NAV_RHO_TAU = 3;
     public const double TILE_CAP = 6000, SKIN_CAP = 15800, BODY_CAP = 160e3, TILE_LIMIT = 1700,
         SKIN_LIMIT = 1100, TILE_EPS = 0.85, SKIN_EPS = 0.45, LEE_SHADE = 0.03, BURN_RATE = 1.2e-6,
         ENTRY_BANK0 = 45;
@@ -29,7 +38,10 @@ public static class Const {
         GLIDE_H = 25000, ENTRY_K0 = 1.08;
     public static double ENTRY_PROP = 60e3;
     public static double FLIP_STOP = 650, FLIP_H_SEA = 900;
-    public static double OM_ACC_MAX = 0.30, OM_ACC_FLIP = 0.45;
+    public static double OM_ACC_MAX = 0.30, OM_ACC_FLIP = 1.0;
+    public static double FLIP_BRAKE = 0.8, FLIP_KW = 4, FLIP_TW = 2.4, FLIP_END = 10, FLIP_OM_END = 8, FLIP_D = 380;
+    public static double SHIP_ALAT = 6, SHIP_TILT = 25, SHIP_GATE = 10, SHIP_GATE_V = 6, SHIP_AD = 6, SHIP_AB = 9,
+        SHIP_ENG_K = 1.3, SHIP_POLE = 0.9;
     public static double SECO_LEAD = 1.8, SECO_PERI = -800e3;
     public static double CIRC_TAPER = 150e3, CIRC_ONE = 80e3;
     public const double FLAP_S_FWD = 19.9, FLAP_S_AFT = 36.7;
@@ -39,7 +51,6 @@ public static class Const {
     public static double FIN_CN = 1.5;
     public static double GLIDE_KA = 400, GLIDE_A_LO = 45, GLIDE_A_HI = 70;
     public static double BELLY_TILT = 15, BELLY_VP0 = 150, BELLY_VP1 = 170, BELLY_LEAD = 1600;
-    public static double FLIP_DRIFT_K = 0.8;
     public static double BOOST_AOA = 24, BOOST_STRAIGHT_H = 4000, BOOST_SWITCH_H = 450;
     public static double ASC_KA = 5e-4, ASC_KV = 0.04, ASC_AVMAX = 40, ASC_THMAX = 140, DEO_AIM = 30e3;
     public const double DT = 0.01;

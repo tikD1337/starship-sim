@@ -26,6 +26,7 @@ public sealed class EngineerView {
     private int _stage, _pin = -1;
     private SimState _sim;
     public Action<bool> Focus;
+    public Action<string, double> Record;
     public int Group { get; private set; }
     public VBoxContainer MissionCard { get; private set; }
     public Label MissionCaption { get; private set; }
@@ -161,6 +162,7 @@ public sealed class EngineerView {
         _detail = EngineDetail.Build(row);
         _params = ParamPanel.Build(col);
         _params.Picked += i => Group = i;
+        _params.Record = (k, a) => Record?.Invoke(k, a);
     }
     private static Label Pair(Control parent, string name) {
         var h = new HBoxContainer();
@@ -228,10 +230,9 @@ public sealed class EngineerView {
     public void SetParam(Vehicle v, string key, string text) {
         ParamRow r = ParamDefs.Row(key);
         if (r == null || v == null || !NumFmt.TryParse(text, out double x)) return;
+        if (!ParamDefs.Apply(r, v, null, x)) return;
         x = Math.Clamp(x, r.Lo, r.Hi);
-        if (r.Scope == Scope.Vehicle) r.SetVeh?.Invoke(v, x);
-        else if (r.Scope == Scope.Engine)
-            foreach (PEngine e in v.Eng) r.Set?.Invoke(e.P, x);
+        Record?.Invoke(Replay.ParamKey(r.Key, _sim != null ? _sim.Veh.IndexOf(v) : 0, -1), x);
         _sim?.LogMsg($"Параметр «{r.Label}» → {NumFmt.F(x, r.Digits)}", 1);
     }
     private PEngine Pick(Vehicle v) => v.Eng.Count == 0 ? null : v.Eng[Math.Clamp(_sel[_stage], 0, v.Eng.Count - 1)];

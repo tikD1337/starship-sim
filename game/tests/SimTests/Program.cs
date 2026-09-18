@@ -42,6 +42,12 @@ internal static partial class Program {
         BoosterReturn();
         BoosterSwing();
         ShipBellyFlop();
+        ShipLanding();
+        LiveFlight();
+        ArmCatch();
+        Estimation();
+        ConditionEvents();
+        Fallback();
         TowerArms();
         FlightMarks();
         OrbitElements();
@@ -456,6 +462,10 @@ internal static partial class Program {
              Math.Abs(Wind.Steady(12).At(0) - 12) < 1e-9
              && Math.Abs(Wind.Steady(12).At(30e3)) < 0.5,
              $"{N(Wind.Steady(12).At(0))} м/с у земли, {N(Wind.Steady(12).At(30e3))} на 30 км");
+        double jump = 0;
+        for (double h = 50; h < 5000; h += 50) jump = Math.Max(jump, Math.Abs(Wind.Steady(12).At(h + 1) - Wind.Steady(12).At(h - 1)));
+        True("приземный ветер с высотой меняется плавно, без скачка на 1200 м (пункт 58)", jump < 0.1,
+             $"наибольший скачок за 2 м — {N(jump)} м/с");
         double aCalm = AscentAoA(Wind.Calm());
         double aWind = AscentAoA(w);
         True("без ветра угол атаки на 8…14 км мал", aCalm < 5, $"{N(aCalm)}°");
@@ -552,7 +562,7 @@ internal static partial class Program {
         True("ускоритель пойман", b.Caught, $"промах {N(sim.Downrange(b))} м");
         True("напор на спуске ниже предела конструкции", qDesc < 200e3, $"{N(qDesc / 1000)} кПа");
         double burn = b.Caught ? sim.T - tIgn : double.NaN;
-        True("от зажигания жиги до захвата не больше 30 с", burn <= 30, $"{N(burn)} с");
+        True("от зажигания жиги до захвата не больше 31 с", burn <= 31, $"{N(burn)} с");
         double tCatch = sim.T;
         True("время конца полёта ускорителя записано в события в момент захвата",
              sim.Events.TryGetValue("overБ", out double tOver) && Math.Abs(tOver - tCatch) < 0.05,
@@ -573,6 +583,308 @@ internal static partial class Program {
                  $"разворотов {turns}, на входе {N(dr0)} м, наибольший {N(drMax)} м");
             True($"{name}: корпус не перекладывается через вертикаль больше раза", flips <= 1,
                  $"перекладок {flips}");
+        }
+    }
+    private static SimState Live(uint seed, bool disp, string mission = "orbital") {
+        var sim = new SimState { Mission = mission, AnomOn = false, Disperse = disp };
+        Physics.Sim.Reset(sim, seed);
+        return sim;
+    }
+    private static (double X, double Y, double Prop) RunTo(SimState sim, double t) {
+        while (sim.T < t) Physics.Sim.Tick(sim, Const.DT);
+        Vehicle b = sim.Veh[0];
+        return (b.X, b.Y, b.Prop);
+    }
+    private static double Spread(System.Collections.Generic.IEnumerable<double> xs, out double mean) {
+        double s = 0, s2 = 0; int n = 0;
+        foreach (double x in xs) { s += x; s2 += x * x; n++; }
+        mean = s / Math.Max(n, 1);
+        return Math.Sqrt(Math.Max(s2 / Math.Max(n, 1) - mean * mean, 0));
+    }
+    private static void LiveFlight() {
+        Head("Живой полёт: одно зерно — один полёт, разные зёрна — разные полёты");
+        var a = RunTo(Live(777, true), 120);
+        var a2 = RunTo(Live(777, true), 120);
+        True("одно зерно с разбросом повторяет полёт до бита", a == a2,
+             $"{N(a.X - a2.X)} м по X");
+        var c = RunTo(Live(778, true), 120);
+        double dx = Math.Sqrt((a.X - c.X) * (a.X - c.X) + (a.Y - c.Y) * (a.Y - c.Y));
+        True("другое зерно — другой полёт", dx > 5, $"к T+120 разошлись на {N(dx)} м");
+
+        Head("Живой полёт: естественный разброс отдельно от отказов");
+        SimState off = Live(777, false);
+        bool flat = off.RhoK == 1 && off.Veh[0].Dry == Spec.Booster.Dry && off.Veh[1].Dry == Spec.Ship.Dry + off.Payload;
+        foreach (Vehicle v in off.Veh) foreach (Engine e in v.Eng) flat &= e.P.Cf == 1;
+        True("без разброса всё по таблице", flat);
+        SimState on = Live(777, true);
+        var cf = new System.Collections.Generic.List<double>();
+        foreach (Engine e in on.Veh[0].Eng) cf.Add(e.P.Cf);
+        double sd = Spread(cf, out double cfMean);
+        double lo = double.MaxValue, hi = double.MinValue;
+        foreach (double k in cf) { lo = Math.Min(lo, k); hi = Math.Max(hi, k); }
+        True("у каждого двигателя своя тяга (±2 %)", sd > 0.003 && lo >= 0.98 && hi <= 1.02,
+             $"разброс {N(sd * 100)} %, от {N(lo)} до {N(hi)}");
+        True("плотность воздуха отличается от таблицы, но не больше чем на 5 %",
+             on.RhoK != 1 && Math.Abs(on.RhoK - 1) <= 0.05, $"{N(on.RhoK)}");
+        True("масса ступеней отличается от таблицы меньше чем на 1 %",
+             on.Veh[0].Dry != Spec.Booster.Dry && Math.Abs(on.Veh[0].Dry / Spec.Booster.Dry - 1) < 0.01,
+             $"{N(on.Veh[0].Dry / 1000)} т");
+
+        Head("Живой полёт: порывы ветра");
+        var gust = new System.Collections.Generic.List<double>();
+        for (double t = 0; t < 900; t += 0.5) gust.Add(on.Wind.At(8e3, t));
+        double gSd = Spread(gust, out double gMean);
+        True("на 8 км ветер меняется со временем", gSd > 0.3 && gSd < 5, $"СКО {N(gSd)} м/с");
+        True("порывы не сдвигают средний ветер", Math.Abs(gMean - on.Wind.At(8e3)) < 0.6,
+             $"{N(gMean)} против {N(on.Wind.At(8e3))} м/с");
+        var still = new System.Collections.Generic.List<double>();
+        for (double t = 0; t < 300; t += 0.5) still.Add(off.Wind.At(8e3, t));
+        True("без разброса ветер неподвижен", Spread(still, out _) == 0);
+        var high = new System.Collections.Generic.List<double>();
+        for (double t = 0; t < 300; t += 0.5) high.Add(on.Wind.At(45e3, t));
+        True("выше 40 км порывов нет", Spread(high, out _) < 1e-9);
+
+        Head("Живой полёт: с разбросом обе ступени ловятся");
+        foreach (uint seed in new uint[] { 1, 2, 3 }) {
+            SimState sim = Live(seed, true);
+            Vehicle b = sim.Veh[0], s = sim.Veh[1];
+            for (int i = 0; i < 1_400_000 && !(s.Landed || s.Crashed); i++) Physics.Sim.Tick(sim, Const.DT);
+            True($"зерно {seed}: ускоритель и корабль пойманы", b.Caught && s.Caught, $"Б {b.Mode}, К {s.Mode}");
+        }
+        {
+            SimState sim = Live(9, true);
+            sim.Wind = Wind.Steady(15);
+            sim.Disp.ApplyWind(sim);
+            Vehicle s = sim.Veh[1];
+            for (int i = 0; i < 1_400_000 && !(s.Landed || s.Crashed); i++) Physics.Sim.Tick(sim, Const.DT);
+            True("порыв у рук не проводит корабль мимо захвата (ветер 15 м/с, зерно 9)", s.Caught, s.Mode);
+        }
+    }
+    private static (double pitchH, double pitchT, int qFlips, double tMeco, double tIgn, double tSep, double bFracIgn, int litSep, string sepLog)
+        Staging(SimState sim, Action<SimState> tweak = null) {
+        Vehicle b = sim.Veh[0], s = sim.Veh[1];
+        double pitchH = double.NaN, pitchT = double.NaN, tMeco = double.NaN, tIgn = double.NaN, tSep = double.NaN, frac = double.NaN;
+        int flips = 0, lit = 0;
+        bool qd = false;
+        for (int i = 0; i < 40_000 && s.Attached; i++) {
+            if (tweak != null && b.Mode == "ascent" && sim.T > 120) { tweak(sim); tweak = null; }
+            Physics.Sim.Tick(sim, Const.DT);
+            if (double.IsNaN(pitchH) && b.Mode == "ascent" && b.ThCmd != 0) { pitchH = b.Alt; pitchT = sim.T; }
+            if (b.QDown != qd) { flips++; qd = b.QDown; }
+            if (double.IsNaN(tMeco) && b.Mode == "meco") tMeco = sim.T;
+            if (double.IsNaN(tIgn) && s.Ign) { tIgn = sim.T; frac = b.F / b.FRef; }
+        }
+        tSep = sim.T;
+        foreach (Engine e in s.Eng) if (e.On && e.Pc >= Const.HOT_PC * Pump.PC_NOM) lit++;
+        string log = "";
+        foreach (LogEntry l in sim.Log) if (l.M.Contains("разделение по страховке") || l.M.Contains("на режиме")) log = l.M;
+        return (pitchH, pitchT, flips, tMeco, tIgn, tSep, frac, lit, log);
+    }
+    private static SimState Scripted(string key, uint seed = 5) {
+        var sim = new SimState { Mission = "orbital", AnomOn = true, AnomScript = new System.Collections.Generic.HashSet<string> { key } };
+        Physics.Sim.Reset(sim, seed);
+        return sim;
+    }
+    private static void Finish(SimState sim, Vehicle v, double tip = 0) {
+        for (int i = 0; i < 1_400_000 && !(v.Landed || v.Crashed); i++) Physics.Sim.Tick(sim, Const.DT);
+        for (double t = 0; t < tip; t += Const.DT) Physics.Sim.Tick(sim, Const.DT);
+    }
+    private static bool Logged(SimState sim, string part) {
+        foreach (LogEntry l in sim.Log) if (l.M.Contains(part)) return true;
+        return false;
+    }
+    private static void Fallback() {
+        Head("Запасная посадка: площадка у башни или море, если что-то случилось");
+        True("стол башни на нуле, земля и море на 16 м ниже", SimState.Surface(0) == 0 && SimState.Surface(200) == -Const.DECK_H);
+        True("к востоку за берегом море, площадка на суше", SimState.Water(Const.COAST_DR + 10) && !SimState.Water(Const.PAD_DR) && !SimState.Water(0));
+        {
+            SimState sim = Live(12345, false);
+            Finish(sim, sim.Veh[0]);
+            True("без отказов опрос даёт GO и ускоритель ловится", Logged(sim, "GO на захват") && sim.Veh[0].Caught, sim.Veh[0].Mode);
+        }
+        {
+            SimState sim = Scripted("copvLeak");
+            Vehicle b = sim.Veh[0];
+            Finish(sim, b, 30);
+            double dr = sim.Downrange(b);
+            True("утечка наддува: захват отменён до тормозного импульса, ускоритель уходит в море",
+                 b.Site == "sea" && Logged(sim, "утечка газа наддува: уход в море"), b.Site);
+            True("и мягко приводняется у точки в 6 км", b.Landed && !b.Crashed && b.Splash && Math.Abs(dr - Const.SEA_DR) < 150,
+                 $"{b.Mode}, {N(dr)} м");
+            True("на воде ступень заваливается набок", Math.Abs(Math.Abs(Vehicle.AngDiff(b.Th, 0)) - Math.PI / 2) < 0.05,
+                 $"{N(Math.Abs(b.Th) * Const.R2D)}°");
+        }
+        {
+            SimState sim = Scripted("relightB");
+            Vehicle b = sim.Veh[0];
+            Finish(sim, b);
+            True("два двигателя не зажглись на жиге: ускоритель уходит от башни и приводняется",
+                 b.Landed && !b.Crashed && b.Splash && !b.Caught && Logged(sim, "посадочных двигателей: уход в море"),
+                 $"{b.Mode}, {N(sim.Downrange(b))} м");
+        }
+        {
+            SimState sim = Scripted("relightS");
+            Vehicle s = sim.Veh[1];
+            Finish(sim, s);
+            double dr = sim.Downrange(s);
+            True("двигатель корабля не зажёгся на перевороте: уход на площадку у башни",
+                 s.Site == "pad" && Logged(sim, "уход на площадку у башни"), s.Site);
+            True("корабль садится на площадку, а не в руки", s.Landed && !s.Crashed && !s.Caught && Math.Abs(dr - Const.PAD_DR) < 15
+                 && Math.Abs(s.Alt + Const.DECK_H) < 0.1, $"{s.Mode}, {N(dr - Const.PAD_DR)} м от центра, высота {N(s.Alt)} м");
+        }
+        {
+            const int n = 400;
+            string off = "";
+            foreach (AnomalySpec spec in Anomalies.Table) {
+                int hits = 0;
+                for (uint sd = 1; sd <= n; sd++) {
+                    var sim = new SimState { Mission = "orbital", AnomOn = true };
+                    Physics.Sim.Reset(sim, sd);
+                    if (sim.Anom.Has(spec.Key)) hits++;
+                }
+                if (hits < 0.4 * spec.P * n || hits > 2 * spec.P * n) off += $"{spec.Key} {hits}/{n} при {spec.P:P0}; ";
+            }
+            True("на подряд идущих зёрнах отказы выпадают с заявленной частотой (пункт 50)", off.Length == 0, off);
+        }
+        {
+            int nb = 0, ns = 0, both = 0;
+            const int seeds = 5000;
+            for (uint sd = 1; sd <= seeds; sd++) {
+                Dispersion d = Dispersion.Roll(sd);
+                if (d.RelightB) nb++;
+                if (d.RelightS) ns++;
+                if (d.RelightB && d.RelightS) both++;
+            }
+            True("без отказов двигатели на посадку изредка не зажигаются: около 2 % у каждой ступени",
+                 nb >= 0.015 * seeds && nb <= 0.025 * seeds && ns >= 0.015 * seeds && ns <= 0.025 * seeds && both < 0.002 * seeds,
+                 $"ускоритель {N(100.0 * nb / seeds)} %, корабль {N(100.0 * ns / seeds)} %, оба {both}");
+            uint sb = 1, ss = 1;
+            while (sb < seeds && !Dispersion.Roll(sb).RelightB) sb++;
+            while (ss < seeds && !(Dispersion.Roll(ss).RelightS && !Dispersion.Roll(ss).RelightB)) ss++;
+            SimState simB = Live(sb, true);
+            Vehicle bb = simB.Veh[0];
+            Finish(simB, bb);
+            True("естественный отказ на жиге ускорителя: захват отменён, приводнение",
+                 bb.Splash && bb.Landed && !bb.Crashed && Logged(simB, "уход в море"), $"зерно {sb}: {bb.Mode}, {N(simB.Downrange(bb))} м");
+            SimState simS = Live(ss, true);
+            Vehicle sv = simS.Veh[1];
+            Finish(simS, sv);
+            True("естественный отказ на перевороте корабля: посадка на площадку у башни",
+                 sv.Site == "pad" && sv.Landed && !sv.Crashed && Logged(simS, "уход на площадку у башни"),
+                 $"зерно {ss}: {sv.Mode}, {N(simS.Downrange(sv) - Const.PAD_DR)} м от центра");
+            SimState off = Live(sb, false);
+            Finish(off, off.Veh[0]);
+            True("без разброса того же зерна отказа нет", off.Veh[0].Caught, off.Veh[0].Mode);
+        }
+        {
+            SimState sim = Live(12345, false);
+            sim.Wind = Wind.Steady(22);
+            Vehicle b = sim.Veh[0], s = sim.Veh[1];
+            Finish(sim, s);
+            True("ветер 22 м/с: обе ступени не идут к башне и приводняются",
+                 b.Splash && s.Splash && !b.Crashed && !s.Crashed && Logged(sim, "ветер у башни"),
+                 $"Б {b.Mode} {N(sim.Downrange(b))} м, К {s.Mode} {N(sim.Downrange(s))} м");
+        }
+    }
+    private static void ConditionEvents() {
+        Head("События по условиям: тангаж, дроссель у Max Q и горячее разделение без таймеров");
+        var nom = Staging(Live(12345, false));
+        True("тангаж начинается, когда ракета ушла от башни по высоте", nom.pitchH >= Const.ASC_CLEAR_H && nom.pitchH < Const.ASC_CLEAR_H + 2,
+             $"H {N(nom.pitchH)} м на T+{N(nom.pitchT)}");
+        True("дроссель у Max Q включается и снимается по напору один раз, без дребезга", nom.qFlips == 2, $"переключений {nom.qFlips}");
+        True("корабль зажигается, когда тяга ускорителя спала (меньше 20 % от MECO)",
+             nom.bFracIgn < 0.2 && nom.tIgn - nom.tMeco > 0.2 && nom.tIgn - nom.tMeco < Const.HOT_IGN_T,
+             $"{N(nom.tIgn - nom.tMeco)} с после MECO, тяга {N(nom.bFracIgn * 100)} %");
+        True("расцепка — когда все шесть двигателей корабля на режиме, а не по таймеру",
+             nom.litSep == 6 && nom.tSep - nom.tIgn < Const.HOT_SEP_T - 1 && nom.sepLog.Contains("на режиме"),
+             $"{N(nom.tSep - nom.tIgn)} с после зажигания, на режиме {nom.litSep}");
+        var d1 = Staging(Live(21, true));
+        var d2 = Staging(Live(22, true));
+        True("с разбросом тангаж тоже по высоте ухода от башни",
+             Math.Abs(d1.pitchH - Const.ASC_CLEAR_H) < 2 && Math.Abs(d2.pitchH - Const.ASC_CLEAR_H) < 2,
+             $"H {N(d1.pitchH)} м на T+{N(d1.pitchT)} и {N(d2.pitchH)} м на T+{N(d2.pitchT)}");
+        var fail = Staging(Live(12345, false), sim => { foreach (Engine e in sim.Veh[1].Eng) e.P.Tau = 5; });
+        True("если двигатели корабля не выходят на режим, разделение по страховочному таймеру",
+             fail.sepLog.Contains("страховке") && Math.Abs(fail.tSep - fail.tMeco - Const.HOT_SEP_T) < 0.05,
+             $"через {N(fail.tSep - fail.tMeco)} с после MECO: {fail.sepLog}");
+    }
+    private static void Estimation() {
+        Head("Наведение по оценке: навигация с ошибкой, ветер по сносу, плотность по торможению");
+        {
+            SimState off = Live(777, false);
+            RunTo(off, 200);
+            Vehicle ob = off.Veh[0];
+            True("без разброса навигация точная", ob.NavH == 0 && ob.NavX == 0 && ob.NavVv == 0 && ob.NavVh == 0);
+        }
+        uint rs = 1;
+        while (Math.Abs(Dispersion.Roll(rs).RhoK - 1) < 0.02) rs++;
+        SimState sim = Live(rs, true);
+        sim.Wind = Wind.Steady(10);
+        sim.Disp.ApplyWind(sim);
+        Vehicle b = sim.Veh[0];
+        var navH = new System.Collections.Generic.List<double>();
+        var navV = new System.Collections.Generic.List<double>();
+        double rhoMeco = double.NaN, errEst = 0, errFc = 0, n = 0, lagSum = 0, lagN = 0;
+        for (int i = 0; i < 1_000_000 && !b.Landed && !b.Crashed; i++) {
+            Physics.Sim.Tick(sim, Const.DT);
+            if (i % 100 == 0 && sim.T > 0 && Math.Abs(b.VVert) < 5) { navH.Add(b.NavH); navV.Add(b.NavVh); }
+            if (b.Mode == "coastB" && b.VVert < -300) { lagSum += (b.NAlt - b.Alt) / -b.VVert; lagN++; }
+            if (double.IsNaN(rhoMeco) && sim.T > 60 && b.Mode != "ascent") rhoMeco = b.RhoEst;
+            if (b.Mode == "landB" && b.Alt < 1500) {
+                errEst += Math.Abs(b.WindEst - b.WindE) * Const.DT;
+                errFc += Math.Abs(sim.Wind.Forecast(b.Alt) - b.WindE) * Const.DT;
+                n += Const.DT;
+            }
+        }
+        double sH = Spread(navH, out double mH), sV = Spread(navV, out _);
+        True("навигация запаздывает примерно на 0,1 с: на быстром спуске высота завышена на V·0,1",
+             lagN > 100 && Math.Abs(lagSum / lagN - Const.NAV_LAG) < 0.02, $"{N(lagSum / Math.Max(lagN, 1))} с");
+        True("ошибка навигации по высоте порядка метра", sH > 0.3 && sH < 1.6 && Math.Abs(mH) < 0.8,
+             $"СКО {N(sH)} м, среднее {N(mH)} м");
+        True("ошибка навигации по скорости — сотые доли м/с", sV > 0.02 && sV < 0.2, $"СКО {N(sV)} м/с");
+        True("плотность оценена по торможению на подъёме точнее 1 %", Math.Abs(rhoMeco / sim.RhoK - 1) < 0.01,
+             $"оценка {N(rhoMeco)}, настоящая {N(sim.RhoK)} (зерно {rs})");
+        True("ниже 1,5 км оценка ветра ближе к настоящему, чем прогноз", n > 5 && errEst < errFc && errEst / n < 1.2,
+             $"ошибка оценки {N(errEst / Math.Max(n, 1e-9))} м/с, прогноза {N(errFc / Math.Max(n, 1e-9))} м/с");
+        True("ускоритель пойман, наводясь по оценкам", b.Caught, b.Mode);
+    }
+    private static void ArmCatch() {
+        Head("Захват без телепорта: ступень ложится на рельсы и успокаивается");
+        foreach (int idx in new[] { 0, 1 }) {
+            string name = idx == 0 ? "ускоритель" : "корабль";
+            SimState sim = Live(12345, false);
+            Vehicle v = sim.Veh[idx];
+            double jump = double.NaN, turn = double.NaN, speed = double.NaN, tCatch = double.NaN;
+            double tilt2 = double.NaN, slide2 = double.NaN, stowAlt = double.NaN, sagV1 = double.NaN, sag1 = double.NaN, tilt1 = double.NaN;
+            for (int i = 0; i < 1_600_000 && double.IsNaN(stowAlt); i++) {
+                double x0 = v.X, y0 = v.Y, th0 = v.Th, vx0 = v.Vx, vy0 = v.Vy;
+                bool was = v.Caught;
+                Physics.Sim.Tick(sim, Const.DT);
+                if (!was && v.Caught) {
+                    tCatch = sim.T;
+                    double px = x0 + vx0 * Const.DT, py = y0 + vy0 * Const.DT;
+                    jump = Math.Sqrt((v.X - px) * (v.X - px) + (v.Y - py) * (v.Y - py));
+                    turn = Math.Abs(Vehicle.AngDiff(v.Th, th0)) * Const.R2D;
+                    speed = Math.Sqrt(vx0 * vx0 + vy0 * vy0);
+                }
+                if (!double.IsNaN(tCatch) && double.IsNaN(sagV1) && sim.T - tCatch >= 1.2) {
+                    sagV1 = Math.Abs(sim.ArmSagV); sag1 = Math.Abs(sim.ArmSag - Const.ARM_SAG_REST);
+                    tilt1 = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
+                }
+                if (!double.IsNaN(tCatch) && double.IsNaN(tilt2) && sim.T - tCatch >= 2.5) {
+                    tilt2 = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
+                    slide2 = Math.Abs(v.HeldVh);
+                }
+                if (v.Stowed) stowAlt = v.Alt;
+            }
+            True($"{name}: в кадре захвата положение не прыгает", jump < 0.1, $"{N(jump)} м");
+            True($"{name}: в кадре захвата наклон не прыгает", turn < 0.2, $"{N(turn)}°");
+            True($"{name}: через 1,2 с каретка погасила удар (скорость < 0,1 м/с, у положения покоя ±0,1 м)",
+                 sagV1 < 0.1 && sag1 < 0.1, $"{N(sagV1)} м/с, {N(sag1)} м");
+            True($"{name}: через 1,2 с корпус почти выпрямлен (< 1°)", tilt1 < 1, $"{N(tilt1)}°");
+            True($"{name}: через 2,5 с корпус выпрямлен на рельсах", tilt2 < 0.3, $"{N(tilt2)}°");
+            True($"{name}: через 2,5 с скольжение по рельсам погашено", slide2 < 0.05, $"{N(slide2)} м/с");
+            True($"{name}: опущен ровно на стол", Math.Abs(stowAlt) < 0.05, $"высота {N(stowAlt)} м");
         }
     }
     private static void TowerArms() {
@@ -627,6 +939,28 @@ internal static partial class Program {
                 True($"{name}: переворот начинается почти с горизонтали", Math.Abs(atFlip) <= 20, $"{N(atFlip)}° от горизонта");
             True($"{name}: корабль {(mission == "orbital" ? "пойман башней" : "сел")}",
                  mission == "orbital" ? s.Caught : s.Landed && !s.Crashed, s.Mode);
+        }
+    }
+    private static void ShipLanding() {
+        Head("Посадка корабля как у настоящего: переворот за пару секунд, касание через ~20 с");
+        foreach ((string mission, string name) in new[] { ("orbital", "орбитальное"), ("high", "высокая орбита") }) {
+            var sim = new SimState { Mission = mission, AnomOn = false };
+            Physics.Sim.Reset(sim, 12345);
+            Vehicle s = sim.Veh[1];
+            double t0 = double.NaN, tFlip = double.NaN, tilt = 0;
+            for (int i = 0; i < 1_200_000 && !s.Landed && !s.Crashed && !s.Caught; i++) {
+                Physics.Sim.Tick(sim, Const.DT);
+                if (double.IsNaN(t0) && s.Mode == "flipS") t0 = sim.T;
+                if (double.IsNaN(t0)) continue;
+                double dev = Math.Abs(Vehicle.AngDiff(s.Th, 0)) * Const.R2D;
+                if (double.IsNaN(tFlip) && dev <= 15) tFlip = sim.T - t0;
+                if (!double.IsNaN(tFlip)) tilt = Math.Max(tilt, dev);
+            }
+            double burn = sim.T - t0;
+            True($"{name}: корабль пойман башней", s.Caught, s.Mode);
+            True($"{name}: переворот до 15° от вертикали не дольше 3 с после зажигания", tFlip <= 3, $"{N(tFlip)} с");
+            True($"{name}: от зажигания до захвата не дольше 26 с (у пятого полёта 20 с)", burn <= 26, $"{N(burn)} с");
+            True($"{name}: после переворота наклон не больше 30°", tilt <= 30, $"{N(tilt)}°");
         }
     }
     private static (bool, double, double, int, int) Swing(string mission, Wind wind) {

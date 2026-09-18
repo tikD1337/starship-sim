@@ -1,7 +1,7 @@
 using Godot;
 namespace Starship.Game;
 public sealed class PadView {
-    public const float DeckH = 16.0f, MouthZ = 29.0f, MouthY = -10.5f;
+    public const float DeckH = (float)Physics.Const.DECK_H, MouthZ = 29.0f, MouthY = -10.5f;
     private Node3D _root;
     public static PadView Build(ModelLibrary lib, Node parent) {
         var p = new PadView();

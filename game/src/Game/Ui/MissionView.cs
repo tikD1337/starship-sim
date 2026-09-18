@@ -20,6 +20,8 @@ public sealed class MissionView {
         ("copvLeak", "наддув"),
         ("ctrlJam", "плоскость"),
         ("tileLoss", "плитки"),
+        ("relightB", "жига Б"),
+        ("relightS", "жига К"),
     };
     public string Script;
     public bool RecordsShown => _recs.Visible;
@@ -191,7 +193,7 @@ public sealed class MissionView {
         _finalBody.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore });
         Look.Caption(_finalBody, m.NewBest ? $"Новый рекорд задания: {m.Best}" : $"Рекорд задания: {m.Best}", 14, 600,
                      () => m.NewBest ? Look.Accent : Look.Lab);
-        Look.Caption(_finalBody, "R — тот же полёт заново, F6 — другое задание, F7 — отказы, F8 — рекорды", 13, 400,
+        Look.Caption(_finalBody, "R — новый полёт, Shift+R — тот же заново, F6 — другое задание, F7 — отказы, F8 — рекорды", 13, 400,
                      () => Look.Lab);
         _final.Visible = true;
     }
