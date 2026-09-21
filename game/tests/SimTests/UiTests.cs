@@ -1,4 +1,5 @@
 using System;
+using Starship.Game;
 using Starship.Game.Ui;
 using Starship.Physics;
 namespace Starship.Tests;
@@ -253,6 +254,44 @@ internal static partial class Program {
         True("на разделении — петля заднего закрылка", Array.IndexOf(CamPlan.For("meco"), 2) >= 0);
         True("у корабля на входе первая — петля переднего закрылка", CamPlan.For("entryS")[0] == 1);
         True("на захвате ускорителя — камера с ловильных рук", CamPlan.For("caught")[0] == 10);
+        UiFallbackMarks();
+    }
+    private static void UiFallbackMarks() {
+        Head("Запасная посадка: вехи и зачёт цели");
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 12345);
+        Vehicle b = sim.Veh[0], s = sim.Veh[1];
+        Same("пока идём к башне, веха про захват", Arc.NamesOf("orbital", sim)[5], "захват ускорителя");
+        b.Site = "sea";
+        b.AimDr = Const.SEA_DR;
+        Same("ушёл в море — веха про приводнение", Arc.NamesOf("orbital", sim)[5], "приводнение ускорителя");
+        s.Site = "pad";
+        s.AimDr = Const.PAD_DR;
+        Same("корабль на площадку — своя веха", Arc.NamesOf("orbital", sim)[^1], "посадка корабля на площадку");
+        b.Crashed = true;
+        Same("разбился — веха про потерю", Arc.NamesOf("orbital", sim)[5], "потеря ускорителя");
+        Same("у трансатмосферного последняя веха прежняя", Arc.NamesOf("trans", sim)[^1], "приводнение");
+
+        var f = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(f, 12345);
+        Vehicle v = f.Veh[0];
+        True("пока летит — цель ждёт", MissionRules.Catch(v) == Aim.Wait);
+        v.Caught = true; v.Landed = true;
+        True("пойман — цель выполнена", MissionRules.Catch(v) == Aim.Done);
+        v.Caught = false; v.Site = "sea"; v.Splash = true;
+        True("приводнился по плану — зачёт наполовину", MissionRules.Catch(v) == Aim.Part, MissionRules.Where(v));
+        Same("подпись про море", MissionRules.Where(v), "запасная посадка в море");
+        v.Splash = false; v.Site = "pad";
+        True("сел на площадку — тоже наполовину", MissionRules.Catch(v) == Aim.Part);
+        Same("подпись про площадку", MissionRules.Where(v), "запасная посадка на площадке у башни");
+        v.Site = "tower"; v.SeekPad = false;
+        True("сел где попало — цель провалена", MissionRules.Catch(v) == Aim.Fail);
+        v.Crashed = true;
+        True("разбился — провалена", MissionRules.Catch(v) == Aim.Fail);
+        True("за половину цели дают половину очков",
+             MissionRules.Score(Aim.Part, 400, 0) == 200 && MissionRules.Score(Aim.Done, 400, 150) == 550
+             && MissionRules.Score(Aim.Fail, 400, 0) == 0 && MissionRules.Score(Aim.Wait, 400, 0) == 0,
+             $"{MissionRules.Score(Aim.Part, 400, 0)}");
         True("на старте — стол, при отрыве — башня сверху",
              Array.IndexOf(CamPlan.For("idle"), 7) >= 0 && CamPlan.For("ascent")[0] == 8);
         True("при посадочной жиге ведём ускоритель", !CamPlan.Ship("landB", "orbit"));

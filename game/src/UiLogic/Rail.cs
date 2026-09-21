@@ -5,7 +5,7 @@ public static class Rail {
     public sealed record Mark(string Name, bool Past, bool Next);
     public const int Window = 4;
     public static Mark[] Of(SimState sim) {
-        string[] names = Arc.NamesOf(sim.Mission);
+        string[] names = Arc.NamesOf(sim.Mission, sim);
         bool[] past = Arc.Now(sim);
         int last = -1, next = -1;
         for (int i = 0; i < past.Length; i++) {

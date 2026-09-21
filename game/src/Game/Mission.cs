@@ -4,14 +4,13 @@ using Godot;
 using Starship.Game.Ui;
 using Starship.Physics;
 namespace Starship.Game;
-public enum Aim { Wait, Done, Fail }
 public sealed class Goal {
     public string Name;
     public int Base, MaxBonus, Bonus, Who = -1;
     public Aim State = Aim.Wait;
     public string Note = "";
     public Func<Mission, SimState, Goal, Aim> Rule;
-    public int Score => State == Aim.Done ? Base + Bonus : 0;
+    public int Score => MissionRules.Score(State, Base, Bonus);
     public int Max => Base + MaxBonus;
 }
 public sealed class Mission {
@@ -59,7 +58,7 @@ public sealed class Mission {
             if (s.Veh[0].Crashed || s.Veh[1].Crashed) return Aim.Fail;
             return s.Veh[1].Attached ? Aim.Wait : Aim.Done;
         });
-        Add("Поймать ускоритель башней", 400, 200, 0, (m, s, g) => Catch(m, s.Veh[0], s, true));
+        Add("Поймать ускоритель башней", 400, 200, 0, (m, s, g) => Catch(m, s.Veh[0], s, true, g));
         if (Key == "trans") {
             Add("Провести корабль через вход в атмосферу", 200, 0, -1, (m, s, g) => {
                 Vehicle v = s.Veh[1];
@@ -85,21 +84,22 @@ public sealed class Mission {
                 g.Note = $"{o.Apo / 1000:F0} × {o.Peri / 1000:F0} км";
                 return Aim.Done;
             });
-            Add("Поймать корабль башней", 500, 200, 1, (m, s, g) => Catch(m, s.Veh[1], s, false));
+            Add("Поймать корабль башней", 500, 200, 1, (m, s, g) => Catch(m, s.Veh[1], s, false, g));
         }
     }
     private void Add(string name, int bas, int bonus, int who, Func<Mission, SimState, Goal, Aim> rule)
         => Goals.Add(new Goal { Name = name, Base = bas, MaxBonus = bonus, Who = who, Rule = rule });
-    private static Aim Catch(Mission m, Vehicle v, SimState s, bool booster) {
-        if (v.Crashed) return Aim.Fail;
-        if (v.Caught) {
+    private static Aim Catch(Mission m, Vehicle v, SimState s, bool booster, Goal g) {
+        Aim st = MissionRules.Catch(v);
+        double vv = m._wasVv[booster ? 0 : 1];
+        if (st == Aim.Done) {
             double miss = Math.Abs(s.Downrange(v));
-            double vv = m._wasVv[booster ? 0 : 1];
             if (booster) { m.BoostMiss = miss; m.BoostTouch = vv; }
             else { m.ShipMiss = miss; m.ShipTouch = vv; }
-            return Aim.Done;
         }
-        return v.Landed ? Aim.Fail : Aim.Wait;
+        else if (st == Aim.Part)
+            g.Note = $"{MissionRules.Where(v)}, касание {Math.Abs(vv):F1} м/с";
+        return st;
     }
     public void Track(SimState sim) {
         if (Over) return;
