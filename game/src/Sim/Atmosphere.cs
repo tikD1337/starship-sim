@@ -76,8 +76,8 @@ public static class Atmosphere {
         { 2, 0.40 }, { 3, 0.30 }, { 5, 0.24 }, { 8, 0.21 }, { 25, 0.20 },
     };
     private static readonly double[,] CdEngTab = {
-        { 0, 1.00 }, { 0.8, 1.00 }, { 1.0, 1.15 }, { 1.2, 1.25 },
-        { 2, 1.55 }, { 3, 1.75 }, { 4, 1.85 }, { 5, 1.85 },
+        { 0, 1.60 }, { 0.8, 1.60 }, { 1.0, 1.72 }, { 1.2, 1.85 },
+        { 2, 1.95 }, { 3, 2.00 }, { 4, 2.00 }, { 5, 2.00 },
     };
     private static double CdTable(double[,] tab, double mach) {
         double m = Math.Abs(mach);

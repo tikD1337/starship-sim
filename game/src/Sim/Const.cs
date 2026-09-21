@@ -10,7 +10,7 @@ public static class Const {
     public const double ARM_SAG_REST = 0.5, ARM_SAG_PERIOD = 1.2, ARM_SAG_ZETA = 0.75, ARM_HOLD_T = 4,
         ARM_SLIDE_TAU = 0.35, ARM_TILT_PERIOD = 1.2, ARM_TILT_ZETA = 0.8;
     public static double LAND_ALAT = 4.0;
-    public static double LAND_TLAG = 2.5, LAND_KLAT = 0.6, LAND_DHPD = 300, LAND_TILT_NEAR = 16;
+    public static double LAND_TLAG = 2.5, LAND_KLAT = 0.6, LAND_DHPD = 650, LAND_TILT_NEAR = 16;
     public static double LAND_KDAMP = 2.4, LAND_TILT_END = 7, LAND_DH_END = 18;
     public static double LAND_POLE = 0.55, LAND_B_GMAX = 6;
     public const double OM_DAMP = 0.15;

@@ -141,9 +141,8 @@ public static class Guidance {
         }
         else aLat = -6 * (dr + vh * tgo) / (tgo * tgo) + 2 * vh / tgo;
         if (v.WindEst != 0 && dh < Const.LAND_WIND_H) {
-            double rho = Atmosphere.At(h, v.RhoEst).Rho;
-            aLat -= Const.LAND_WIND_K * 0.5 * rho * v.WindEst * Math.Abs(v.WindEst)
-                    * v.Dia * v.FullLen / v.Mass;
+            double rho = Atmosphere.At(h, v.RhoEst).Rho, u = v.WindEst - vh;
+            aLat -= Const.LAND_WIND_K * 0.5 * rho * u * Math.Abs(u) * v.Dia * v.FullLen / v.Mass;
         }
         aLat = Const.Clamp(aLat, -lat, lat);
         return Steer(v, Const.Clamp(Math.Atan2(aLat, aVert), -maxTilt, maxTilt));

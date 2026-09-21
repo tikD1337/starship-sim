@@ -121,8 +121,9 @@ internal static partial class Program {
              Atmosphere.Cd0(2) > Atmosphere.Cd0(3) && Atmosphere.Cd0(3) > Atmosphere.Cd0(5)
              && Atmosphere.Cd0(5) > Atmosphere.Cd0(8),
              $"{N(Atmosphere.Cd0(2))} → {N(Atmosphere.Cd0(3))} → {N(Atmosphere.Cd0(5))} → {N(Atmosphere.Cd0(8))}");
-        Near("двигателями вперёд на M 3", Atmosphere.CdEngine(3.0), 1.75, 1e-9);
-        Near("двигателями вперёд на дозвуке", Atmosphere.CdEngine(0.5), 1.00, 1e-9);
+        Near("двигателями вперёд на M 3", Atmosphere.CdEngine(3.0), 2.00, 1e-9);
+        Near("двигателями вперёд на дозвуке — донный срез как стакан, а не диск (пункт 48)",
+             Atmosphere.CdEngine(0.5), 1.60, 1e-9);
         True("выше M 5 кривая выполаживается",
              Atmosphere.CdEngine(5) == Atmosphere.CdEngine(12),
              $"{N(Atmosphere.CdEngine(5))} на M 5 и M 12");
@@ -549,13 +550,13 @@ internal static partial class Program {
         True("между тормозным импульсом и жигой двигатели ускорителя молчат", litCoast == 0,
              $"работали {N(litCoast)} с");
         True("жига начинается ниже 2,5 км — не сжигает топливо раньше времени", hIgn < 2500, $"с высоты {N(hIgn)} м");
-        Todo(48, "жига начинается ниже 2 км", hIgn < 2000, $"с высоты {N(hIgn)} м");
+        True("жига начинается ниже 2 км (пункт 48)", hIgn < 2000, $"с высоты {N(hIgn)} м");
         True("жига начинается выше 500 м", hIgn > 500, $"с высоты {N(hIgn)} м");
         True("жига зажигает 13 двигателей", nIgn == 13, $"{nIgn}");
         True("жига кончается на трёх", nLast == 3, $"{nLast}");
         True("пик перегрузки на жиге не выше 6 g, как у пятого полёта (~5,5 g)", gBurn <= 6, $"{N(gBurn)} g");
         True("13 двигателей горят от 4 до 8 с (пятый полёт — чуть больше 5 с)", t13 >= 4 && t13 <= 8, $"{N(t13)} с");
-        Todo(48, "зажигание при 1100–1400 км/ч (пятый полёт — ~1250)", vIgn * 3.6 >= 1100 && vIgn * 3.6 <= 1400,
+        True("зажигание при 1100–1400 км/ч (пятый полёт — ~1250)", vIgn * 3.6 >= 1100 && vIgn * 3.6 <= 1400,
              $"{N(vIgn * 3.6)} км/ч");
         True("в жиге только 13 или 3 двигателя", counts.SetEquals(new[] { 13, 3 }),
              string.Join(", ", counts));
