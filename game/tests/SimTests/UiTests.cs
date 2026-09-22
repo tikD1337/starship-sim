@@ -1,400 +1,289 @@
 using System;
+using System.Linq;
 using Starship.Game;
 using Starship.Game.Ui;
 using Starship.Physics;
 namespace Starship.Tests;
 internal static partial class Program {
-    private static void Same(string name, string got, string want) =>
-        True(name, got == want, $"«{got}» против «{want}»");
+    private static void Cases(string name, params (string What, string Got, string Want)[] rows) {
+        var bad = rows.Where(r => r.Got != r.Want).Select(r => $"{r.What}: «{r.Got}» вместо «{r.Want}»").ToArray();
+        True(name, bad.Length == 0, bad.Length == 0 ? $"{rows.Length} случаев" : string.Join("; ", bad));
+    }
     private static void UiNumbers() {
-        Head("Интерфейс: запись чисел");
+        Head("Интерфейс: числа");
         string t = NumFmt.Thin.ToString(), m = NumFmt.Minus.ToString();
-        Same("тысячи узким пробелом", NumFmt.F(32394, 0), "32" + t + "394");
-        Same("четыре знака тоже делятся", NumFmt.F(3564, 0), "3" + t + "564");
-        Same("три знака не делятся", NumFmt.F(981, 0), "981");
-        Same("десятичная запятая", NumFmt.F(30.04, 1), "30,0");
-        Same("дробь с тысячами", NumFmt.F(1253.6, 1), "1" + t + "253,6");
-        Same("миллионы", NumFmt.F(1234567, 0), "1" + t + "234" + t + "567");
-        Same("минус настоящий", NumFmt.F(-0.1, 1), m + "0,1");
-        Same("округлённый ноль без минуса", NumFmt.F(-0.04, 1), "0,0");
-        Same("не число — прочерк", NumFmt.F(double.NaN, 1), "—");
-        Same("часы полёта", NumFmt.Clock(101.1), "T+01:41,1");
-        Same("отсчёт до старта", NumFmt.Clock(-10), "T" + m + "00:10,0");
-        Same("секунды не доходят до 60", NumFmt.Clock(59.97), "T+01:00,0");
-        Same("часы борта с часами", NumFmt.Hms(270), "T+00:04:30");
-        Same("часы борта до старта", NumFmt.Hms(-10), "T" + m + "00:00:10");
-        Same("метры", NumFmt.Dist(850, out string u1) + " " + u1, "850 м");
-        Same("километры с десятыми", NumFmt.Dist(30912, out string u2) + " " + u2, "30,9 км");
-        Same("далеко — целые км", NumFmt.Dist(212400, out string u3) + " " + u3, "212 км");
+        Cases("запись чисел, часов и расстояний",
+              ("тысячи узким пробелом", NumFmt.F(32394, 0), "32" + t + "394"), ("четыре знака", NumFmt.F(3564, 0), "3" + t + "564"),
+              ("три знака не делятся", NumFmt.F(981, 0), "981"), ("десятичная запятая", NumFmt.F(30.04, 1), "30,0"),
+              ("дробь с тысячами", NumFmt.F(1253.6, 1), "1" + t + "253,6"), ("миллионы", NumFmt.F(1234567, 0), "1" + t + "234" + t + "567"),
+              ("настоящий минус", NumFmt.F(-0.1, 1), m + "0,1"), ("округлённый ноль без минуса", NumFmt.F(-0.04, 1), "0,0"),
+              ("не число — прочерк", NumFmt.F(double.NaN, 1), "—"), ("часы полёта", NumFmt.Clock(101.1), "T+01:41,1"),
+              ("отсчёт до старта", NumFmt.Clock(-10), "T" + m + "00:10,0"), ("секунды не доходят до 60", NumFmt.Clock(59.97), "T+01:00,0"),
+              ("часы борта", NumFmt.Hms(270), "T+00:04:30"), ("часы борта до старта", NumFmt.Hms(-10), "T" + m + "00:00:10"),
+              ("метры", NumFmt.Dist(850, out string u1) + " " + u1, "850 м"), ("километры с десятыми", NumFmt.Dist(30912, out string u2) + " " + u2, "30,9 км"),
+              ("далеко — целые км", NumFmt.Dist(212400, out string u3) + " " + u3, "212 км"));
+        Group("разбор введённого числа", "",
+              ("узкий пробел и запятая", NumFmt.TryParse("32" + NumFmt.Thin + "394,5", out double a) && a == 32394.5),
+              ("обычный пробел", NumFmt.TryParse("1 000", out double b) && b == 1000),
+              ("минус из пульта", NumFmt.TryParse(NumFmt.Minus + "0,25", out double c) && c == -0.25),
+              ("точка тоже годится", NumFmt.TryParse("2.5", out double d) && d == 2.5),
+              ("мусор и пустое не проходят", !NumFmt.TryParse("abc", out _) && !NumFmt.TryParse("", out _) && !NumFmt.TryParse(null, out _)),
+              ("NaN и бесконечность не число (пункт 51)", new[] { "NaN", "Infinity", "-Infinity", "∞", "1e999" }.All(x => !NumFmt.TryParse(x, out _))));
     }
     private static void UiThemes() {
         Head("Интерфейс: темы пульта");
-        True("три темы", Themes.All.Length == 3);
         uint[][] spec = {
             new uint[] { 0x0D0F12, 0x15181C, 0x1C2026, 0x262B32, 0xF3F5F7, 0x8A929C, 0x7CC4FF, 0x232C37 },
             new uint[] { 0x000000, 0x0C0C0D, 0x151517, 0x232326, 0xFFFFFF, 0x7E7E85, 0xFFFFFF, 0xFFFFFF },
             new uint[] { 0x0B1417, 0x112027, 0x16292F, 0x21363E, 0xEEF6F7, 0x7C979E, 0x4FD1C5, 0x163A40 },
         };
         string[] what = { "фон", "панель", "поле", "линия", "значения", "подписи", "выделение", "диск" };
-        for (int i = 0; i < 3 && i < Themes.All.Length; i++) {
-            Palette p = Themes.All[i];
-            uint[] got = { p.Bg, p.Panel, p.Field, p.Line, p.Ink, p.Lab, p.Accent, p.Disc };
-            for (int j = 0; j < got.Length; j++)
-                True($"тема {p.Key}: {what[j]} как в спецификации", got[j] == (spec[i][j] << 8 | 0xFF),
-                     $"{got[j]:X8}");
-        }
-        True("цифры на диске: светлые, чёрные, светлые",
-             Themes.All[0].DiscInk == 0xF3F5F7FF && Themes.All[1].DiscInk == 0x000000FF
-             && Themes.All[2].DiscInk == 0xEEF6F7FF);
-        True("жёлтый и красный общие", Themes.Warn == 0xF2B544FF && Themes.Crit == 0xF0625AFF);
-        True("--theme b", Themes.Parse("b", 0) == 1);
-        True("регистр и пробелы не важны", Themes.Parse(" C ", 0) == 2);
-        True("чужое значение — как было", Themes.Parse("x", 1) == 1 && Themes.Parse("", 2) == 2
-                                          && Themes.Parse(null, 0) == 0 && Themes.Parse("ab", 1) == 1);
+        var bad = Themes.All.Take(3).SelectMany((p, i) => new[] { p.Bg, p.Panel, p.Field, p.Line, p.Ink, p.Lab, p.Accent, p.Disc }
+                     .Select((c, j) => (c, j)).Where(x => x.c != (spec[i][x.j] << 8 | 0xFF)).Select(x => $"{p.Key}: {what[x.j]} {x.c:X8}")).ToArray();
+        Group("три темы как в спецификации", string.Join("; ", bad),
+              ("три темы", Themes.All.Length == 3),
+              ("восемь цветов каждой", bad.Length == 0),
+              ("цифры на диске: светлые, чёрные, светлые", Themes.All[0].DiscInk == 0xF3F5F7FF && Themes.All[1].DiscInk == 0x000000FF && Themes.All[2].DiscInk == 0xEEF6F7FF),
+              ("жёлтый и красный общие", Themes.Warn == 0xF2B544FF && Themes.Crit == 0xF0625AFF));
+        Group("ключ --theme", "",
+              ("b — вторая", Themes.Parse("b", 0) == 1), ("регистр и пробелы не важны", Themes.Parse(" C ", 0) == 2),
+              ("чужое значение — как было", Themes.Parse("x", 1) == 1 && Themes.Parse("", 2) == 2 && Themes.Parse(null, 0) == 0 && Themes.Parse("ab", 1) == 1));
     }
     private static void UiEngineLayout() {
         Head("Интерфейс: схема двигателей");
         Spot[] b = EngineLayout.Booster(), s = EngineLayout.Ship();
-        True("у ускорителя 33 кружка", b.Length == 33);
-        True("у корабля 6 кружков", s.Length == 6);
-        foreach ((string name, Spot[] set) in new[] { ("ускоритель", b), ("корабль", s) }) {
+        (double Gap, double Rx, double Ry, bool Hits) Scan(Spot[] set) {
             double gap = double.MaxValue, rx = 0, ry = 0;
             bool hits = true;
             for (int i = 0; i < set.Length; i++) {
                 rx = Math.Max(rx, Math.Abs(set[i].X) + set[i].R);
                 ry = Math.Max(ry, Math.Abs(set[i].Y) + set[i].R);
                 hits &= EngineLayout.Hit(set, set[i].X, set[i].Y) == i;
-                for (int j = i + 1; j < set.Length; j++) {
-                    double dx = set[i].X - set[j].X, dy = set[i].Y - set[j].Y;
-                    gap = Math.Min(gap, Math.Sqrt(dx * dx + dy * dy) - set[i].R - set[j].R);
-                }
+                for (int j = i + 1; j < set.Length; j++)
+                    gap = Math.Min(gap, Math.Sqrt(Math.Pow(set[i].X - set[j].X, 2) + Math.Pow(set[i].Y - set[j].Y, 2)) - set[i].R - set[j].R);
             }
-            True($"{name}: кружки не касаются", gap >= 4, $"зазор {N(gap)} px");
-            True($"{name}: схема влезает в 470 × 412", rx <= 235 && ry <= 206, $"{N(rx)} × {N(ry)} px от центра");
-            True($"{name}: щелчок по кружку выбирает его", hits);
+            return (gap, rx, ry, hits);
         }
-        True("щелчок мимо — ничего", EngineLayout.Hit(b, 0, 0) == -1 && EngineLayout.Hit(b, 300, 300) == -1);
-        True("первый двигатель — сверху по центру", Math.Abs(b[0].X) < 1e-9 && b[0].Y < 0);
+        var sb = Scan(b);
+        var ss = Scan(s);
         double R(Spot p) => Math.Sqrt(p.X * p.X + p.Y * p.Y);
-        True("номера как в Vehicle.Eng: 3 центральных, 10 средних, 20 внешних",
-             Math.Abs(R(b[2]) - 40) < 1e-9 && Math.Abs(R(b[3]) - 108) < 1e-9
-             && Math.Abs(R(b[12]) - 108) < 1e-9 && Math.Abs(R(b[13]) - 180) < 1e-9);
+        Group("кружки двигателей", $"зазор {N(sb.Gap)} и {N(ss.Gap)} px, размах {N(sb.Rx)} × {N(sb.Ry)} px",
+              ("33 у ускорителя и 6 у корабля", b.Length == 33 && s.Length == 6),
+              ("не касаются друг друга", sb.Gap >= 4 && ss.Gap >= 4),
+              ("влезают в 470 × 412", sb.Rx <= 235 && sb.Ry <= 206 && ss.Rx <= 235 && ss.Ry <= 206),
+              ("щелчок по кружку выбирает его, мимо — ничего", sb.Hits && ss.Hits && EngineLayout.Hit(b, 0, 0) == -1 && EngineLayout.Hit(b, 300, 300) == -1),
+              ("номера как в Vehicle.Eng: первый сверху, 3 + 10 + 20 по кольцам", Math.Abs(b[0].X) < 1e-9 && b[0].Y < 0
+               && Math.Abs(R(b[2]) - 40) < 1e-9 && Math.Abs(R(b[3]) - 108) < 1e-9 && Math.Abs(R(b[12]) - 108) < 1e-9 && Math.Abs(R(b[13]) - 180) < 1e-9));
     }
     private static void UiParams() {
-        Head("Интерфейс: параметры и шкалы зон");
+        Head("Интерфейс: параметры и зоны");
         ParamRow tb = ParamDefs.Row("_tb");
         var z = ParamDefs.Bands(tb, 314);
-        Near("подшипники: жёлтая с 550 K из 700", z.W0, 550.0 / 700, 1e-9);
-        Near("подшипники: красная с 650 K", z.C0, 650.0 / 700, 1e-9);
-        True("подшипники: жёлтая упирается в красную, красная до конца", z.W1 == z.C0 && z.C1 == 1);
-        Near("подшипники: отметка 314 K", z.Mark, 314.0 / 700, 1e-9);
         var p = ParamDefs.Bands(ParamDefs.Row("_pf"), 350);
-        True("наддув горючего: красная от нуля до 200 кПа", p.C0 == 0 && Math.Abs(p.C1 - 0.4) < 1e-9,
-             $"{N(p.C0)}…{N(p.C1)}");
-        True("наддув горючего: жёлтая 200–280 кПа", Math.Abs(p.W0 - 0.4) < 1e-9 && Math.Abs(p.W1 - 0.56) < 1e-9,
-             $"{N(p.W0)}…{N(p.W1)}");
-        Near("наддув горючего: отметка 350 кПа", p.Mark, 0.7, 1e-9);
-        True("отметка не вылезает за шкалу", ParamDefs.Bands(tb, 9000).Mark == 1 && ParamDefs.Bands(tb, -5).Mark == 0);
-        string miss = "";
-        foreach (ParamGroup g in ParamDefs.Groups)
-            foreach (ParamSection s in g.Sections)
-                foreach (ParamRow r in s.Rows)
-                    if (!double.IsNaN(r.Crit) && !(r.Max > 0)) miss += r.Key + " ";
-        True("у каждой строки с зонами есть шкала", miss.Length == 0, miss);
-        True("наддув правится у всей ступени", ParamDefs.Row("pTankF").Stage && ParamDefs.Row("pTankOx").Stage);
-        True("обороты — у одного двигателя", !ParamDefs.Row("rpmSet").Stage);
-        True("неизвестный ключ — пусто", ParamDefs.Row("нет такого") == null);
-        foreach (ParamGroup g in ParamDefs.Groups) {
-            int k = ParamDefs.Split(g);
-            True($"«{g.Name}»: обе колонки не пустые", k > 0 && k < g.Sections.Count,
-                 $"вторая с раздела {k} из {g.Sections.Count}");
-        }
+        Table("шкалы зон",
+              ("подшипники: жёлтая с 550 из 700 K", z.W0, 550.0 / 700, 1e-9), ("подшипники: красная с 650 K", z.C0, 650.0 / 700, 1e-9),
+              ("подшипники: жёлтая до красной", z.W1, z.C0, 1e-9), ("подшипники: красная до конца", z.C1, 1, 1e-9),
+              ("подшипники: отметка 314 K", z.Mark, 314.0 / 700, 1e-9),
+              ("наддув: красная с нуля (+1)", p.C0 + 1, 1, 1e-9), ("наддув: красная до 200 кПа", p.C1, 0.4, 1e-9), ("наддув: жёлтая с 200", p.W0, 0.4, 1e-9), ("наддув: жёлтая до 280", p.W1, 0.56, 1e-9),
+              ("наддув: отметка 350 кПа", p.Mark, 0.7, 1e-9),
+              ("отметка за шкалой сверху", ParamDefs.Bands(tb, 9000).Mark, 1, 1e-9), ("и снизу + 1", ParamDefs.Bands(tb, -5).Mark + 1, 1, 1e-9));
+        string miss = string.Concat(ParamDefs.Groups.SelectMany(g => g.Sections).SelectMany(s => s.Rows)
+                                                   .Where(r => !double.IsNaN(r.Crit) && !(r.Max > 0)).Select(r => r.Key + " "));
+        string cols = string.Concat(ParamDefs.Groups.Where(g => { int k = ParamDefs.Split(g); return k <= 0 || k >= g.Sections.Count; }).Select(g => g.Name + " "));
+        Group("реестр параметров", "",
+              ($"у каждой строки с зонами есть шкала ({miss})", miss.Length == 0),
+              ("наддув правится у ступени, обороты — у одного двигателя", ParamDefs.Row("pTankF").Stage && ParamDefs.Row("pTankOx").Stage && !ParamDefs.Row("rpmSet").Stage),
+              ("неизвестный ключ — пусто", ParamDefs.Row("нет такого") == null),
+              ($"в каждой группе обе колонки не пустые ({cols})", cols.Length == 0));
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 12345);
+        Vehicle v = sim.Veh[0];
+        ParamRow rpm = ParamDefs.Row("rpmSet"), tank = ParamDefs.Row("pTankF");
+        double rpm0 = v.Eng[0].P.RpmSet;
+        bool nan = !ParamDefs.Apply(rpm, v, v.Eng[0], double.NaN) && !ParamDefs.Apply(rpm, v, v.Eng[0], double.PositiveInfinity) && v.Eng[0].P.RpmSet == rpm0;
+        bool one = ParamDefs.Apply(rpm, v, v.Eng[0], 1e9) && v.Eng[0].P.RpmSet == rpm.Hi && v.Eng[1].P.RpmSet == rpm0;
+        bool all = ParamDefs.Apply(tank, v, v.Eng[0], 500) && v.Eng[0].P.PTankF == 500 && v.Eng[32].P.PTankF == 500;
+        Group("правка параметра", "", ("NaN и бесконечность не доходят до двигателя (пункт 51)", nan),
+              ("число правит один двигатель и зажимается в пределы", one), ("параметр ступени правит все двигатели", all));
     }
     private static void UiEngine() {
         Head("Интерфейс: показания двигателя");
         var sim = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(sim, 12345);
         Engine e = sim.Veh[0].Eng[0];
-        True("до зажигания двигатель стоит", EngineState.Of(e) == EngLook.Off);
+        bool off = EngineState.Of(e) == EngLook.Off;
         while (sim.T < 20) Physics.Sim.Tick(sim, Const.DT);
-        True("на T+20 двигатель работает", EngineState.Of(e) == EngLook.On, $"давление в камере {N(e.Pc)} МПа");
         PumpRow[] t = PumpTable.Of(e);
-        True("в таблице пять строк", t.Length == 5);
-        Same("обороты горючего — насос горючего", t[0].Fuel, NumFmt.F(e.Pf.Rpm, 0));
-        Same("обороты окислителя — насос окислителя", t[0].Ox, NumFmt.F(e.Po.Rpm, 0));
-        True("насосы крутятся по-разному (пункт 47)", t[0].Fuel != t[0].Ox, $"{t[0].Fuel} и {t[0].Ox}");
-        Same("расход горючего", t[2].Fuel, NumFmt.F(e.Pf.Q * Pump.RHO_F, 1));
-        Same("номинал напора окислителя", t[1].Ox.Split(" / ")[^1], NumFmt.F(Pump.NomO.DP / 1e6, 1));
-        double cav = e.Pf.Cav;
+        Group("таблица турбонасоса", $"обороты {t[0].Fuel} и {t[0].Ox}",
+              ("до зажигания стоит, на T+20 работает", off && EngineState.Of(e) == EngLook.On),
+              ("пять строк", t.Length == 5),
+              ("обороты каждого насоса свои (пункт 47)", t[0].Fuel == NumFmt.F(e.Pf.Rpm, 0) && t[0].Ox == NumFmt.F(e.Po.Rpm, 0) && t[0].Fuel != t[0].Ox),
+              ("расход и номинал напора из насосов", t[2].Fuel == NumFmt.F(e.Pf.Q * Pump.RHO_F, 1) && t[1].Ox.Split(" / ")[^1] == NumFmt.F(Pump.NomO.DP / 1e6, 1)));
+        int worst = EngineState.Worst(sim.Veh[0]);
+        double cav = e.Pf.Cav, tb = e.Pf.T;
         e.Pf.Cav = 0.5;
         PumpRow low = PumpTable.Of(e)[4];
-        True("кавитация горючего подсвечена, окислителя нет", low.FuelWarn && !low.OxWarn);
         e.Pf.Cav = cav;
-        double tb = e.Pf.T;
         e.Pf.T = 600;
-        True("600 K в подшипниках — жёлтый", EngineState.Of(e) == EngLook.Warn);
+        bool warn = EngineState.Of(e) == EngLook.Warn;
         e.Pf.T = 680;
-        True("680 K — красный", EngineState.Of(e) == EngLook.Crit);
+        bool crit = EngineState.Of(e) == EngLook.Crit;
         e.Pf.T = tb;
-        e.Failed = true;
-        True("отказ виден сразу", EngineState.Of(e) == EngLook.Failed);
-    }
-    private static void UiParse() {
-        Head("Интерфейс: разбор введённого числа");
-        True("узкий пробел и запятая", NumFmt.TryParse("32" + NumFmt.Thin + "394,5", out double a) && a == 32394.5, N(a));
-        True("обычный пробел", NumFmt.TryParse("1 000", out double b) && b == 1000, N(b));
-        True("минус из пульта", NumFmt.TryParse(NumFmt.Minus + "0,25", out double c) && c == -0.25, N(c));
-        True("точка тоже годится", NumFmt.TryParse("2.5", out double d) && d == 2.5, N(d));
-        True("мусор и пустое не проходят", !NumFmt.TryParse("abc", out _) && !NumFmt.TryParse("", out _)
-                                           && !NumFmt.TryParse(null, out _));
-        True("NaN и бесконечность не число (пункт 51)", !NumFmt.TryParse("NaN", out _) && !NumFmt.TryParse("Infinity", out _)
-             && !NumFmt.TryParse("-Infinity", out _) && !NumFmt.TryParse("∞", out _) && !NumFmt.TryParse("1e999", out _));
-        var sim = new SimState { Mission = "orbital", AnomOn = false };
-        Physics.Sim.Reset(sim, 12345);
-        Vehicle v = sim.Veh[0];
-        ParamRow rpm = ParamDefs.Row("rpmSet"), tank = ParamDefs.Row("pTankF");
-        double rpm0 = v.Eng[0].P.RpmSet;
-        True("NaN не доходит до двигателя", !ParamDefs.Apply(rpm, v, v.Eng[0], double.NaN) && v.Eng[0].P.RpmSet == rpm0,
-             $"{N(v.Eng[0].P.RpmSet)}");
-        True("бесконечность тоже", !ParamDefs.Apply(rpm, v, v.Eng[0], double.PositiveInfinity) && v.Eng[0].P.RpmSet == rpm0);
-        True("число правит один двигатель и зажимается в пределы", ParamDefs.Apply(rpm, v, v.Eng[0], 1e9)
-             && v.Eng[0].P.RpmSet == rpm.Hi && v.Eng[1].P.RpmSet == rpm0, $"{N(v.Eng[0].P.RpmSet)}");
-        True("параметр ступени правит все двигатели", ParamDefs.Apply(tank, v, v.Eng[0], 500)
-             && v.Eng[0].P.PTankF == 500 && v.Eng[32].P.PTankF == 500);
-    }
-    private static void UiAir() {
-        Head("Эфир: палитра, силуэт, лента фаз");
-        True("палитра эфира из спецификации", OnAir.Sky == 0x0A1426FF && OnAir.Band == 0x1C3656FF
-             && OnAir.Ink == 0xF2F5F8FF && OnAir.Rail == 0x8C98A6FF && OnAir.Strip == 0x16191EFF);
-        Part[] stack = RocketArt.Stack(), ship = RocketArt.Ship(), boost = RocketArt.Booster();
-        True("связка — это корабль и ускоритель вместе", stack.Length == ship.Length + boost.Length,
-             $"{stack.Length} против {ship.Length} и {boost.Length}");
-        (double Lo, double Hi, double Wide) s = Span(stack);
-        Near("связка — корабль и ускоритель встык", s.Hi - s.Lo, 54.6 + 71.1, 1e-9, " м");
-        True("нос в нуле", Math.Abs(s.Lo) < 1e-9, N(s.Lo));
-        True("ничего не торчит дальше 9 м от оси", s.Wide <= 9, N(s.Wide) + " м");
-        (double Lo, double Hi, double Wide) sh = Span(ship);
-        Near("корабль с кольцом разделения — 54,6 м", sh.Hi - sh.Lo, 54.6, 0.01, " м");
-        (double Lo, double Hi, double Wide) bo = Span(boost);
-        True("у ускорителя своя система координат от нуля", Math.Abs(bo.Lo) < 1e-9, N(bo.Lo));
-        Near("ускоритель с раструбами — 71 м", bo.Hi - bo.Lo, 71, 0.005, " м");
-        Pt[] flame = RocketArt.Flame(42, 0);
-        double fLo = 1e9, fHi = -1e9;
-        foreach (Pt q in flame) { fLo = Math.Min(fLo, q.Y); fHi = Math.Max(fHi, q.Y); }
-        True("факел идёт от среза вниз на заданную длину", flame.Length > 4 && Math.Abs(fLo) < 1e-9
-             && Math.Abs(fHi - 42) < 1e-9, $"{N(fLo)}…{N(fHi)} м");
-        True("короткая тяга — короткий факел", RocketArt.Flame(10, 0)[^1].Y <= 10 + 1e-9);
-        var sim = new SimState { Mission = "orbital", AnomOn = false };
-        Physics.Sim.Reset(sim, 12345);
-        while (sim.T < 100) Physics.Sim.Tick(sim, Const.DT);
-        Rail.Mark[] r = Rail.Of(sim);
-        True("на ленте четыре вехи", r.Length == 4);
-        True("на T+100 старт и max Q пройдены", r[0].Past && r[1].Past);
-        True("разделение — следующая веха", !r[2].Past && r[2].Next);
-        True("четвёртая веха ещё впереди", !r[3].Past && !r[3].Next);
-        while (sim.T < 600) Physics.Sim.Tick(sim, Const.DT);
-        Rail.Mark[] late = Rail.Of(sim);
-        True("после выхода на орбиту лента показывает, что дальше — сход с орбиты",
-             Array.Exists(late, m => m.Name == "сход с орбиты" && !m.Past),
-             string.Join(", ", Array.ConvertAll(late, m => m.Name + (m.Past ? "✓" : ""))));
-        Same("захват корабля подписан кораблём", Phases.Air("caught", true), "Корабль пойман башней");
-        Same("захват ускорителя — ускорителем", Phases.Air("caught", false), "Ускоритель пойман башней");
-        True("на посадке корабля есть камера с ловильных рук", Array.IndexOf(CamPlan.For("landS"), 10) >= 0,
-             string.Join(",", CamPlan.For("landS")));
-        Same("фаза эфира на выведении", Phases.Air("ascent"), "Работа первой ступени");
-        Same("фаза пульта осталась прежней", Phases.Console("ascent"), "Выведение");
-        True("у каждого режима есть эфирное название", Phases.Air("landS").Length > 0
-             && Phases.Air("нет такого") == "нет такого");
-        int worst = EngineState.Worst(sim.Veh[0]);
-        True("ближе всех к пределу — работающий двигатель", worst >= 0 && worst < 33, $"№ {worst + 1}");
         sim.Veh[0].Eng[7].Pf.T = 600;
-        True("перегретый подшипник выводит свой двигатель вперёд", EngineState.Worst(sim.Veh[0]) == 7);
+        bool hot7 = EngineState.Worst(sim.Veh[0]) == 7;
+        e.Failed = true;
+        Group("подсветка отклонений", $"ближе всех к пределу № {worst + 1}",
+              ("кавитация горючего подсвечена, окислителя нет", low.FuelWarn && !low.OxWarn),
+              ("600 K в подшипниках — жёлтый, 680 K — красный", warn && crit),
+              ("отказ виден сразу", EngineState.Of(e) == EngLook.Failed),
+              ("перегретый подшипник выводит свой двигатель вперёд", worst >= 0 && worst < 33 && hot7));
     }
     private static (double Lo, double Hi, double Wide) Span(Part[] parts) {
-        double lo = 1e9, hi = -1e9, wide = 0;
-        foreach (Part p in parts)
-            foreach (Pt q in p.Pts) {
-                lo = Math.Min(lo, q.Y);
-                hi = Math.Max(hi, q.Y);
-                wide = Math.Max(wide, Math.Abs(q.X));
-            }
-        return (lo, hi, wide);
+        var pts = parts.SelectMany(p => p.Pts).ToArray();
+        return (pts.Min(q => q.Y), pts.Max(q => q.Y), pts.Max(q => Math.Abs(q.X)));
     }
-    private static void UiAir2() {
-        Head("Борт: вехи дуги, наборы камер, режиссёр");
+    private static void UiAir() {
+        Head("Эфир: палитра, силуэт, фазы");
+        Part[] stack = RocketArt.Stack(), ship = RocketArt.Ship(), boost = RocketArt.Booster();
+        var st = Span(stack);
+        var sh = Span(ship);
+        var bo = Span(boost);
+        Pt[] flame = RocketArt.Flame(42, 0);
+        Group("палитра и силуэт", $"связка {N(st.Hi - st.Lo)} м, корабль {N(sh.Hi - sh.Lo)}, ускоритель {N(bo.Hi - bo.Lo)}",
+              ("палитра эфира из спецификации", OnAir.Sky == 0x0A1426FF && OnAir.Band == 0x1C3656FF && OnAir.Ink == 0xF2F5F8FF && OnAir.Rail == 0x8C98A6FF && OnAir.Strip == 0x16191EFF),
+              ("связка — корабль и ускоритель встык, нос в нуле", stack.Length == ship.Length + boost.Length && Math.Abs(st.Hi - st.Lo - 125.7) < 1e-7 && Math.Abs(st.Lo) < 1e-9),
+              ("ничего не торчит дальше 9 м от оси", st.Wide <= 9),
+              ("корабль с кольцом — 54,6 м, ускоритель с раструбами — 71 м от своего нуля",
+               Math.Abs(sh.Hi - sh.Lo - 54.6) < 0.55 && Math.Abs(bo.Lo) < 1e-9 && Math.Abs(bo.Hi - bo.Lo - 71) < 0.36),
+              ("факел от среза вниз на заданную длину, короткая тяга — короткий", flame.Length > 4 && Math.Abs(flame.Min(q => q.Y)) < 1e-9
+               && Math.Abs(flame.Max(q => q.Y) - 42) < 1e-9 && RocketArt.Flame(10, 0)[^1].Y <= 10 + 1e-9));
+        Cases("подписи фаз",
+              ("захват корабля", Phases.Air("caught", true), "Корабль пойман башней"), ("захват ускорителя", Phases.Air("caught", false), "Ускоритель пойман башней"),
+              ("эфир на выведении", Phases.Air("ascent"), "Работа первой ступени"), ("пульт на выведении", Phases.Console("ascent"), "Выведение"),
+              ("незнакомый режим — как есть", Phases.Air("нет такого"), "нет такого"));
+    }
+    private static void UiDirector() {
+        Head("Борт: дуга вех, наборы камер, режиссёр");
         var arc = new Arc("orbital");
-        Same("первая веха — старт", arc.Names[0], "старт");
-        Same("последняя веха орбитального — захват корабля", arc.Names[^1], "захват корабля");
-        True("после захвата ускорителя дальше орбита, сход с орбиты и вход",
-             Array.IndexOf(arc.Names, "захват ускорителя") < Array.IndexOf(arc.Names, "орбита")
-             && Array.IndexOf(arc.Names, "орбита") < Array.IndexOf(arc.Names, "сход с орбиты")
-             && Array.IndexOf(arc.Names, "сход с орбиты") < Array.IndexOf(arc.Names, "вход"),
-             string.Join(", ", arc.Names));
-        True("на дуге видно шесть вех с самого начала", arc.Shown == 6 && arc.First == 0, $"{arc.Shown} с {arc.First}");
-        True("до старта метка в нуле", arc.Frac(-10) == 0);
-        var sim = new SimState { Mission = "orbital", AnomOn = false };
-        Physics.Sim.Reset(sim, 12345);
-        while (sim.T < 140) { Physics.Sim.Tick(sim, Const.DT); arc.Track(sim); }
-        True("на T+140 пройдены старт, max Q и разделение", arc.Passed[0] && arc.Passed[1] && arc.Passed[2]);
-        True("SECO и захват ещё нет", !arc.Passed[4] && !arc.Passed[5]);
-        double f = arc.Frac(sim.T);
-        True("метка прошла часть дуги, но не дошла до конца", f > 0.35 && f < 0.8, N(f));
-        while (sim.T < 470) { Physics.Sim.Tick(sim, Const.DT); arc.Track(sim); }
-        int caught = Array.IndexOf(arc.Names, "захват ускорителя");
-        True("на T+470 ускоритель пойман", caught >= 0 && arc.Passed[caught]);
-        double g = arc.Frac(sim.T);
-        True("захват ускорителя не заканчивает дугу", g < 0.9, N(g));
-        True("после захвата окно сдвинулось и показывает сход с орбиты",
-             arc.First > 0 && arc.First + arc.Shown > Array.IndexOf(arc.Names, "сход с орбиты"),
-             $"вехи {arc.First}…{arc.First + arc.Shown - 1}");
-        True("у трансатмосферного свой набор", new Arc("trans").Names[^1] == "приводнение",
-             string.Join(", ", new Arc("trans").Names));
-        True("на выведении показываем «Факел»", Array.IndexOf(CamPlan.For("ascent"), 6) >= 0,
-             string.Join(",", CamPlan.For("ascent")));
-        True("на разделении — петля заднего закрылка", Array.IndexOf(CamPlan.For("meco"), 2) >= 0);
-        True("у корабля на входе первая — петля переднего закрылка", CamPlan.For("entryS")[0] == 1);
-        True("на захвате ускорителя — камера с ловильных рук", CamPlan.For("caught")[0] == 10);
-        UiFallbackMarks();
+        string[] n = arc.Names;
+        Group("дуга вех орбитального задания", string.Join(", ", n),
+              ("от старта до захвата корабля", n[0] == "старт" && n[^1] == "захват корабля"),
+              ("после захвата ускорителя — орбита, сход и вход", Array.IndexOf(n, "захват ускорителя") < Array.IndexOf(n, "орбита")
+               && Array.IndexOf(n, "орбита") < Array.IndexOf(n, "сход с орбиты") && Array.IndexOf(n, "сход с орбиты") < Array.IndexOf(n, "вход")),
+              ("видно шесть вех с начала, до старта метка в нуле", arc.Shown == 6 && arc.First == 0 && arc.Frac(-10) == 0),
+              ("у трансатмосферного последняя — приводнение", new Arc("trans").Names[^1] == "приводнение"));
+        Group("наборы камер по событиям", "",
+              ("на старте — стол, при отрыве — башня сверху", Array.IndexOf(CamPlan.For("idle"), 7) >= 0 && CamPlan.For("ascent")[0] == 8),
+              ("на выведении есть «Факел», на разделении — петля заднего закрылка", Array.IndexOf(CamPlan.For("ascent"), 6) >= 0 && Array.IndexOf(CamPlan.For("meco"), 2) >= 0),
+              ("на входе корабля первая — петля переднего закрылка", CamPlan.For("entryS")[0] == 1),
+              ("на захвате и посадке корабля — ловильные руки", CamPlan.For("caught")[0] == 10 && Array.IndexOf(CamPlan.For("landS"), 10) >= 0),
+              ("на жиге ускорителя ведём его, пока корабль разгоняется — корабль", !CamPlan.Ship("landB", "orbit") && CamPlan.Ship("coastB", "ascent2")),
+              ("после захвата ускорителя 12 с показываем захват, потом корабль", !CamPlan.Ship("caught", "coastS", 3) && CamPlan.Ship("caught", "coastS", 13)
+               && CamPlan.Ship("caught", "landS", 300) && CamPlan.Ship("crashed", "orbit", 20)));
+        var dull = new Director.Shot(3, 0.1, 0, 0, 90, 0.9, false, 0, 0);
+        var nice = new Director.Shot(4, 0.8, 0.9, 0, 90, 0.3, false, 0, 20);
+        Director.Shot[] set = { dull, nice };
+        Group("оценка кадра", $"{N(Director.Score(nice))} против {N(Director.Score(dull))}",
+              ("красивый выше пустого", Director.Score(nice) > Director.Score(dull)),
+              ("солнце в центре портит", Director.Score(nice with { Sun = 5 }) < Director.Score(nice)),
+              ("плазма поднимает", Director.Score(dull with { Plasma = 0.9 }) > Director.Score(dull)),
+              ("ночь без огня — плохо", Director.Score(nice with { Night = true, Flame = 0 }) < Director.Score(dull)));
+        Group("правила монтажа", "",
+              ("план не выдержан — не режем", Director.Pick(set, 3, 2, false) == 3),
+              ("на событии режем сразу", Director.Pick(set, 3, 2, true) == 4),
+              ("через 15 с меняем и без события", Director.Pick(set, 3, 16, false) == 4),
+              ("одну камеру дважды подряд не берём", Director.Pick(set, 4, 16, true) == 3),
+              ("нет выбора — остаёмся", Director.Pick(new[] { nice }, 4, 16, true) == 4),
+              ("без заметного перевеса остаёмся", Director.Pick(new[] { dull, dull with { Cam = 4, Earth = 0.13 } }, 3, 8, false) == 3),
+              ("при равных — первая камера набора", Director.Pick(new[] { dull with { Cam = 5 }, dull with { Cam = 6 } }, int.MinValue, 0, true) == 5));
     }
     private static void UiFallbackMarks() {
         Head("Запасная посадка: вехи и зачёт цели");
         var sim = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(sim, 12345);
         Vehicle b = sim.Veh[0], s = sim.Veh[1];
-        Same("пока идём к башне, веха про захват", Arc.NamesOf("orbital", sim)[5], "захват ускорителя");
-        b.Site = "sea";
-        b.AimDr = Const.SEA_DR;
-        Same("ушёл в море — веха про приводнение", Arc.NamesOf("orbital", sim)[5], "приводнение ускорителя");
-        s.Site = "pad";
-        s.AimDr = Const.PAD_DR;
-        Same("корабль на площадку — своя веха", Arc.NamesOf("orbital", sim)[^1], "посадка корабля на площадку");
+        string tower = Arc.NamesOf("orbital", sim)[5];
+        b.Site = "sea"; b.AimDr = Const.SEA_DR;
+        string sea = Arc.NamesOf("orbital", sim)[5];
+        s.Site = "pad"; s.AimDr = Const.PAD_DR;
+        string pad = Arc.NamesOf("orbital", sim)[^1];
         b.Crashed = true;
-        Same("разбился — веха про потерю", Arc.NamesOf("orbital", sim)[5], "потеря ускорителя");
-        Same("у трансатмосферного последняя веха прежняя", Arc.NamesOf("trans", sim)[^1], "приводнение");
-
+        Cases("вехи по исходу",
+              ("к башне", tower, "захват ускорителя"), ("в море", sea, "приводнение ускорителя"), ("на площадку", pad, "посадка корабля на площадку"),
+              ("разбился", Arc.NamesOf("orbital", sim)[5], "потеря ускорителя"), ("трансатмосферное", Arc.NamesOf("trans", sim)[^1], "приводнение"));
         var f = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(f, 12345);
         Vehicle v = f.Veh[0];
-        True("пока летит — цель ждёт", MissionRules.Catch(v) == Aim.Wait);
+        Aim wait = MissionRules.Catch(v);
         v.Caught = true; v.Landed = true;
-        True("пойман — цель выполнена", MissionRules.Catch(v) == Aim.Done);
+        Aim done = MissionRules.Catch(v);
         v.Caught = false; v.Site = "sea"; v.Splash = true;
-        True("приводнился по плану — зачёт наполовину", MissionRules.Catch(v) == Aim.Part, MissionRules.Where(v));
-        Same("подпись про море", MissionRules.Where(v), "запасная посадка в море");
+        Aim wet = MissionRules.Catch(v);
+        string seaText = MissionRules.Where(v);
         v.Splash = false; v.Site = "pad";
-        True("сел на площадку — тоже наполовину", MissionRules.Catch(v) == Aim.Part);
-        Same("подпись про площадку", MissionRules.Where(v), "запасная посадка на площадке у башни");
+        Aim onPad = MissionRules.Catch(v);
+        string padText = MissionRules.Where(v);
         v.Site = "tower"; v.SeekPad = false;
-        True("сел где попало — цель провалена", MissionRules.Catch(v) == Aim.Fail);
+        Aim stray = MissionRules.Catch(v);
         v.Crashed = true;
-        True("разбился — провалена", MissionRules.Catch(v) == Aim.Fail);
-        True("за половину цели дают половину очков",
-             MissionRules.Score(Aim.Part, 400, 0) == 200 && MissionRules.Score(Aim.Done, 400, 150) == 550
-             && MissionRules.Score(Aim.Fail, 400, 0) == 0 && MissionRules.Score(Aim.Wait, 400, 0) == 0,
-             $"{MissionRules.Score(Aim.Part, 400, 0)}");
-        True("на старте — стол, при отрыве — башня сверху",
-             Array.IndexOf(CamPlan.For("idle"), 7) >= 0 && CamPlan.For("ascent")[0] == 8);
-        True("при посадочной жиге ведём ускоритель", !CamPlan.Ship("landB", "orbit"));
-        True("пока корабль разгоняется, ведём его", CamPlan.Ship("coastB", "ascent2"));
-        True("ускоритель только что пойман — ещё показываем захват", !CamPlan.Ship("caught", "coastS", 3));
-        True("через 12 с после захвата режиссёр переходит к кораблю", CamPlan.Ship("caught", "coastS", 13));
-        True("после захвата ускорителя вход и посадку ведём по кораблю", CamPlan.Ship("caught", "landS", 300));
-        True("разбившийся ускоритель тоже отпускает режиссёра", CamPlan.Ship("crashed", "orbit", 20));
-        var dull = new Director.Shot(3, 0.1, 0, 0, 90, 0.9, false, 0, 0);
-        var nice = new Director.Shot(4, 0.8, 0.9, 0, 90, 0.3, false, 0, 20);
-        True("красивый кадр оценивается выше пустого", Director.Score(nice) > Director.Score(dull),
-             $"{N(Director.Score(nice))} против {N(Director.Score(dull))}");
-        True("солнце в центре кадра всё портит", Director.Score(nice with { Sun = 5 }) < Director.Score(nice));
-        True("плазма поднимает оценку", Director.Score(dull with { Plasma = 0.9 }) > Director.Score(dull));
-        True("ночная сторона без огня — плохой кадр",
-             Director.Score(nice with { Night = true, Flame = 0 }) < Director.Score(dull));
-        Director.Shot[] set = { dull, nice };
-        True("пока план не выдержан, камера не меняется", Director.Pick(set, 3, 2, false) == 3);
-        True("на событии режем сразу", Director.Pick(set, 3, 2, true) == 4);
-        True("через 15 с меняем и без события", Director.Pick(set, 3, 16, false) == 4);
-        True("одна и та же камера два раза подряд не берётся", Director.Pick(set, 4, 16, true) == 3);
-        True("если выбора нет — остаёмся", Director.Pick(new[] { nice }, 4, 16, true) == 4);
-        True("без заметного перевеса остаёмся",
-             Director.Pick(new[] { dull, dull with { Cam = 4, Earth = 0.13 } }, 3, 8, false) == 3);
-        True("при равных кадрах берём первую камеру набора",
-             Director.Pick(new[] { dull with { Cam = 5 }, dull with { Cam = 6 } }, int.MinValue, 0, true) == 5);
+        Group("зачёт цели «поймать башней»", $"{seaText}; {padText}",
+              ("летит — ждёт, пойман — выполнена", wait == Aim.Wait && done == Aim.Done),
+              ("море и площадка по плану — наполовину, с подписью", wet == Aim.Part && onPad == Aim.Part
+               && seaText == "запасная посадка в море" && padText == "запасная посадка на площадке у башни"),
+              ("где попало или разбился — провалена", stray == Aim.Fail && MissionRules.Catch(v) == Aim.Fail),
+              ("очки: половина, полные с бонусом, ноль", MissionRules.Score(Aim.Part, 400, 0) == 200 && MissionRules.Score(Aim.Done, 400, 150) == 550
+               && MissionRules.Score(Aim.Fail, 400, 0) == 0 && MissionRules.Score(Aim.Wait, 400, 0) == 0));
+    }
+    private static void UiTabs() {
+        Head("Интерфейс: экраны");
+        True("Tab ходит по кругу: сводка → эфир → пульт → сводка", Tabs.Next(1) == 2 && Tabs.Next(2) == 3 && Tabs.Next(3) == 1,
+             $"{Tabs.Next(1)}, {Tabs.Next(2)}, {Tabs.Next(3)}");
+    }
+    private static void UiArmGeom() {
+        Head("Руки башни: угол от зазора до обшивки");
+        Table("рельс стоит ровно на заданном зазоре от обшивки",
+              (from g in new[] { 0.0, 0.7, ArmGeom.Ready, 5, ArmGeom.Park }
+               select ($"зазор {N(g)} м", ArmGeom.RailDist(ArmGeom.Angle(g)) - ArmGeom.VehR - ArmGeom.RailR + 1, g + 1, 1e-9)).ToArray());
+        double ready = ArmGeom.Angle(ArmGeom.Ready) * 180 / Math.PI, park = ArmGeom.Angle(ArmGeom.Park) * 180 / Math.PI;
+        Group("углы", $"касание {N(ArmGeom.Angle(0) * 180 / Math.PI)}°, рабочий {N(ready)}°, стоянка {N(park)}°",
+              ("при касании руки параллельны", Math.Abs(ArmGeom.Angle(0)) < 1e-9), ("рабочий зазор — пара градусов", ready > 1 && ready < 4),
+              ("на стоянке раскрыты широко", park > 35 && park < 65));
     }
     private static void UiReplay() {
-        Head("Запись прогона: разбор чужого файла");
+        Head("Запись прогона и рекорды");
         string[] keys = { "orbital", "trans", "high" };
-        ReplayText.Data ok = ReplayText.Parse(new[] {
-            "mission high", "seed 777", "anom 1", "script engine-out",
-            "12.50 pitch 1", "13.00 sep 1" }, keys);
-        True("нормальная запись читается целиком",
-             ok.Mission == "high" && ok.Seed == 777 && ok.Anom && ok.Script == "engine-out" && ok.Ev.Count == 2
-             && ok.Ev[1].T == 13 && ok.Ev[1].K == "sep",
-             $"{ok.Mission}, зерно {ok.Seed}, событий {ok.Ev.Count}");
-        True("разброс записан в заголовке и читается", ok.Disp == false
-             && ReplayText.Parse(new[] { "mission high", "seed 5", "disp 1" }, keys).Disp);
-        ReplayText.Data far = ReplayText.Parse(new[] { "mission ../../../../Users/Public/x" }, keys);
-        Same("название задания не из списка заменяется на орбитальное", far.Mission, "orbital");
+        ReplayText.Data ok = ReplayText.Parse(new[] { "mission high", "seed 777", "anom 1", "script engine-out", "12.50 pitch 1", "13.00 sep 1" }, keys);
         bool threw = false;
         ReplayText.Data bad = default;
-        try { bad = ReplayText.Parse(new[] { "seed abc", "seed 99999999999", "seed -1" }, keys); }
-        catch (Exception) { threw = true; }
-        True("битое зерно не роняет разбор и оставляет исходное", !threw && bad.Seed == 12345u,
-             threw ? "исключение" : $"зерно {bad.Seed}");
-        ReplayText.Data nan = ReplayText.Parse(new[] {
-            "NaN pitch 1", "1.00 thr Infinity", "2.00 bank 1e999", "3.00 thr -1e999", "4.00 pitch 0.5" }, keys);
-        True("события с NaN и бесконечностью отбрасываются", nan.Ev.Count == 1 && nan.Ev[0].A == 0.5,
-             $"осталось {nan.Ev.Count}");
-        UiReplayFixes();
-        UiRecords();
-    }
-    private static void UiRecords() {
-        Head("Рекорды: повреждённый файл не роняет таблицу (пункт 59)");
-        var ok = RecordsText.Parse("{\"orbital\": {\"s\": 1234, \"g\": \"A\", \"t\": \"16.09.2026\"}, \"trans\": 800}");
-        True("целый файл читается, и старый формат (одно число) тоже",
-             ok.Count == 2 && ok["orbital"].Score == 1234 && ok["orbital"].Grade == "A" && ok["trans"].Score == 800,
-             $"записей {ok.Count}");
-        string[] broken = {
-            "{\"orbital\": {\"g\": \"A\"}, \"high\": {\"s\": 700}}",
-            "{\"orbital\": {\"s\": \"много\"}, \"high\": {\"s\": 700, \"g\": 5}}",
-            "{\"orbital\": {\"s\": 1234, \"g\": \"A\"", "[1, 2, 3]", "", "не json", "{\"high\": {\"s\": 1e30}}",
-        };
-        string bad = "";
-        int kept = 0;
-        foreach (string b in broken) {
-            try { var d = RecordsText.Parse(b); if (d.TryGetValue("high", out var h) && h.Score == 700) kept++; }
-            catch (Exception e) { bad += e.GetType().Name + " "; }
-        }
-        True("битые файлы и записи не бросают исключений", bad.Length == 0, bad);
-        True("из частично битого файла целые записи сохраняются", kept == 2, $"уцелело {kept} из 2");
-    }
-    private static void UiReplayFixes() {
-        Head("Запись прогона: пункты 52–57");
+        try { bad = ReplayText.Parse(new[] { "seed abc", "seed 99999999999", "seed -1" }, keys); } catch (Exception) { threw = true; }
+        ReplayText.Data nan = ReplayText.Parse(new[] { "NaN pitch 1", "1.00 thr Infinity", "2.00 bank 1e999", "3.00 thr -1e999", "4.00 pitch 0.5" }, keys);
+        Group("разбор чужого файла записи", $"{ok.Mission}, зерно {ok.Seed}, событий {ok.Ev.Count}",
+              ("нормальная запись читается целиком", ok.Mission == "high" && ok.Seed == 777 && ok.Anom && ok.Script == "engine-out" && ok.Ev.Count == 2
+                                                    && ok.Ev[1].T == 13 && ok.Ev[1].K == "sep"),
+              ("разброс в заголовке читается", !ok.Disp && ReplayText.Parse(new[] { "mission high", "seed 5", "disp 1" }, keys).Disp),
+              ("задание не из списка — орбитальное", ReplayText.Parse(new[] { "mission ../../../../Users/Public/x" }, keys).Mission == "orbital"),
+              ("битое зерно не роняет разбор", !threw && bad.Seed == 12345u),
+              ("события с NaN и бесконечностью отброшены", nan.Ev.Count == 1 && nan.Ev[0].A == 0.5));
         var r = new Starship.Game.Replay();
         r.Head("orbital", 5, false, null, true);
-        for (int i = 0; i < 1000; i++) {
-            double t = i * 0.016;
-            r.Put(t, "pitch", 0); r.Put(t, "thr", 0); r.Put(t, "bank", 0);
-        }
-        True("неподвижные оси не раздувают запись (пункт 57)", r.Ev.Count == 3, $"событий {r.Ev.Count} за 1000 кадров");
+        for (int i = 0; i < 1000; i++) { double t = i * 0.016; r.Put(t, "pitch", 0); r.Put(t, "thr", 0); r.Put(t, "bank", 0); }
+        int still = r.Ev.Count;
         r.Put(20, "pitch", 1); r.Put(20, "thr", 0); r.Put(21, "pitch", 0);
-        True("изменение оси записывается", r.Ev.Count == 5, $"событий {r.Ev.Count}");
+        int moved = r.Ev.Count;
         r.Put(30, "sat", 1); r.Put(31, "sat", 1); r.Put(32, "rcs", 0); r.Put(33, "rcs", 0);
-        True("повторные действия не теряются: два спутника, два переключения ДМТ", r.Ev.Count == 9, $"событий {r.Ev.Count}");
-
         var t1 = new DateTime(2026, 9, 18, 10, 0, 0);
         string n1 = r.FileName(t1), n2 = r.FileName(t1.AddSeconds(7));
-        True("в имени записи есть время, два полёта не затирают друг друга (пункт 54)",
-             n1 != n2 && n1.StartsWith("orbital-") && n1.EndsWith(".txt"), $"{n1} и {n2}");
-        string newest = Starship.Game.Replay.Newest(new (string, ulong)[] {
-            ("orbital-195412.txt", 100), ("orbital-0003.txt", 300), ("high-0009.txt", 200), ("notes.md", 900) });
-        Same("F10 берёт самую свежую запись по времени, а не по имени (пункт 55)", newest, "orbital-0003.txt");
-
+        string newest = Starship.Game.Replay.Newest(new (string, ulong)[] { ("orbital-195412.txt", 100), ("orbital-0003.txt", 300), ("high-0009.txt", 200), ("notes.md", 900) });
         var c = r.Copy();
         c.Keep(21);
-        True("копия записи режется по времени для перемотки, оригинал цел (пункт 56)",
-             c.Ev.Count == 5 && r.Ev.Count == 9 && c.Seed == 5 && c.Disp, $"в копии {c.Ev.Count}, в оригинале {r.Ev.Count}");
+        int kept = c.Ev.Count;
         c.Put(22, "pitch", 0);
-        True("после обрезки ось с прежним значением не дублируется", c.Ev.Count == 5, $"{c.Ev.Count}");
-
+        Group("запись без потерь и раздувания (пункты 54–57)", $"событий {still} → {moved} → {r.Ev.Count}, в копии {kept}; {n1}",
+              ("неподвижные оси не пишутся каждый кадр", still == 3),
+              ("изменение оси и повторные действия записаны", moved == 5 && r.Ev.Count == 9),
+              ("в имени время: два полёта не затирают друг друга", n1 != n2 && n1.StartsWith("orbital-") && n1.EndsWith(".txt")),
+              ("F10 берёт самую свежую по времени", newest == "orbital-0003.txt"),
+              ("копия режется для перемотки, оригинал цел, повтор не дублируется", kept == 5 && r.Ev.Count == 9 && c.Seed == 5 && c.Disp && c.Ev.Count == 5));
         var live = new SimState { Mission = "orbital", AnomOn = false };
         var play = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(live, 12345); Physics.Sim.Reset(play, 12345);
@@ -404,33 +293,29 @@ internal static partial class Program {
         double thrAuto = live.Veh[0].Throttle;
         live.ManPitchAxis = 1; rec.Put(live.T, "pitch", 1);
         rec.Put(live.T, "man", 1); Physics.Sim.SetManual(live, true);
-        string rk = Starship.Game.Replay.ParamKey("rpmSet", 0, 5);
-        rec.Put(live.T, rk, 30000); ParamDefs.Apply(ParamDefs.Row("rpmSet"), live.Veh[0], live.Veh[0].Eng[5], 30000);
+        rec.Put(live.T, Starship.Game.Replay.ParamKey("rpmSet", 0, 5), 30000);
+        ParamDefs.Apply(ParamDefs.Row("rpmSet"), live.Veh[0], live.Veh[0].Eng[5], 30000);
         while (live.T < 60) Physics.Sim.Tick(live, Const.DT);
         rec.Rewind();
         while (play.T < 60) { rec.Apply(play); Physics.Sim.Tick(play, Const.DT); }
-        True("ручной режим в повторе берёт тягу автомата, как вживую (пункт 52)",
-             live.ManThr == thrAuto && thrAuto < 1 && play.ManThr == live.ManThr, $"вживую {N(live.ManThr)}, в повторе {N(play.ManThr)}");
-        True("правка параметра пульта записана и повторена (пункт 53)",
-             play.Veh[0].Eng[5].P.RpmSet == 30000, $"{N(play.Veh[0].Eng[5].P.RpmSet)} об/мин");
-        True("повтор совпадает с живым полётом", live.Veh[0].X == play.Veh[0].X && live.Veh[0].Y == play.Veh[0].Y,
-             $"расхождение {N(Math.Abs(live.Veh[0].X - play.Veh[0].X))} м");
-    }
-    private static void UiArmGeom() {
-        Head("Руки башни: угол поворота от зазора до обшивки");
-        Near("при касании руки параллельны", ArmGeom.Angle(0) * 180 / Math.PI, 0, 0, "°");
-        foreach (double g in new[] { 0.0, 0.7, ArmGeom.Ready, 5, ArmGeom.Park })
-            Near($"рельс при зазоре {N(g)} м стоит ровно на этом зазоре от обшивки",
-                 ArmGeom.RailDist(ArmGeom.Angle(g)) - ArmGeom.VehR - ArmGeom.RailR, g, 1e-9, " м");
-        double ready = ArmGeom.Angle(ArmGeom.Ready) * 180 / Math.PI;
-        True("рабочий зазор — поворот всего на пару градусов", ready > 1 && ready < 4, $"{N(ready)}°");
-        double park = ArmGeom.Angle(ArmGeom.Park) * 180 / Math.PI;
-        True("на стоянке руки раскрыты широко", park > 35 && park < 65, $"{N(park)}°");
-    }
-    private static void UiTabs() {
-        Head("Интерфейс: Tab ходит по всем трём экранам");
-        True("со сводки в эфир", Tabs.Next(1) == 2, $"{Tabs.Next(1)}");
-        True("из эфира на пульт", Tabs.Next(2) == 3, $"{Tabs.Next(2)}");
-        True("с пульта на сводку", Tabs.Next(3) == 1, $"{Tabs.Next(3)}");
+        Group("повтор совпадает с живым полётом (пункты 52–53)", $"расхождение {N(Math.Abs(live.Veh[0].X - play.Veh[0].X))} м",
+              ("ручной режим берёт тягу автомата", live.ManThr == thrAuto && thrAuto < 1 && play.ManThr == live.ManThr),
+              ("правка параметра пульта повторена", play.Veh[0].Eng[5].P.RpmSet == 30000),
+              ("положение до бита", live.Veh[0].X == play.Veh[0].X && live.Veh[0].Y == play.Veh[0].Y));
+        var recs = RecordsText.Parse("{\"orbital\": {\"s\": 1234, \"g\": \"A\", \"t\": \"16.09.2026\"}, \"trans\": 800}");
+        string[] broken = {
+            "{\"orbital\": {\"g\": \"A\"}, \"high\": {\"s\": 700}}", "{\"orbital\": {\"s\": \"много\"}, \"high\": {\"s\": 700, \"g\": 5}}",
+            "{\"orbital\": {\"s\": 1234, \"g\": \"A\"", "[1, 2, 3]", "", "не json", "{\"high\": {\"s\": 1e30}}",
+        };
+        string err = "";
+        int saved = 0;
+        foreach (string text in broken) {
+            try { if (RecordsText.Parse(text).TryGetValue("high", out var h) && h.Score == 700) saved++; }
+            catch (Exception e) { err += e.GetType().Name + " "; }
+        }
+        Group("рекорды: повреждённый файл не роняет таблицу (пункт 59)", $"уцелело {saved} из 2 {err}",
+              ("целый файл и старый формат читаются", recs.Count == 2 && recs["orbital"].Score == 1234 && recs["orbital"].Grade == "A" && recs["trans"].Score == 800),
+              ("битые файлы не бросают исключений", err.Length == 0),
+              ("целые записи из частично битого сохраняются", saved == 2));
     }
 }
