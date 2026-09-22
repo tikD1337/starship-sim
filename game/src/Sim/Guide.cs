@@ -165,6 +165,7 @@ public static class Guide {
             if (v.F < 1e3)
                 sim.Once("orbMsg" + v.Tag, () => sim.LogMsg(
                     $"ВЫХОД НА ОРБИТУ {(o.Peri / 1000):F0} × {(o.Apo / 1000):F0} км, период {(o.Per / 60):F1} мин", 1));
+            if (v.SeekPad && Sim.DeployStep(sim, v, dt)) { v.ThCmd = Guidance.AimPro(v); break; }
             v.ThCmd = (v.SeekPad && !double.IsNaN(v.DeoMiss) && Math.Abs(v.DeoMiss) < 500e3)
                       ? Guidance.AimRetro(v) : Guidance.AimPro(v);
             if (!v.SeekPad) break;
@@ -255,14 +256,14 @@ public static class Guide {
             else {
                 double miss = sim.Downrange(v) + Const.FLIP_D - v.AimDr;
                 double vp = Guidance.AimPro(v) * Const.R2D;
-                double flat = Const.Clamp((vp - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
+                double flat = Const.Clamp((Math.Abs(vp) - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
                 double lead = miss + Const.BELLY_LEAD;
                 double aGlide = Const.GLIDE_KA > 0
                     ? Const.Clamp(58 + lead / Const.GLIDE_KA, Const.GLIDE_A_LO, Const.GLIDE_A_HI)
                     : 58;
-                double aBelly = Const.Clamp(vp - 90 - Guidance.BellyTilt(v, miss, v.VHor) * Const.R2D,
-                                            Const.GLIDE_A_LO, 90 + Const.BELLY_TILT);
-                v.AlphaCmd = aGlide + (aBelly - aGlide) * flat;
+                double thBelly = Math.PI / 2 + Guidance.BellyTilt(v, miss, v.VHor, Guidance.FlipTgo(v, FlipStop(v)));
+                double thGlide = Guidance.AimLift(v, aGlide, Guidance.LiftSign(v, "east", rf.East));
+                v.AlphaCmd = aGlide + (Math.Abs(Vehicle.AngDiff(vp * Const.D2R, thBelly)) * Const.R2D - aGlide) * flat;
                 double aa = aGlide * Const.D2R, sa2 = Math.Sin(aa), ca2 = Math.Cos(aa);
                 double cn2 = 2 * sa2 * ca2 + 1.15 * (v.FullLen * v.Dia / v.A) * sa2 * sa2;
                 double ca20 = Atmosphere.Cd0(v.Mach) * ca2 * ca2 + 0.06;
@@ -270,14 +271,14 @@ public static class Guide {
                 v.BankCmd = (1 - flat) * Guidance.GlideBank(lead, v.VHor, h, v.VVert, lacc, Math.Abs(rf.East));
                 sim.Once("glide" + v.Tag, () =>
                     sim.LogMsg($"{v.Tag}: терминальное наведение — гашение сноса, до {(v.Site == "sea" ? "точки приводнения" : "башни")} {((v.AimDr - sim.Downrange(v)) / 1000):F0} км", 2));
-                v.ThCmd = Guidance.AimLift(v, v.AlphaCmd, Guidance.LiftSign(v, "east", rf.East));
+                v.ThCmd = thGlide + Vehicle.AngDiff(thBelly, thGlide) * flat;
             }
             if (aPrev > 0)
                 v.AlphaCmd = aPrev + Const.Clamp(v.AlphaCmd - aPrev,
                     -Const.ALPHA_RATE * dt, Const.ALPHA_RATE * dt);
             if (v.Heat > v.MaxHeat) v.MaxHeat = v.Heat;
             if (h < Const.GLIDE_H && v.SeekPad) sim.Once("poll" + v.Tag, () => PollShip(sim, v, "на 25 км"));
-            if (v.SeekPad ? h < Const.FLIP_H && Guidance.StopAlt(v, 3) < Const.FLIP_STOP + (v.Catch ? 0 : SimState.Surface(v.AimDr) - Const.CATCH_H)
+            if (v.SeekPad ? h < Const.FLIP_H && Guidance.StopAlt(v, 3) < FlipStop(v)
                           : h < Const.FLIP_H_SEA) {
                 if (v.SeekPad && Math.Abs(sim.Downrange(v) - v.AimDr) > 3000) {
                     v.SeekPad = false;
@@ -325,6 +326,7 @@ public static class Guide {
         v.ThCmd = Guidance.AimRetro(v) + (miss > 0 ? dl : -dl);
     }
     private static double Mp(Vehicle v) => double.IsNaN(v.MissPred) ? 0 : v.MissPred;
+    private static double FlipStop(Vehicle v) => Const.FLIP_STOP + (v.Catch ? 0 : SimState.Surface(v.AimDr) - Const.CATCH_H);
     public static void Divert(SimState sim, Vehicle v, string site, double aim, string why) {
         v.Site = site;
         v.AimDr = aim;
@@ -372,8 +374,9 @@ public static class Guide {
     private static void LatePoll(SimState sim, Vehicle v, double dt) {
         if (!v.Catch || !v.Ign || v.Landed) return;
         bool booster = v.Kind == Kind.Booster;
-        string site = booster ? "sea" : "pad";
-        double aim = booster ? Math.Max(Const.COAST_DR + 200, sim.Downrange(v)) : Const.PAD_DR;
+        bool lee = !booster && Math.Abs(v.WindEst) > Const.GO_WIND_PAD && Math.Sign(v.WindEst) == Math.Sign(Const.COAST_DR);
+        string site = booster || lee ? "sea" : "pad";
+        double aim = booster || lee ? Math.Max(Const.COAST_DR + 200, sim.Downrange(v)) : Const.PAD_DR;
         int dead = booster ? Dead(v, 13) : Dead(v, 3);
         if (booster ? dead >= 2 : dead >= 1) {
             Divert(sim, v, site, aim, $"не зажглись {dead} {(booster ? "из 13" : "из 3")} посадочных двигателей");

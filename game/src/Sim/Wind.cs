@@ -38,7 +38,8 @@ public sealed class Wind {
         return w;
     }
     public double At(double h) {
-        if (_still || double.IsNaN(h) || h < 0 || h > TopAlt) return 0;
+        if (_still || double.IsNaN(h) || h > TopAlt) return 0;
+        h = Math.Max(h, 0);
         double d = (h - JetAlt) / JetWidth;
         double v = _jet * Math.Exp(-d * d);
         if (h < SurfTop) v += _surf * (1 - 0.65 * h / SurfTop);
@@ -52,7 +53,7 @@ public sealed class Wind {
         return v;
     }
     public void Sound(double k, double b) { _fcK = k; _fcB = b; }
-    public double Forecast(double h) => _still || double.IsNaN(h) || h < 0 || h > TopAlt ? 0 : At(h) * _fcK + _fcB;
+    public double Forecast(double h) => _still || double.IsNaN(h) || h > TopAlt ? 0 : At(h) * _fcK + _fcB;
     public void Gusts(double k, uint seed) {
         var rng = new Rng();
         rng.Seed(unchecked(seed * 2246822519u + 3266489917u));
@@ -69,7 +70,8 @@ public sealed class Wind {
     }
     public double At(double h, double t) {
         double v = At(h);
-        if (_gust <= 0 || _still || double.IsNaN(h) || h < 0 || h >= GustTop) return v;
+        if (_gust <= 0 || _still || double.IsNaN(h) || h >= GustTop) return v;
+        h = Math.Max(h, 0);
         double s = 0;
         for (int i = 0; i < 4; i++) s += _gA[i] * Math.Sin(_gW[i] * t + _gK[i] * h + _gP[i]);
         double fade = h < GustFull ? 1 : (GustTop - h) / (GustTop - GustFull);

@@ -43,6 +43,7 @@ internal static partial class Program {
         BoosterSwing();
         ShipBellyFlop();
         ShipLanding();
+        LightShip();
         LiveFlight();
         ArmCatch();
         Estimation();
@@ -962,6 +963,50 @@ internal static partial class Program {
             True($"{name}: переворот до 15° от вертикали не дольше 3 с после зажигания", tFlip <= 3, $"{N(tFlip)} с");
             True($"{name}: от зажигания до захвата не дольше 26 с (у пятого полёта 20 с)", burn <= 26, $"{N(burn)} с");
             True($"{name}: после переворота наклон не больше 30°", tilt <= 30, $"{N(tilt)}°");
+        }
+    }
+    private static void LightShip() {
+        Head("Корабль садится лёгким: груз выпущен, на вход только запас, переворот в точке (пункт 49)");
+        double a90 = Flight.FlapCn(Math.PI / 2), a70 = Flight.FlapCn(70 * Const.D2R), a63 = Flight.FlapCn(Math.Atan(2));
+        True("закрылки складываются вдоль корпуса: на 90° атаки власть наибольшая, а не нулевая", a90 > a70 && a90 > 0.6,
+             $"на 90° {N(a90)}, на 70° {N(a70)}");
+        True("на 63° власть та же, что у прежней модели руля", Math.Abs(a63 - 2 * Math.Sin(2 * Math.Atan(2)) * Math.Sin(Const.FLAP_DEF)) < 1e-9,
+             $"{N(a63)}");
+        True("в окне рук наведение не наклоняет ступень сильнее, чем берут руки", Const.CATCH_TILT_CMD < Const.CATCH_TILT,
+             $"{N(Const.CATCH_TILT_CMD)}° при допуске {N(Const.CATCH_TILT)}°");
+        foreach ((string mission, string name) in new[] { ("orbital", "орбитальное"), ("high", "высокая орбита") }) {
+            var sim = new SimState { Mission = mission, AnomOn = false };
+            Physics.Sim.Reset(sim, 12345);
+            Vehicle s = sim.Veh[1];
+            int sats = s.BayS.Sats, deoSats = -1;
+            double deoPay = double.NaN, deoOpen = double.NaN, entryProp = double.NaN, flipMiss = double.NaN;
+            string was = s.Mode;
+            for (int i = 0; i < 1_400_000 && !s.Landed && !s.Crashed; i++) {
+                Physics.Sim.Tick(sim, Const.DT);
+                if (was != "deorbit" && s.Mode == "deorbit" && deoSats < 0) {
+                    deoSats = s.BayS.Sats; deoOpen = s.BayS.Open; deoPay = s.Dry - Spec.Of(Kind.Ship).Dry;
+                }
+                if (was != "entryS" && s.Mode == "entryS" && double.IsNaN(entryProp)) entryProp = s.Prop;
+                if (was != "flipS" && s.Mode == "flipS" && double.IsNaN(flipMiss)) flipMiss = sim.Downrange(s) + Const.FLIP_D - s.AimDr;
+                was = s.Mode;
+            }
+            True($"{name}: на орбиту выведены спутники", sats > 0, $"{sats} Starlink");
+            True($"{name}: груз выпущен и створка закрыта до схода с орбиты", deoSats == 0 && deoOpen < 0.01 && deoPay < 1,
+                 $"в отсеке {deoSats}, створка {N(deoOpen)}, груза {N(deoPay / 1000)} т");
+            True($"{name}: на вход только запас на посадку", entryProp <= Const.ENTRY_PROP + 500, $"{N(entryProp / 1000)} т");
+            True($"{name}: переворот начинается в расчётной точке, а не с перелётом", Math.Abs(flipMiss) <= 30, $"{N(flipMiss)} м");
+            True($"{name}: корабль пойман башней", s.Caught, s.Mode);
+            True($"{name}: после захвата запас 25–40 т, а не полные баки и груз", s.Prop >= 25e3 && s.Prop <= 40e3,
+                 $"{N(s.Prop / 1000)} т, груза {N((s.Dry - Spec.Of(Kind.Ship).Dry) / 1000)} т");
+        }
+        foreach (uint seed in new uint[] { 9, 14, 17 }) {
+            SimState sim = Live(seed, true);
+            sim.Wind = Wind.Steady(22);
+            sim.Disp?.ApplyWind(sim);
+            Vehicle s = sim.Veh[1];
+            Finish(sim, s);
+            True($"ветер 22 м/с, зерно {seed}: лёгкий корабль пойман или приводнился, а не разбит",
+                 !s.Crashed && (s.Caught || s.Splash), $"{s.Mode}, {N(sim.Downrange(s))} м");
         }
     }
     private static (bool, double, double, int, int) Swing(string mission, Wind wind) {

@@ -1,6 +1,10 @@
 using System;
 namespace Starship.Physics;
 public static class Flight {
+    public static double FlapCn(double alpha) {
+        double sa = Math.Sin(alpha);
+        return 2 * sa * sa * Math.Sin(Const.FLAP_DEF);
+    }
     public static void Quench(Vehicle v) {
         foreach (Engine e in v.Eng) { e.On = false; e.Spool = 0; e.F = 0; e.Md = 0; e.Pc = 0; e.Thr = 0; }
         v.Mdot = 0;
@@ -59,7 +63,7 @@ public static class Flight {
         }
         double flapAuth;
         if (v.Kind == Kind.Ship) {
-            double dCn = 2 * Math.Abs(Math.Sin(2 * v.Alpha)) * Math.Sin(Const.FLAP_DEF);
+            double dCn = FlapCn(v.Alpha);
             double swept = 2 * Const.FLAP_S_FWD * Math.Abs(Const.FLAP_Y_FWD - cm)
                          + 2 * Const.FLAP_S_AFT * Math.Abs(Const.FLAP_Y_AFT - cm);
             flapAuth = q * swept * dCn * v.CtrlK;

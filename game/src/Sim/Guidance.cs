@@ -74,17 +74,18 @@ public static class Guidance {
         }
         else v.Venting = false;
     }
-    public static double BellyTilt(Vehicle v, double dr, double vE) {
+    public static double BellyTilt(Vehicle v, double dr, double vE, double tgo) {
         double lim = Const.BELLY_TILT * Const.D2R;
         double aA = Math.Abs(v.Alpha), sa = Math.Sin(aA), ca = Math.Cos(aA);
         double cn = 2 * sa * Math.Abs(ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa;
         double aN = Math.Max(v.Q * v.A * cn / v.Mass, 0.5 * Const.MU / (v.R * v.R));
-        double aL = aN * Math.Sin(lim);
-        const double tau = 6;
-        double vMax = aL * (-tau + Math.Sqrt(tau * tau + 2 * Math.Abs(dr) / aL));
-        double vWant = -Math.Sign(dr) * Math.Min(vMax, 260);
-        double aLat = (vWant - vE) * 0.3;
-        return Math.Asin(Const.Clamp(aLat / aN, 0, Math.Sin(lim)));
+        double aLat = Zem0(-dr, vE, Const.BELLY_VF, Math.Max(tgo, Const.BELLY_TMIN));
+        return Math.Asin(Const.Clamp(aLat / aN, -Math.Sin(lim), Math.Sin(lim)));
+    }
+    public static double FlipTgo(Vehicle v, double hStop) {
+        double g = Const.MU / (v.R * v.R), a3 = Math.Max(3 * Spec.RaptorSL.Fv / v.Mass - g, 5);
+        double vv = Math.Max(-v.VVert, 10);
+        return Math.Max(v.Alt - hStop - vv * vv / (2 * a3), 0) / vv;
     }
     public static double GlideBank(double dr, double vE, double h, double vv, double lacc, double ePerp) {
         double aL = Math.Max(Math.Min(lacc * Math.Abs(ePerp), 6), 0.5);
@@ -248,7 +249,7 @@ public static class Guidance {
     }
     private static double ThrottleFor(Vehicle v, in Burn e, double vT, double fnow) {
         double pr = Math.Cos(v.Th);
-        if (pr < Const.LAND_PROJ) return v.Mode == "flipS" ? FlipThrottle(v, e, fnow) : Const.LAND_THR_MIN;
+        if (pr < Const.LAND_PROJ) return v.Mode == "flipS" ? FlipThrottle(v, e, fnow, Const.FLIP_TW) : Const.LAND_THR_MIN;
         double kv = e.DhS < 60 ? 1.3 : 2.2;
         double aCmd = e.G - e.Drag / v.Mass + Const.Clamp((vT - e.Vv) * kv, -60, 90);
         if (v.Kind == Kind.Booster) aCmd = Math.Min(aCmd, Const.LAND_B_GMAX * Const.G0 - v.Drag / v.Mass);
@@ -263,10 +264,13 @@ public static class Guidance {
             ? 42
             : 7 + (Const.LAND_TILT_NEAR - 7) * Const.Clamp((e.DhS - 18) / 70, 0, 1);
         v.ThCmd = LandAim(sim, v, Math.Min(tiltMax, tLim * Const.D2R), aMax);
-        if (e.DhS < Const.LAND_DH_END)
-            v.ThCmd = Const.Clamp(v.ThCmd, -Const.LAND_TILT_END * Const.D2R,
-                                  Const.LAND_TILT_END * Const.D2R);
+        if (e.DhS < Const.LAND_DH_END) {
+            double end = EndTilt(v) * Const.D2R;
+            v.ThCmd = Const.Clamp(v.ThCmd, -end, end);
+        }
     }
+    private static double EndTilt(Vehicle v)
+        => v.Catch && v.Alt < Const.CATCH_H + 3 ? Const.CATCH_TILT_CMD : Const.LAND_TILT_END;
     private static double Zem0(double dz, double vel, double vT, double T) => 6 * dz / (T * T) - 2 * (2 * vel + vT) / T;
     private static double ZemT(double dz, double vel, double vT, double T) => -6 * dz / (T * T) + 2 * (vel + 2 * vT) / T;
     private static double FallTime(double h, double v0, double vG, double aD, double aB) {
@@ -274,8 +278,8 @@ public static class Guidance {
         if (v1 <= v0) return 2 * h / Math.Max(v0 + vG, 1);
         return (v1 - v0) / aD + (v1 - vG) / aB;
     }
-    private static double FlipThrottle(Vehicle v, in Burn e, double fnow)
-        => Const.Clamp(Const.FLIP_TW * v.Mass * e.G / fnow, Const.LAND_THR_MIN, 1);
+    private static double FlipThrottle(Vehicle v, in Burn e, double fnow, double tw)
+        => Const.Clamp(tw * v.Mass * e.G / fnow, Const.LAND_THR_MIN, 1);
     private static int ShipEngines(Vehicle v, in Burn e, double need, int nEng, double dt) {
         v.CutT += dt;
         double one = e.FOne / v.Mass;
@@ -288,31 +292,48 @@ public static class Guidance {
         if (want != v.NEng) v.CutT = 0;
         return want;
     }
+    private static double FinalBrake(Vehicle v, in Burn e)
+        => Math.Max(Const.SHIP_FINAL_A, 1.3 * (Const.LAND_THR_MIN * e.FOne / v.Mass - e.G) + 0.3);
     private static void ShipApproach(SimState sim, Vehicle v, in Burn e, int nEng, double dt) {
+        double aB = FinalBrake(v, e);
+        double vGate = Math.Sqrt(Const.SHIP_CATCH_V * Const.SHIP_CATCH_V + 2 * aB * Const.SHIP_GATE);
         double dz = e.HT + Const.SHIP_GATE - e.H, vx = v.NVh;
-        double tV = FallTime(Math.Max(-dz, 0), Math.Max(-e.Vv, 0), Const.SHIP_GATE_V, Const.SHIP_AD, Const.SHIP_AB);
-        double tL = 1;
-        for (int i = 0; i < 120 && Math.Max(Math.Abs(Zem0(-e.Dr, vx, 0, tL)), Math.Abs(ZemT(-e.Dr, vx, 0, tL))) > Const.SHIP_ALAT; i++)
+        double aDown = Math.Max(Math.Min(Const.SHIP_AD, e.G - Const.LAND_THR_MIN * e.FOne / v.Mass), 0.3);
+        double hG = Math.Max(-dz, 0), v0 = Math.Max(-e.Vv, 0);
+        double vG = Math.Min(vGate, Math.Sqrt(v0 * v0 + 2 * aDown * hG));
+        double tV = FallTime(hG, v0, vG, aDown, Const.SHIP_AB);
+        double tL = 1, dOut = Math.Sign(e.Dr) * Math.Max(Math.Abs(e.Dr) - Const.SHIP_HOLD_DR, 0);
+        for (int i = 0; i < 120 && Math.Max(Math.Abs(Zem0(-dOut, vx, 0, tL)), Math.Abs(ZemT(-dOut, vx, 0, tL))) > Const.SHIP_ALAT; i++)
             tL *= 1.04;
         double T = Math.Max(Math.Max(tV, tL), 1.5);
-        double aX = Zem0(-e.Dr, vx, 0, Math.Max(T, 6 / Const.SHIP_POLE));
+        double aX = !v.Catch && e.DhS < Const.LAND_DH_END ? -Const.SHIP_KV * vx : Zem0(-e.Dr, vx, 0, Math.Max(T, 6 / Const.SHIP_POLE));
         if (v.WindEst != 0 && e.H < Const.LAND_WIND_H) {
             double rho = Atmosphere.At(e.H, v.RhoEst).Rho;
             aX -= Const.LAND_WIND_K * 0.5 * rho * v.WindEst * Math.Abs(v.WindEst) * v.Dia * v.FullLen / v.Mass;
         }
-        double aZ = Math.Max(Zem0(dz, e.Vv, -Const.SHIP_GATE_V, T) + e.G - e.Drag / v.Mass, 0.5);
+        double aUp = T > tV + Const.SHIP_WAIT_T && dz < 0
+            ? Const.Clamp((dz / T - e.Vv) * Const.SHIP_KV, -Const.SHIP_AD, Const.SHIP_AB)
+            : Zem0(dz, e.Vv, -vG, T);
+        if (dz < 0 && e.Vv > -0.5) aUp = Math.Min(aUp, -Const.SHIP_KV * (e.Vv + 0.5));
+        double aZ = Math.Max(aUp + e.G - e.Drag / v.Mass, 0.5);
         if (v.Mode == "flipS") {
-            v.NEng = nEng;
-            double fl = nEng * e.FOne, pr = Math.Cos(v.Th);
-            v.Throttle = pr < Const.LAND_PROJ ? FlipThrottle(v, e, fl) : Const.Clamp(aZ * v.Mass / (fl * pr), Const.LAND_THR_MIN, 1);
+            v.NEng = Math.Clamp((int)Math.Floor(Const.SHIP_FLIP_TW * v.Mass * e.G / (Const.LAND_THR_MIN * e.FOne)), 1, nEng);
+            double fl = v.NEng * e.FOne, pr = Math.Cos(v.Th);
+            v.Throttle = pr < Const.LAND_PROJ ? FlipThrottle(v, e, fl, Const.SHIP_FLIP_TW) : Const.Clamp(aZ * v.Mass / (fl * pr), Const.LAND_THR_MIN, 1);
             return;
         }
         double want;
         if (v.ShipHold || e.DhS <= Const.SHIP_GATE || tV <= 2) {
             v.ShipHold = true;
-            v.NEng = EnginesFor(v, e, nEng, dt);
+            v.NEng = ShipEngines(v, e, e.G + aB, nEng, dt);
             double fn = v.NEng * e.FOne;
-            v.Throttle = ThrottleFor(v, e, DescentRate(v, e, dt, fn / v.Mass), fn);
+            double vT = -Math.Sqrt(Const.SHIP_CATCH_V * Const.SHIP_CATCH_V + 2 * aB * Math.Max(e.DhS, 0));
+            double ff = aB * Const.Clamp(e.DhS / 2, 0, 1);
+            bool canHover = Const.LAND_THR_MIN * fn / v.Mass < e.G - 0.3;
+            if (canHover && e.DhS > 3 && e.DhS < Const.SHIP_HOLD_H && (Math.Abs(e.Dr) > Const.SHIP_HOLD_DR || Math.Abs(vx) > Const.SHIP_HOLD_VH)
+                && vT < -Const.LAND_VTD) { vT = -Const.LAND_VTD; ff = 0; }
+            double aCmd = e.G - e.Drag / v.Mass + ff + Const.Clamp((vT - e.Vv) * Const.SHIP_KV, -20, 20);
+            v.Throttle = Const.Clamp(aCmd * v.Mass / (fn * Math.Max(Math.Cos(v.Th), 0.3)), Const.LAND_THR_MIN, 1);
             want = Math.Atan2(aX, e.G);
         }
         else {
@@ -320,7 +341,7 @@ public static class Guidance {
             v.Throttle = Const.Clamp(aZ * v.Mass / (v.NEng * e.FOne * Math.Max(Math.Cos(v.Th), 0.3)), Const.LAND_THR_MIN, 1);
             want = Math.Atan2(aX, aZ);
         }
-        double lim = (e.DhS < Const.LAND_DH_END ? Const.LAND_TILT_END : Const.SHIP_TILT) * Const.D2R;
+        double lim = (e.DhS < Const.LAND_DH_END ? EndTilt(v) : Const.SHIP_TILT) * Const.D2R;
         v.ThCmd = Const.Clamp(SteerP(v, Const.Clamp(want, -lim, lim), Const.SHIP_POLE), -2 * lim, 2 * lim);
     }
     private static int Avail(Vehicle v) {

@@ -220,7 +220,7 @@ internal static class Program {
         string anomKeys = null;
         uint seed = 12345u;
         int every = 2000;
-        string steerPath = null;
+        string steerPath = null, landPath = null;
         bool entDbg = false;
         bool ascDbg = false;
         bool lndDbg = false;
@@ -244,6 +244,8 @@ internal static class Program {
             if (args[k] == "--circone") Const.CIRC_ONE = double.Parse(args[k + 1], Inv);
             if (args[k] == "--secoperi") secoPeri = double.Parse(args[k + 1], Inv);
             if (args[k] == "--entprop") Const.ENTRY_PROP = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellyvf") Const.BELLY_VF = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bellytmin") Const.BELLY_TMIN = double.Parse(args[k + 1], Inv);
             if (args[k] == "--glka") Const.GLIDE_KA = double.Parse(args[k + 1], Inv);
             if (args[k] == "--flipbrake") Const.FLIP_BRAKE = double.Parse(args[k + 1], Inv);
             if (args[k] == "--flipkw") Const.FLIP_KW = double.Parse(args[k + 1], Inv);
@@ -251,7 +253,12 @@ internal static class Program {
             if (args[k] == "--salat") Const.SHIP_ALAT = double.Parse(args[k + 1], Inv);
             if (args[k] == "--stilt") Const.SHIP_TILT = double.Parse(args[k + 1], Inv);
             if (args[k] == "--sgate") Const.SHIP_GATE = double.Parse(args[k + 1], Inv);
-            if (args[k] == "--sgatev") Const.SHIP_GATE_V = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--scatchv") Const.SHIP_CATCH_V = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sfinala") Const.SHIP_FINAL_A = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--skv") Const.SHIP_KV = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sholddr") Const.SHIP_HOLD_DR = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sholdh") Const.SHIP_HOLD_H = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--swaitt") Const.SHIP_WAIT_T = double.Parse(args[k + 1], Inv);
             if (args[k] == "--sengk") Const.SHIP_ENG_K = double.Parse(args[k + 1], Inv);
             if (args[k] == "--sad") Const.SHIP_AD = double.Parse(args[k + 1], Inv);
             if (args[k] == "--sab") Const.SHIP_AB = double.Parse(args[k + 1], Inv);
@@ -259,6 +266,8 @@ internal static class Program {
             if (args[k] == "--spole") Const.SHIP_POLE = double.Parse(args[k + 1], Inv);
             if (args[k] == "--flipd") Const.FLIP_D = double.Parse(args[k + 1], Inv);
             if (args[k] == "--fliptw") Const.FLIP_TW = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sfliptw") Const.SHIP_FLIP_TW = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--fliphsea") Const.FLIP_H_SEA = double.Parse(args[k + 1], Inv);
             if (args[k] == "--alat") Const.LAND_ALAT = double.Parse(args[k + 1], Inv);
             if (args[k] == "--windk") Const.LAND_WIND_K = double.Parse(args[k + 1], Inv);
             if (args[k] == "--kdamp") Const.LAND_KDAMP = double.Parse(args[k + 1], Inv);
@@ -281,6 +290,7 @@ internal static class Program {
             if (args[k] == "--disp") disp = true;
             if (args[k] == "--nonav") { Const.NAV_POS_SIG = 0; Const.NAV_VEL_SIG = 0; Const.NAV_LAG = 0; }
             if (args[k] == "--steer") steerPath = args[k + 1];
+            if (args[k] == "--ltrace") landPath = args[k + 1];
             if (args[k] == "--navk") { double nk = double.Parse(args[k + 1], Inv); Const.NAV_POS_SIG *= nk; Const.NAV_VEL_SIG *= nk; }
             if (k + 1 >= args.Length) continue;
             if (args[k] == "--pay") pay = double.Parse(args[k + 1], Inv);
@@ -329,11 +339,12 @@ internal static class Program {
         double bIgnH = double.NaN, bIgnV = double.NaN, b13T = 0, bBurnG = 0;
         double finMax = 0, flapMax = 0;
         double sTouch = double.NaN, bTouch = double.NaN, sVvPrev = 0, bVvPrev = 0;
-        double sVhFlip = 0, sHoverT = 0, sTiltMax = 0;
+        double sVhFlip = 0, sHoverT = 0, sTiltMax = 0, sDrFlip = double.NaN, sVhFlip0 = double.NaN;
         var wEst = new double[2]; var wFc = new double[2]; var wN = new double[2]; var wMax = new double[2];
         var stT = new double[2]; var stSq = new double[2]; var stVar = new double[2]; var stRev = new int[2];
         var stTh = new double[2]; var stSign = new int[2];
         var steerCsv = steerPath != null ? new StringBuilder("t,veh,alt,dr,tilt,wind,west\n") : null;
+        var landCsv = landPath != null ? new StringBuilder("t,mode,dh,vv,vh,dr,th,thcmd,om,neng,thr,prop,mass,hold,wind,west,navdr\n") : null;
         int sCut = 0;
         var cuts = new List<string>();
         double errMax = 0, errSum = 0, errT = 0; int omSign = 0, flips = 0;
@@ -368,6 +379,7 @@ internal static class Program {
             }
             if (b.Mode == "landB" && b.Alt - Const.CATCH_H < 40 && !b.Landed) holdT += dt;
             if (s.Mode == "landS" && s.Ign) sBurnT += dt;
+            if (s.Mode == "flipS" && double.IsNaN(sDrFlip)) { sDrFlip = sim.Downrange(s) + Const.FLIP_D - s.AimDr; sVhFlip0 = s.VHor; }
             if (s.Mode == "flipS" || s.Mode == "landS") {
                 double vh = Math.Abs(s.VHor);
                 if (vh > sVhFlip) sVhFlip = vh;
@@ -375,6 +387,8 @@ internal static class Program {
                 if (s.Alt < 400 && tl > sTiltMax) sTiltMax = tl;
             }
             if (s.Mode == "landS" && s.Alt - Const.CATCH_H < 60 && !s.Landed) sHoverT += dt;
+            if (landCsv != null && i % 10 == 0 && !s.Landed && (s.Mode == "flipS" || s.Mode == "landS" || s.Mode == "entryS" && s.Alt < 26000))
+                landCsv.Append(FormattableString.Invariant($"{sim.T:F2},{s.Mode},{s.Alt - Const.CATCH_H:F2},{s.VVert:F2},{s.VHor:F2},{sim.Downrange(s):F2},{Vehicle.AngDiff(s.Th, 0) * Const.R2D:F2},{Vehicle.AngDiff(s.ThCmd, 0) * Const.R2D:F2},{s.Om * Const.R2D:F2},{s.NRun},{s.Throttle:F3},{s.Prop / 1000:F2},{s.Mass / 1000:F2},{(s.ShipHold ? 1 : 0)},{s.WindE:F2},{s.WindEst:F2},{sim.NavDr(s):F2}\n"));
             for (int k = 0; k < 2; k++) {
                 Vehicle w = sim.Veh[k];
                 bool fin = !w.Landed && !w.Attached && w.Alt < 1500 && (w.Mode == "landB" && w.IgnBurn || w.Mode == "landS");
@@ -475,8 +489,9 @@ internal static class Program {
         Console.Error.WriteLine($"BURN bBurn={burnT:F1}s bHold={holdT:F1}s sBurn={sBurnT:F1}s " +
                                 $"bTouch={Math.Abs(bTouch):F2}m/s sTouch={Math.Abs(sTouch):F2}m/s " +
                                 $"bIgnH={bIgnH:F0}m bIgnV={bIgnV:F0}kmh b13={b13T:F1}s bBurnG={bBurnG:F1}");
-        Console.Error.WriteLine($"FLIP sVhMax={sVhFlip:F1}m/s sHover={sHoverT:F1}s sTiltMax={sTiltMax:F1}deg");
+        Console.Error.WriteLine($"FLIP sVhMax={sVhFlip:F1}m/s sHover={sHoverT:F1}s sTiltMax={sTiltMax:F1}deg sFlipMiss={sDrFlip:F0}m sFlipVh={sVhFlip0:F1}m/s");
         if (steerCsv != null) System.IO.File.WriteAllText(steerPath, steerCsv.ToString());
+        if (landCsv != null) System.IO.File.WriteAllText(landPath, landCsv.ToString());
         Console.Error.WriteLine($"STEER bTiltRms={Math.Sqrt(stSq[0] / Math.Max(stT[0], 1e-9)):F2} bRate={stVar[0] / Math.Max(stT[0], 1e-9):F2} bRev={stRev[0]} bT={stT[0]:F1} " +
                                 $"sTiltRms={Math.Sqrt(stSq[1] / Math.Max(stT[1], 1e-9)):F2} sRate={stVar[1] / Math.Max(stT[1], 1e-9):F2} sRev={stRev[1]} sT={stT[1]:F1}");
         Console.Error.WriteLine($"NAV bWindErr={wEst[0] / Math.Max(wN[0], 1e-9):F2} bFcErr={wFc[0] / Math.Max(wN[0], 1e-9):F2} bWindMax={wMax[0]:F1} " +
