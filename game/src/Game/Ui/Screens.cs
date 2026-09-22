@@ -102,12 +102,12 @@ public sealed class Screens {
     public void NextScreen() => Show(Tabs.Next(Cur));
     public void ToggleKeys() => _keys.Visible = !_keys.Visible;
     public PanelContainer AddOverlay() {
+        var mid = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _over.AddChild(mid);
+        mid.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var p = new PanelContainer { Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
         Look.Bind(p, x => x.AddThemeStyleboxOverride("panel", Look.Box(new Color(Look.Panel, 0.97f), 16, 30, 26)));
-        _over.AddChild(p);
-        p.SetAnchorsPreset(Control.LayoutPreset.Center);
-        p.GrowHorizontal = Control.GrowDirection.Both;
-        p.GrowVertical = Control.GrowDirection.Both;
+        mid.AddChild(p);
         return p;
     }
     public void AddBottomStrip(Control c, float h) {

@@ -5,16 +5,15 @@ public sealed class Sat {
     public double X, Y, Vx, Vy, T, Rot, Spin;
 }
 public sealed class Bay {
-    public double Open, Want;
+    public double Open, Want, SatM = Sim.SAT_MASS;
     public int Sats;
     public List<Sat> Out = new();
 }
 public static class Sim {
-    public const double SAT_MASS = 1.5e3;
+    public const double SAT_MASS = 1.5e3, SAT_EVERY = 15;
     public static void BayInit(Vehicle v, double payload) {
-        v.BayS = new Bay {
-            Sats = v.Kind == Kind.Ship ? (int)Math.Round(payload / SAT_MASS) : 0,
-        };
+        int n = v.Kind == Kind.Ship ? (int)Math.Round(payload / SAT_MASS) : 0;
+        v.BayS = new Bay { Sats = n, SatM = n > 0 ? payload / n : SAT_MASS };
     }
     public static void BayStep(Vehicle v, double dt) {
         Bay b = v.BayS;
@@ -40,7 +39,27 @@ public static class Sim {
         sim.LogMsg("К: " + (want ? "открытие" : "закрытие") + " створки грузового отсека", 1);
         return true;
     }
-    public static int DeploySat(SimState sim, Vehicle v, int n) {
+    public static bool DeployStep(SimState sim, Vehicle v, double dt) {
+        Bay b = v.BayS;
+        if (b == null) return false;
+        if (b.Sats > 0) {
+            if (b.Want < 0.5) {
+                sim.LogMsg($"К: выпуск полезной нагрузки — {b.Sats} Starlink V3 перед сходом с орбиты", 1);
+                BaySet(sim, v, true);
+            }
+            if (b.Open < 0.75) return true;
+            v.SatAcc += dt;
+            if (v.SatAcc >= SAT_EVERY) {
+                v.SatAcc = 0;
+                DeploySat(sim, v, 1, true);
+                if (b.Sats == 0) sim.LogMsg($"К: выпуск завершён — отделено {b.Out.Count} Starlink V3", 1);
+            }
+            return true;
+        }
+        if (b.Want > 0.5) BaySet(sim, v, false);
+        return b.Open > 0;
+    }
+    public static int DeploySat(SimState sim, Vehicle v, int n, bool quiet = false) {
         Bay b = v.BayS;
         if (b == null) return 0;
         if (b.Open < 0.75) { sim.LogMsg("К: сначала откройте створку отсека", 2); return 0; }
@@ -57,10 +76,10 @@ public static class Sim {
                 Rot = (b.Out.Count * 0.7) % 6.28, Spin = 0.05 + 0.02 * (i % 3),
             });
             b.Sats--;
-            v.Dry = Math.Max(v.Dry - SAT_MASS, Spec.Of(Kind.Ship).Dry);
+            v.Dry = Math.Max(v.Dry - b.SatM, Spec.Of(Kind.Ship).Dry);
             k++;
         }
-        if (k > 0) sim.LogMsg("К: отделено " + k + " Starlink V3, в отсеке осталось " + b.Sats, 1);
+        if (k > 0 && !quiet) sim.LogMsg("К: отделено " + k + " Starlink V3, в отсеке осталось " + b.Sats, 1);
         return k;
     }
     public static void SetThrottle(SimState sim, double x) {

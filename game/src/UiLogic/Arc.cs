@@ -21,6 +21,13 @@ public sealed class Arc {
     public int First { get; private set; }
     public int Shown => Math.Min(Window, Names.Length);
     public static string[] NamesOf(string mission) => mission == "trans" ? Trans : Orbital;
+    public static string[] NamesOf(string mission, SimState sim) {
+        string[] names = (string[])NamesOf(mission).Clone();
+        if (sim == null || sim.Veh.Count < 2) return names;
+        names[5] = MissionRules.Mark(sim.Veh[0], "ускорителя");
+        if (mission != "trans") names[^1] = MissionRules.Mark(sim.Veh[1], "корабля");
+        return names;
+    }
     public Arc(string mission) {
         Names = NamesOf(mission);
         _nom = mission switch { "trans" => NomTrans, "high" => NomHigh, _ => NomOrbital };
@@ -41,6 +48,8 @@ public sealed class Arc {
         };
     }
     public void Track(SimState sim) {
+        string[] fresh = NamesOf(sim.Mission, sim);
+        for (int i = 0; i < Names.Length; i++) Names[i] = fresh[i];
         bool[] now = Now(sim);
         for (int i = 0; i < Passed.Length; i++)
             if (now[i] && !Passed[i]) {

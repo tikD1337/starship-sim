@@ -164,8 +164,9 @@ public sealed class MissionView {
             Goal g = m.Goals[i];
             (GoalDot dot, Label name, Label pts) = _goal[i];
             dot.Set(g.State);
-            Look.Tint(name, g.State == Aim.Done ? Look.Ink : g.State == Aim.Fail ? Look.Crit : Look.Ink2);
-            Look.Set(pts, g.State == Aim.Done ? $"+{g.Score}" : "");
+            Look.Tint(name, g.State == Aim.Done ? Look.Ink : g.State == Aim.Part ? Look.Warn
+                             : g.State == Aim.Fail ? Look.Crit : Look.Ink2);
+            Look.Set(pts, g.Score > 0 ? $"+{g.Score}" : "");
             Look.Set(_note[i], g.Note);
             _note[i].Visible = g.Note.Length > 0 && g.State != Aim.Done;
         }
@@ -184,9 +185,10 @@ public sealed class MissionView {
         _finalBody.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6), MouseFilter = Control.MouseFilterEnum.Ignore });
         foreach (Goal g in m.Goals) {
             Aim st = g.State;
-            Label l = Look.Caption(_finalBody, g.Name + (st == Aim.Done ? $"   +{g.Score}" : "   0")
+            Label l = Look.Caption(_finalBody, g.Name + (g.Score > 0 ? $"   +{g.Score}" : "   0")
                                                + (g.Note.Length > 0 ? "   " + g.Note : ""), 14, 400,
-                                   () => st == Aim.Done ? Look.Ink : st == Aim.Fail ? Look.Crit : Look.Lab);
+                                   () => st == Aim.Done ? Look.Ink : st == Aim.Part ? Look.Warn
+                                         : st == Aim.Fail ? Look.Crit : Look.Lab);
             l.AutowrapMode = TextServer.AutowrapMode.WordSmart;
             l.CustomMinimumSize = new Vector2(560, 0);
         }

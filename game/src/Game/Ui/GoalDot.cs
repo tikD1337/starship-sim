@@ -10,6 +10,7 @@ public partial class GoalDot : Control {
     public override void _Draw() {
         Vector2 c = Size * 0.5f;
         if (_state == Aim.Done) DrawCircle(c, 6f, Look.Accent, true, -1, true);
+        else if (_state == Aim.Part) DrawCircle(c, 6f, Look.Warn, true, -1, true);
         else if (_state == Aim.Fail) DrawCircle(c, 6f, Look.Crit, true, -1, true);
         else DrawCircle(c, 5.25f, Look.Lab, false, 1.5f, true);
     }
