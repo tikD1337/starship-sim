@@ -59,7 +59,7 @@ internal static partial class Program {
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
         Run gust = Add(Windy(10, true, -20), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
-        Carts(gust, checks);
+        Arms(gust, checks);
         checks.Add(() => Head("Высокая орбита и трансатмосферное"));
         ShipDescent(high, "высокая орбита", checks);
         ShipDescent(trans, "трансатмосферное", checks);
@@ -204,16 +204,17 @@ internal static partial class Program {
                 if (done) return;
                 if (!was && v.Caught) {
                     tCatch = sim.T;
-                    gapCatch = sim.ArmGap;
+                    gapCatch = Math.Max(sim.ArmGapL + sim.Downrange(v), sim.ArmGapR - sim.Downrange(v));
                     double px = x0 + vx0 * Const.DT, py = y0 + vy0 * Const.DT;
                     jump = Math.Sqrt((v.X - px) * (v.X - px) + (v.Y - py) * (v.Y - py));
                     turn = Math.Abs(Vehicle.AngDiff(v.Th, th0)) * Const.R2D;
                 }
                 if (v.Launched && !v.Attached && !v.Caught && v.VVert < 0 && v.Alt < 8000) {
                     double rel = v.Alt - Const.CATCH_H;
-                    if (double.IsNaN(tReady) && sim.ArmGap <= Const.ARM_GAP_READY + 0.05) tReady = sim.T;
-                    if (rel > v.CatchPinY + 5) early = Math.Min(early, sim.ArmGap);
-                    if (double.IsNaN(gapEnter) && rel < v.CatchPinY) gapEnter = sim.ArmGap;
+                    double gap = Math.Max(sim.ArmGapL, sim.ArmGapR);
+                    if (double.IsNaN(tReady) && gap <= Const.ARM_GAP_READY + 0.05) tReady = sim.T;
+                    if (rel > v.CatchPinY + 5) early = Math.Min(early, Math.Min(sim.ArmGapL, sim.ArmGapR));
+                    if (double.IsNaN(gapEnter) && rel < v.CatchPinY) gapEnter = gap;
                 }
                 if (!double.IsNaN(tCatch)) {
                     double dt = sim.T - tCatch;
@@ -253,7 +254,7 @@ internal static partial class Program {
         v.X = r * Math.Sin(a); v.Y = r * Math.Cos(a);
         v.Vx = -Const.W * v.Y - vd * Math.Sin(a); v.Vy = Const.W * v.X - vd * Math.Cos(a);
     }
-    private static SimState CartSim(double dr, double alt, double vd, out Vehicle s) {
+    private static SimState ArmSim(double dr, double alt, double vd, out Vehicle s) {
         var sim = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(sim, 5);
         sim.T = 1000;
@@ -262,53 +263,58 @@ internal static partial class Program {
         Put(sim, s, dr, alt, vd);
         return sim;
     }
-    private static (double Cart, double VMax, double AMax) Track(double dr, double alt0, double from = 0) {
-        SimState sim = CartSim(dr, alt0, 2, out Vehicle s);
-        sim.ArmCart = from;
-        double vPrev = 0, vMax = 0, aMax = 0;
-        for (int i = 0; i < 1500; i++) {
-            Put(sim, s, dr, alt0 - 2 * 0.02 * i, 2);
+    private static (double L, double R, double TravL, double TravR, double Touch, double Rate) Close(double dr, double vd = 2) {
+        double top = Const.CATCH_H + 80;
+        SimState sim = ArmSim(dr, top, vd, out Vehicle s);
+        sim.ArmGapL = sim.ArmGapR = Const.ARM_GAP_READY;
+        double l0 = sim.ArmGapL, r0 = sim.ArmGapR, touch = double.PositiveInfinity, rate = 0;
+        for (int i = 0; i * 0.02 * vd <= top - Const.CATCH_H; i++) {
+            Put(sim, s, dr, top - vd * 0.02 * i, vd);
+            double l = sim.ArmGapL, r = sim.ArmGapR;
             sim.T += 0.02;
             Physics.Sim.ArmsTick(sim, 0.02);
-            vMax = Math.Max(vMax, Math.Abs(sim.ArmCartV));
-            aMax = Math.Max(aMax, Math.Abs(sim.ArmCartV - vPrev) / 0.02);
-            vPrev = sim.ArmCartV;
+            rate = Math.Max(rate, Math.Max(Math.Abs(sim.ArmGapL - l), Math.Abs(sim.ArmGapR - r)) / 0.02);
+            touch = Math.Min(touch, Math.Min(sim.ArmGapL + dr, sim.ArmGapR - dr));
         }
-        return (sim.ArmCart, vMax, aMax);
+        return (sim.ArmGapL, sim.ArmGapR, Math.Abs(sim.ArmGapL - l0), Math.Abs(sim.ArmGapR - r0), touch, rate);
     }
-    private static bool CaughtAt(double dr, double cart, double omDeg) {
-        SimState sim = CartSim(dr, Const.CATCH_H - 0.5, 1, out Vehicle s);
-        sim.ArmCart = cart; s.Om = omDeg * Const.D2R;
+    private static bool CaughtAt(double dr, bool closed, double omDeg) {
+        SimState sim = ArmSim(dr, Const.CATCH_H - 0.5, 1, out Vehicle s);
+        sim.ArmGapL = closed ? -dr : Const.ARM_GAP_READY;
+        sim.ArmGapR = closed ? dr : Const.ARM_GAP_READY;
+        s.Om = omDeg * Const.D2R;
         sim.T += 0.02;
         Flight.StepVehicle(sim, s, 0.02);
         return s.Caught;
     }
-    private static void Carts(Run g, List<Action> checks) {
+    private static void Arms(Run g, List<Action> checks) {
         SimState sim = g.Sim;
         Vehicle s = g.S;
         bool was = false;
-        double miss = double.NaN, cart = double.NaN;
+        double miss = double.NaN;
         g.Each(() => {
-            if (!was && s.Caught) { miss = sim.Downrange(s); cart = sim.ArmCart; }
+            if (!was && s.Caught) miss = sim.Downrange(s);
             was = s.Caught;
         });
         checks.Add(() => {
-            Head("Каретки рук Mechazilla");
-            var t4 = Track(4, Const.CATCH_H + 100);
-            var t9 = Track(9, Const.CATCH_H + 100, -5);
-            var hi = Track(4, Const.CATCH_H + 500);
-            Group("едут вдоль рук к точке прохода ступени", $"промах 4 м → {N(t4.Cart)} м; 9 м → {N(t9.Cart)} м, до {N(t9.VMax)} м/с и {N(t9.AMax)} м/с²; выше 300 м → {N(hi.Cart)} м",
-                  ("к промаху 4 м", Math.Abs(t4.Cart - 4) < 0.1),
-                  ("ход не больше 5 м — с одного края до другого", Math.Abs(t9.Cart - 5) < 0.01),
-                  ("не быстрее 2 м/с и 1 м/с²", t9.VMax <= 2.001 && t9.AMax <= 1.001),
-                  ("выше 300 м над руками стоят", Math.Abs(hi.Cart) < 1e-9));
-            Group("захват считается от кареток и требует спокойного корпуса", "",
-                  ("промах 10 м, каретки на 5 — пойман", CaughtAt(10, 5, 0)),
-                  ("промах 10 м, каретки у оси — нет", !CaughtAt(10, 0, 0)),
-                  ("вращение 5°/с — нет, 1°/с — да", !CaughtAt(0, 0, 5) && CaughtAt(0, 0, 1)));
-            Group("ветер с моря 20 м/с: каретки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м, каретки {N(cart)} м",
+            Head("Руки Mechazilla ходят по отдельности");
+            var left = Close(-4);
+            var mid = Close(0);
+            var fast = Close(-4, 8);
+            Group("ступень на 4 м левее: правая рука проходит больше левой",
+                  $"левее: левая {N(left.TravL)} м, правая {N(left.TravR)} м, зазоры {N(left.L)} и {N(left.R)}; по центру {N(mid.TravL)} и {N(mid.TravR)} м; не ближе {N(left.Touch)} м к корпусу; на спуске 8 м/с до {N(fast.Rate)} м/с",
+                  ("правая на 8 м больше левой", Math.Abs(left.TravR - left.TravL - 8) < 0.2),
+                  ("обе сошлись на корпусе там, где он есть", Math.Abs(left.L - 4) < 0.1 && Math.Abs(left.R + 4) < 0.1),
+                  ("по центру — поровну", Math.Abs(mid.TravL - mid.TravR) < 1e-6 && mid.TravL > 1),
+                  ("по дороге корпус не задевают, даже на быстром спуске", left.Touch > -0.01 && fast.Touch > -0.01),
+                  ("не быстрее 3 м/с: на спуске 8 м/с упираются в предел", fast.Rate <= 3 + 1e-9 && fast.Rate > 2.9));
+            Group("захват — когда обе руки сошлись на корпусе", "",
+                  ("промах 9 м, руки сошлись — пойман", CaughtAt(9, true, 0)),
+                  ("руки ещё раскрыты — нет", !CaughtAt(0, false, 0)),
+                  ("вращение 5°/с — нет, 1°/с — да", !CaughtAt(0, true, 5) && CaughtAt(0, true, 1)));
+            Group("ветер с моря 20 м/с: руки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м",
                   ("пойман", s.Caught),
-                  ("каретки вышли навстречу", Math.Abs(cart) > 0.5 && Math.Abs(miss - cart) < Const.CATCH_DR));
+                  ("промах больше прежнего допуска 8 м", Math.Abs(miss) > 8));
         });
     }
     private static void Rails(Run n, List<Action> checks) {
@@ -328,7 +334,8 @@ internal static partial class Program {
             if (first470 < 0 && sim.T >= 470) {
                 f470 = arc.Frac(sim.T);
                 first470 = arc.First;
-                caught470 = arc.Passed[Array.IndexOf(arc.Names, "захват ускорителя")];
+                int ci = Array.IndexOf(arc.Names, "захват ускорителя");
+                caught470 = ci >= 0 && arc.Passed[ci];
             }
         });
         checks.Add(() => {

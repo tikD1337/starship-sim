@@ -116,17 +116,19 @@ public static class Flight {
         if (v.Catch && !v.Caught && !v.Crashed && v.Launched &&
             v.Alt <= Const.CATCH_H && v.Alt > Const.CATCH_H - Const.CATCH_WIN &&
             (v.Mode == "landB" || v.Mode == "landS")) {
-            double miss = sim.Downrange(v), dr = Math.Abs(miss - sim.ArmCart), vd = -v.VVert, vh = Math.Abs(v.VHor);
+            double miss = sim.Downrange(v), vd = -v.VVert, vh = Math.Abs(v.VHor);
+            bool closed = sim.ArmGapL + miss < Const.CATCH_RAIL && sim.ArmGapR - miss < Const.CATCH_RAIL;
             double tilt = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
-            if (dr < Const.CATCH_DR && vd < Const.CATCH_VV && vd > -2.5 &&
+            if (Math.Abs(miss) < Const.ARM_GAP_READY && closed && vd < Const.CATCH_VV && vd > -2.5 &&
                 vh < Const.CATCH_VH && tilt < Const.CATCH_TILT && Math.Abs(v.Om) * Const.R2D < Const.CATCH_OM) {
                 v.HeldVh = v.VHor; v.HeldOm = v.Om; v.CatchH = v.Alt;
                 v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X; v.Om = 0;
                 v.Caught = true; v.Landed = true; v.Mode = "caught"; v.CatchVd = vd;
                 v.Ign = false; v.NEng = 0; v.F = 0;
                 Quench(v);
-                string cart = Math.Abs(sim.ArmCart) > 0.05 ? $", каретки {sim.ArmCart:F1} м" : "";
-                sim.LogMsg($"{v.Tag}: ЗАХВАТ БАШНЕЙ — руки сомкнулись ({vd:F1} м/с, промах {Math.Abs(miss):F1} м{cart})", 1);
+                string side = Math.Abs(miss) < 0.5 ? "по центру"
+                    : $"промах {Math.Abs(miss):F1} м к {(miss > 0 ? "морю" : "суше")}: дальняя рука прошла на {2 * Math.Abs(miss):F0} м больше";
+                sim.LogMsg($"{v.Tag}: ЗАХВАТ БАШНЕЙ — руки сомкнулись ({vd:F1} м/с, {side})", 1);
             }
         }
         if (v.Alt > 3) v.Launched = true;

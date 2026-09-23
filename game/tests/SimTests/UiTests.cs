@@ -238,11 +238,12 @@ internal static partial class Program {
     private static void UiArmGeom() {
         Head("Руки башни: угол от зазора до обшивки");
         Table("рельс стоит ровно на заданном зазоре от обшивки",
-              (from g in new[] { 0.0, 0.7, ArmGeom.Ready, 5, ArmGeom.Park }
+              (from g in new[] { -4, -1.5, 0.0, 0.7, 5, ArmGeom.Ready, ArmGeom.Park }
                select ($"зазор {N(g)} м", ArmGeom.RailDist(ArmGeom.Angle(g)) - ArmGeom.VehR - ArmGeom.RailR + 1, g + 1, 1e-9)).ToArray());
         double ready = ArmGeom.Angle(ArmGeom.Ready) * 180 / Math.PI, park = ArmGeom.Angle(ArmGeom.Park) * 180 / Math.PI;
         Group("углы", $"касание {N(ArmGeom.Angle(0) * 180 / Math.PI)}°, рабочий {N(ready)}°, стоянка {N(park)}°",
-              ("при касании руки параллельны", Math.Abs(ArmGeom.Angle(0)) < 1e-9), ("рабочий зазор — пара градусов", ready > 1 && ready < 4),
+              ("при касании руки параллельны", Math.Abs(ArmGeom.Angle(0)) < 1e-9), ("к ступени левее или правее рука заходит за параллель", ArmGeom.Angle(-4) < 0),
+              ("на подходе раскрыты, но уже, чем на стоянке", ready > 10 && ready < park),
               ("на стоянке раскрыты широко", park > 35 && park < 65));
     }
     private static void UiReplay() {

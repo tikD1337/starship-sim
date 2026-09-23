@@ -7,7 +7,6 @@ public sealed class PadView {
         var p = new PadView();
         p._root = new Node3D { Name = "Pad" };
         parent.AddChild(p._root);
-        p._root.RotateY(Mathf.Pi / 2f);
         lib.Make("pad_apron", p._root);
         lib.Make("pad_berm", p._root);
         lib.Make("pad_deck", p._root);

@@ -67,7 +67,7 @@ public sealed class LaunchSmoke {
         Wall(s._root, new Vector3(0, -PadView.DeckH - 30f, 0), new Vector3(1800, 60, 1800), "Ground");
         Wall(s._root, new Vector3(0, -PadView.DeckH * 0.5f, 0),
              new Vector3(46, PadView.DeckH, 46), "Deck");
-        Wall(s._root, new Vector3(-TowerView.TowerX, 62f, 0), new Vector3(13, 148, 13), "Tower");
+        Wall(s._root, new Vector3(0, 54f, TowerView.TowerZ), new Vector3(13, 140, 13), "Tower");
         var dustMat = new ParticleProcessMaterial {
             EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Ring, EmissionRingRadius = 58f,
             EmissionRingInnerRadius = 34f, EmissionRingHeight = 4f, EmissionRingAxis = Vector3.Up,
@@ -92,7 +92,7 @@ public sealed class LaunchSmoke {
             float sx = k == 0 ? 1f : -1f;
             var vm = new ParticleProcessMaterial {
                 EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.Box,
-                EmissionBoxExtents = new Vector3(9f, 4.5f, 7f), Direction = new Vector3(0f, 0.18f, sx),
+                EmissionBoxExtents = new Vector3(7f, 4.5f, 9f), Direction = new Vector3(sx, 0.18f, 0f),
                 Spread = 21f, Gravity = new Vector3(0, 3.6f, 0), InitialVelocityMin = 58f,
                 InitialVelocityMax = 124f, Damping = new Vector2(7f, 15f), ScaleMin = 7f, ScaleMax = 19f,
                 LifetimeRandomness = 0.5f, AngleMin = -180f, AngleMax = 180f, ColorRamp = Fade(),
@@ -111,7 +111,7 @@ public sealed class LaunchSmoke {
                 ? s._ventMat = Smoke(new Color(0.97f, 0.95f, 0.92f, 0.58f), tex)
                 : s._ventMat;
             s._root.AddChild(v);
-            v.Position = new Vector3(0, -PadView.DeckH + 5.5f, sx * (PadView.MouthZ + 7f));
+            v.Position = new Vector3(sx * (PadView.MouthZ + 7f), -PadView.DeckH + 5.5f, 0);
             s._vent[k] = v;
         }
         var colMat = new ParticleProcessMaterial {
