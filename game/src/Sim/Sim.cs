@@ -219,6 +219,20 @@ public static class Sim {
             gapWant = Const.ARM_GAP_READY * s * s * (3 - 2 * s);
         }
         sim.ArmGap += Const.Clamp(gapWant - sim.ArmGap, -Const.ARM_GAP_RATE * dt, Const.ARM_GAP_RATE * dt);
+        double t0 = sim.T - dt;
+        if (held != null) {
+            sim.ArmCart = SimState.DownrangeAt(held, t0);
+            CartStep(sim, 0, dt);
+            Shift(held, sim.ArmCart - SimState.DownrangeAt(held, t0));
+        }
+        else {
+            double cartWant = 0;
+            if (serve != null && serve.Alt - Const.CATCH_H <= Const.CART_TRACK_H) {
+                double tp = Const.Clamp((serve.Alt - Const.CATCH_H) / Math.Max(-serve.VVert, 1), 0, 20);
+                cartWant = SimState.DownrangeAt(serve, t0) + serve.VHor * tp;
+            }
+            CartStep(sim, cartWant, dt);
+        }
         if (held != null) {
             if (double.IsNaN(sim.ArmHeldT)) { sim.ArmHeldT = sim.T; sim.ArmSagV = held.CatchVd; }
             double w = 2 * Math.PI / Const.ARM_SAG_PERIOD;
@@ -227,7 +241,7 @@ public static class Sim {
             double ds = sim.ArmSagV * dt;
             sim.ArmSag += ds;
             Lower(held, ds);
-            if (sim.T - sim.ArmHeldT > Const.ARM_HOLD_T && Math.Abs(sim.ArmSagV) < 0.05) {
+            if (sim.T - sim.ArmHeldT > Const.ARM_HOLD_T && Math.Abs(sim.ArmSagV) < 0.05 && Math.Abs(sim.ArmCart) < 0.02) {
                 double d = Math.Min(Const.ARM_LOWER * dt, Math.Max(held.Alt, 0));
                 if (d > 0) {
                     sim.ArmDrop += d;
@@ -260,6 +274,17 @@ public static class Sim {
         v.HeldOm += (Const.TIP_K * Math.Sin(Math.Abs(th) + 0.03) * side - 0.4 * v.HeldOm) * dt;
         v.Th = Const.Clamp(v.Th + v.HeldOm * dt, -Math.PI / 2, Math.PI / 2);
     }
+    private static void CartStep(SimState sim, double want, double dt) {
+        want = Const.Clamp(want, -Const.CART_RANGE, Const.CART_RANGE);
+        double w = Const.CART_W;
+        double a = Const.Clamp(w * w * (want - sim.ArmCart) - 2 * w * sim.ArmCartV, -Const.CART_A, Const.CART_A);
+        sim.ArmCartV = Const.Clamp(sim.ArmCartV + a * dt, -Const.CART_V, Const.CART_V);
+        sim.ArmCart = Const.Clamp(sim.ArmCart + sim.ArmCartV * dt, -Const.CART_RANGE, Const.CART_RANGE);
+    }
+    private static void Shift(Vehicle v, double d) {
+        double r = Math.Sqrt(v.X * v.X + v.Y * v.Y), a = Math.Atan2(v.X, v.Y) - d / Const.RE;
+        v.X = r * Math.Sin(a); v.Y = r * Math.Cos(a);
+    }
     private static void Lower(Vehicle v, double d) {
         double k = (v.R - d) / v.R;
         v.X *= k; v.Y *= k;
@@ -289,7 +314,7 @@ public static class Sim {
                 double a = Math.Atan2(v.X, v.Y) - Const.W * dt;
                 double rr = Math.Sqrt(v.X * v.X + v.Y * v.Y);
                 if (v.Caught && !v.Stowed) Settle(v, dt, ref a, rr);
-                if (v.Splash && !v.Crashed) TipOver(v, dt);
+                if (!v.Caught && !(v.Splash && v.Crashed)) TipOver(v, dt);
                 v.X = rr * Math.Sin(a); v.Y = rr * Math.Cos(a);
                 v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X;
                 v.Heat = 0; v.Q = 0; v.Acc = 0;

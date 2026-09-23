@@ -344,7 +344,7 @@ internal static class Program {
         var stT = new double[2]; var stSq = new double[2]; var stVar = new double[2]; var stRev = new int[2];
         var stTh = new double[2]; var stSign = new int[2];
         var steerCsv = steerPath != null ? new StringBuilder("t,veh,alt,dr,tilt,wind,west\n") : null;
-        var landCsv = landPath != null ? new StringBuilder("t,mode,dh,vv,vh,dr,th,thcmd,om,neng,thr,prop,mass,hold,wind,west,navdr\n") : null;
+        var landCsv = landPath != null ? new StringBuilder("t,mode,dh,vv,vh,dr,th,thcmd,om,neng,thr,prop,mass,hold,wind,west,navdr,f\n") : null;
         int sCut = 0;
         var cuts = new List<string>();
         double errMax = 0, errSum = 0, errT = 0; int omSign = 0, flips = 0;
@@ -388,7 +388,7 @@ internal static class Program {
             }
             if (s.Mode == "landS" && s.Alt - Const.CATCH_H < 60 && !s.Landed) sHoverT += dt;
             if (landCsv != null && i % 10 == 0 && !s.Landed && (s.Mode == "flipS" || s.Mode == "landS" || s.Mode == "entryS" && s.Alt < 26000))
-                landCsv.Append(FormattableString.Invariant($"{sim.T:F2},{s.Mode},{s.Alt - Const.CATCH_H:F2},{s.VVert:F2},{s.VHor:F2},{sim.Downrange(s):F2},{Vehicle.AngDiff(s.Th, 0) * Const.R2D:F2},{Vehicle.AngDiff(s.ThCmd, 0) * Const.R2D:F2},{s.Om * Const.R2D:F2},{s.NRun},{s.Throttle:F3},{s.Prop / 1000:F2},{s.Mass / 1000:F2},{(s.ShipHold ? 1 : 0)},{s.WindE:F2},{s.WindEst:F2},{sim.NavDr(s):F2}\n"));
+                landCsv.Append(FormattableString.Invariant($"{sim.T:F2},{s.Mode},{s.Alt - Const.CATCH_H:F2},{s.VVert:F2},{s.VHor:F2},{sim.Downrange(s):F2},{Vehicle.AngDiff(s.Th, 0) * Const.R2D:F2},{Vehicle.AngDiff(s.ThCmd, 0) * Const.R2D:F2},{s.Om * Const.R2D:F2},{s.NRun},{s.Throttle:F3},{s.Prop / 1000:F2},{s.Mass / 1000:F2},{(s.ShipHold ? 1 : 0)},{s.WindE:F2},{s.WindEst:F2},{sim.NavDr(s):F2},{s.F / 1000:F0}\n"));
             for (int k = 0; k < 2; k++) {
                 Vehicle w = sim.Veh[k];
                 bool fin = !w.Landed && !w.Attached && w.Alt < 1500 && (w.Mode == "landB" && w.IgnBurn || w.Mode == "landS");

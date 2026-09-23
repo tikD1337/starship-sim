@@ -34,7 +34,7 @@ public sealed class TowerView {
             t._cable[i] = Node(t._root, "Cable", Vector3.Zero);
             lib.Make("cable2", t._cable[i]);
         }
-        t.Set(ArmGeom.Park, 0, Const.ARM_PARK);
+        t.Set(ArmGeom.Park, 0, Const.ARM_PARK, 0);
         return t;
     }
     private static Node3D Node(Node parent, string name, Vector3 at) {
@@ -52,11 +52,11 @@ public sealed class TowerView {
              + $" armTip={tip.X:F1},{tip.Y:F1},{tip.Z:F1} towerX={_root.Position.X:F1}"
              + $" carY={_carriage.Position.Y:F1} armDeg={Mathf.RadToDeg(a.Rotation.Y):F1}";
     }
-    public void Set(double gap, double drop, double carriageY) {
+    public void Set(double gap, double drop, double carriageY, double cart) {
         float ang = (float)ArmGeom.Angle(gap);
         float cy = (float)(carriageY - drop);
         _carriage.Position = new Vector3(0, cy, 0);
-        float along = (float)(ArmGeom.Reach * Math.Cos(ang) - ArmGeom.HingeZ * Math.Sin(ang));
+        float along = (float)(ArmGeom.Reach * Math.Cos(ang) - ArmGeom.HingeZ * Math.Sin(ang) + cart / Math.Cos(ang));
         for (int i = 0; i < 2; i++) {
             float side = i == 0 ? -1 : 1;
             float phi = -side * ang;
