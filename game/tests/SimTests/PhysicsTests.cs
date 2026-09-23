@@ -385,6 +385,29 @@ internal static partial class Program {
         True("за 100 с убыль в баке равна интегралу расхода", prop0 - v.Prop > 100e3 && Math.Abs((prop0 - v.Prop) / spent - 1) < 1e-9,
              $"{N((prop0 - v.Prop) / 1000)} т");
     }
+    private static (double G, double Th, double Cm) Hover(int n) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Ship, 30e3) { Mode = "landS", Ign = true, NEng = n, Throttle = 0.5, ThCmd = 0 };
+        v.Y = Const.RE + 1000;
+        v.Vx = -Const.W * v.Y;
+        sim.Veh.Add(v);
+        for (int i = 0; i < 300; i++) {
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+        }
+        return (v.Gimbal, Vehicle.AngDiff(v.Th, 0), v.Cm);
+    }
+    private static void EngineOut() {
+        Head("Несимметричная тяга");
+        var one = Hover(1);
+        var three = Hover(3);
+        double want = -Math.Asin(0.87 / one.Cm);
+        Group("один центральный двигатель корабля стоит в 0,87 м от оси — сопло парирует момент",
+              $"сопло {N(one.G * Const.R2D)}° при расчётных {N(want * Const.R2D)}°, корпус {N(one.Th * Const.R2D)}°; на трёх сопло {N(three.G * Const.R2D)}°",
+              ("сопло отклонено на −asin(0,87 / плечо до центра масс)", Math.Abs(one.G - want) < 0.05 * Math.Abs(want)),
+              ("корпус не уводит", Math.Abs(one.Th) < 0.2 * Const.D2R),
+              ("на трёх тяга симметрична — сопло прямо", Math.Abs(three.G) < 0.01 * Math.Abs(want)));
+    }
     private static void BadNumbers() {
         Head("Негодные числа");
         Air bad = Atmosphere.At(double.NaN);

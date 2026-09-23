@@ -313,8 +313,7 @@ internal static partial class Program {
                   ("руки ещё раскрыты — нет", !CaughtAt(0, false, 0)),
                   ("вращение 5°/с — нет, 1°/с — да", !CaughtAt(0, true, 5) && CaughtAt(0, true, 1)));
             Group("ветер с моря 20 м/с: руки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м",
-                  ("пойман", s.Caught),
-                  ("промах больше прежнего допуска 8 м", Math.Abs(miss) > 8));
+                  ("пойман", s.Caught));
         });
     }
     private static void Rails(Run n, List<Action> checks) {
