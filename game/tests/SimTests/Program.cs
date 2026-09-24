@@ -52,12 +52,14 @@ internal static partial class Program {
         ChamberCooling();
         PumpCavitation();
         CenterOfMass();
+        MomentOfInertia();
         OrbitElements();
         HeatShield();
         WindProfile();
         Dispersion_();
         ConditionEvents();
         MassBalance();
+        EngineOut();
         BadNumbers();
         UiNumbers();
         UiThemes();

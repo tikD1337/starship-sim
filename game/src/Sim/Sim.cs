@@ -159,7 +159,7 @@ public static class Sim {
         var s = new Vehicle(Kind.Ship, sim.Payload);
         b.Mate = s; s.Mate = b; b.Stacked = true; s.Attached = true;
         b.SeekPad = true; s.SeekPad = sim.Mission != "trans";
-        b.Kp = 0.9; b.Kd = 2.6; s.Kp = 1.4; s.Kd = 2.8;
+        b.Kp = Const.BOOST_KP; b.Kd = Const.BOOST_KD; s.Kp = Const.SHIP_KP; s.Kd = Const.SHIP_KD;
         b.GimLim = 13; s.GimLim = 15; b.RcsK = 1; s.RcsK = 1;
         foreach (Vehicle v in new[] { b, s }) {
             v.X = 0; v.Y = Const.RE; v.Vx = -Const.W * Const.RE; v.Vy = 0;

@@ -126,7 +126,30 @@ public sealed class Vehicle {
     public double Cp {
         get { double c = Math.Cos(Alpha); return FullLen * (0.5 + 0.16 * c * Math.Abs(c)); }
     }
-    public double Inertia { get { double l = FullLen; return Mass * l * l / 12; } }
+    public double Inertia {
+        get {
+            double c = Cm, own = OwnInertia(c);
+            if (!Stacked || Mate == null) return own;
+            double m2 = Mate.Dry + Mate.Prop, d = Len + 0.45 * Mate.Len - c;
+            return own + Mate.OwnInertia(Mate.Cm) + m2 * d * d;
+        }
+    }
+    private double OwnInertia(double c) {
+        double L = Len, R = Dia / 2, mp = Prop;
+        bool b = Kind == Kind.Booster;
+        double pay = Math.Max(0, Dry - Spec.Dry), md = Dry - pay;
+        double dryF = b ? 0.38 : 0.44, zb = b ? 0.03 : 0.04, zt = b ? 0.93 : 0.85, ft = b ? 0.055 : 0.105;
+        double fb = (0.5 - dryF + ft * (zt - 0.5)) / (0.5 - zb);
+        double ms = md * (1 - fb - ft);
+        double I = md * fb * Sq(zb * L - c) + md * ft * Sq(zt * L - c) + ms * (L * L / 12 + R * R / 2 + Sq(0.5 * L - c));
+        double zp = 0.5 * (Const.BAY_Z0 + Const.BAY_Z1), lp = Const.BAY_Z1 - Const.BAY_Z0;
+        I += pay * (lp * lp / 12 + R * R / 4 + Sq(zp - c));
+        double hd = Math.Min(HdrLeft, mp), mn = mp - hd;
+        double h = 0.76 * L * mn / Math.Max(PropMax - Hdr, 1), zc = 0.12 * L + h / 2;
+        I += mn * (h * h / 12 + R * R / 4 + Sq(zc - c)) + hd * Sq(Const.HDR_Z * L - c);
+        return I;
+    }
+    private static double Sq(double x) => x * x;
     public int MaxEng => Kind == Kind.Booster ? 33 : 6;
     public bool Stowed;
     public double StowT = double.NaN;

@@ -13,7 +13,7 @@ public sealed class Engine {
     public Pump Pf, Po;
     public bool On, Failed, Sep;
     public string Reason = "";
-    public double Spool, Pc, F, Md, Thr;
+    public double Spool, Pc, F, Md, Thr, Arm;
     public double TWall = 290, QWall, Burn;
     private const double CHAN_AREA = 0.003, CHAN_DH = 0.0025, COOL_T = 150;
     private const double WALL_LIMIT = 950, BURN_ENG = 2.0e-7;
@@ -121,6 +121,9 @@ public static class EngineSet {
             for (int i = 0; i < 3; i++) outp.Add(new Engine(v, i, "S2-" + (i + 1), false, "центральный"));
             for (int i = 0; i < 3; i++) outp.Add(new Engine(v, i + 3, "S2-V" + (i + 1), true, "вакуумный"));
         }
+        int k = 0;
+        foreach ((int n, double r, double phase) in Spec.Of(v.Kind).Rings)
+            for (int j = 0; j < n; j++) outp[k++].Arm = r * Math.Cos(2 * Math.PI * j / n + phase);
         return outp;
     }
     public static void Update(Vehicle v, double dt, double pa) {

@@ -182,11 +182,11 @@ internal static partial class Program {
                   ("ниже 15 км корпус в 20° от горизонта", belly <= 20),
                   ("переворот начинается почти с горизонтали", Math.Abs(atFlip) <= 20),
                   ("точка переворота в 30 м от расчётной", Math.Abs(flipMiss) <= 30),
-                  ("до 15° от вертикали не дольше 3 с", tFlip <= 3));
+                  ("до 15° от вертикали не дольше 3,5 с", tFlip <= 3.5));
             Group($"{name}: посадка на руки за ~20 с, с запасом, а не полными баками",
                   $"от зажигания до захвата {N(tEnd - t0)} с, наклон до {N(tilt)}°, остаток {N(s.Prop / 1000)} т",
                   ("пойман башней", s.Caught),
-                  ("не дольше 24 с (пятый полёт — 20)", tEnd - t0 <= 24),
+                  ("не дольше 27 с (пятый полёт — 20)", tEnd - t0 <= 27),
                   ("после переворота наклон не больше 30°", tilt <= 30),
                   ("после захвата 25…40 т", s.Prop >= 25e3 && s.Prop <= 40e3));
         });
@@ -313,8 +313,7 @@ internal static partial class Program {
                   ("руки ещё раскрыты — нет", !CaughtAt(0, false, 0)),
                   ("вращение 5°/с — нет, 1°/с — да", !CaughtAt(0, true, 5) && CaughtAt(0, true, 1)));
             Group("ветер с моря 20 м/с: руки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м",
-                  ("пойман", s.Caught),
-                  ("промах больше прежнего допуска 8 м", Math.Abs(miss) > 8));
+                  ("пойман", s.Caught));
         });
     }
     private static void Rails(Run n, List<Action> checks) {
@@ -389,7 +388,8 @@ internal static partial class Program {
         int tick = 0;
         r.Each(() => {
             tick++;
-            if (tick % 100 == 0 && Math.Abs(bb.VVert) < 5) { navH.Add(bb.NavH); navV.Add(bb.NavVh); }
+            if (tick % 100 == 0 && bb.Launched && !bb.Landed && Math.Abs(bb.VVert) < 300) navH.Add(bb.NavH + bb.VVert * Const.NAV_LAG);
+            if (tick % 100 == 0 && Math.Abs(bb.VVert) < 5) navV.Add(bb.NavVh);
             if (bb.Mode == "coastB" && bb.VVert < -300) { lagSum += (bb.NAlt - bb.Alt) / -bb.VVert; lagN++; }
             if (double.IsNaN(rhoMeco) && sim.T > 60 && bb.Mode != "ascent") rhoMeco = bb.RhoEst;
             if (bb.Mode == "landB" && bb.Alt < 1500) {

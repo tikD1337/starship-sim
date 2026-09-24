@@ -68,8 +68,8 @@ public sealed class StackView {
             v._gridFins.Add(pivot);
             v._finAzim.Add(Mathf.DegToRad(adeg));
         }
-        foreach ((int n, float rad) in new[] { (3, 1.02f), (10, 2.40f), (20, 3.55f) })
-            Ring(lib, v.BoosterRoot, "bell_sl", n, rad, BellY, 0f, v._boosterBells);
+        foreach ((int n, double rad, double phase) in Physics.Spec.Booster.Rings)
+            Ring(lib, v.BoosterRoot, "bell_sl", n, (float)rad, BellY, (float)phase, v._boosterBells);
         v.ShipRoot = new Node3D { Name = "Ship" };
         v.BoosterRoot.AddChild(v.ShipRoot);
         v._world = parent;
@@ -90,8 +90,10 @@ public sealed class StackView {
             v._flapFwdAzim.Add(Mathf.DegToRad(fa));
             v._flapAftAzim.Add(Mathf.DegToRad(aa));
         }
-        Ring(lib, v.ShipRoot, "bell_sl", 3, 0.87f, BellY, 0f, v._shipBells);
-        Ring(lib, v.ShipRoot, "bell_vac", 3, 3.06f, BellVacY, Mathf.Pi / 3f, v._shipBells);
+        var (nSl, rSl, pSl) = Physics.Spec.Ship.Rings[0];
+        var (nVac, rVac, pVac) = Physics.Spec.Ship.Rings[1];
+        Ring(lib, v.ShipRoot, "bell_sl", nSl, (float)rSl, BellY, (float)pSl, v._shipBells);
+        Ring(lib, v.ShipRoot, "bell_vac", nVac, (float)rVac, BellVacY, (float)pVac, v._shipBells);
         FixHullNormals(v.BoosterRoot);
         FixHullNormals(v.ShipRoot);
         v.BoosterPlume = Plume.Attach(v._boosterBells, 0.60f, 4.3f, v.BoosterRoot);
