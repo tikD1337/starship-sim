@@ -27,7 +27,7 @@ public sealed class SimState {
     public Rng Rng = new(), NavRng = new();
     public Anomalies Anom;
     public Wind Wind = Wind.Calm();
-    public double ArmGap = Const.ARM_GAP_PARK, ArmDrop, ArmY = Const.ARM_PARK, ArmSag, ArmSagV, ArmHeldT = double.NaN;
+    public double ArmDrop, ArmY = Const.ARM_PARK, ArmSag, ArmSagV, ArmHeldT = double.NaN, ArmShift, ArmShiftV, ArmGapL = Const.ARM_GAP_PARK, ArmGapR = Const.ARM_GAP_PARK;
     public static SimState Current = new();
     public void LogMsg(string txt, int lv = 1) {
         if (lv <= 1) Marks.Add(new LogEntry { T = T, M = txt, Lv = lv });
@@ -43,7 +43,8 @@ public sealed class SimState {
         double a = PadAngle(t);
         return new Vec2(Const.RE * Math.Sin(a), Const.RE * Math.Cos(a));
     }
-    public double Downrange(Vehicle v) => (PadAngle(T) - Math.Atan2(v.X, v.Y)) * Const.RE;
+    public double Downrange(Vehicle v) => DownrangeAt(v, T);
+    public static double DownrangeAt(Vehicle v, double t) => (PadAngle(t) - Math.Atan2(v.X, v.Y)) * Const.RE;
     public double NavDr(Vehicle v) => Downrange(v) + v.NavX - v.AimDr;
     public static double Surface(double dr) => Math.Abs(dr) < Const.MOUNT_R ? 0 : -Const.DECK_H;
     public static bool Water(double dr) => dr > Const.COAST_DR || dr < -Const.LAND_W;

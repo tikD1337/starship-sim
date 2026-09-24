@@ -6,7 +6,7 @@ public sealed class WorldRig {
     public SkyEarth Sky;
     public Camera3D Cam;
     private DirectionalLight3D _sun;
-    private MeshInstance3D _ground, _sea, _beach, _pad, _padMark;
+    private MeshInstance3D _ground, _sea, _beach;
     private static readonly float LandMid = (float)(Const.COAST_DR - 30000) * 0.5f;
     private StandardMaterial3D _seaMat;
     private Godot.Environment _env;
@@ -46,12 +46,6 @@ public sealed class WorldRig {
             AlbedoColor = new Color(0.58f, 0.53f, 0.43f), Roughness = 1f, Metallic = 0f,
         };
         world.AddChild(w._beach);
-        w._pad = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 30, BottomRadius = 30, Height = 0.5f, RadialSegments = 48 } };
-        w._pad.MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.52f, 0.52f, 0.50f), Roughness = 0.9f };
-        world.AddChild(w._pad);
-        w._padMark = new MeshInstance3D { Mesh = new CylinderMesh { TopRadius = 11, BottomRadius = 11, Height = 0.52f, RadialSegments = 48 } };
-        w._padMark.MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.16f, 0.16f, 0.17f), Roughness = 0.8f };
-        world.AddChild(w._padMark);
         w._sea = new MeshInstance3D { Mesh = new PlaneMesh { Size = new Vector2(240000, 240000) } };
         var seaMat = new StandardMaterial3D {
             AlbedoColor = new Color(0.055f, 0.115f, 0.165f), Roughness = 0.12f, Metallic = 0.0f,
@@ -100,9 +94,6 @@ public sealed class WorldRig {
         _ground.Visible = camAlt < 25000.0;
         _beach.Position = new Vector3((float)(Const.COAST_DR - 35 - org.X), -PadView.DeckH - 0.03f - (float)org.Y, 0);
         _beach.Visible = camAlt < 25000.0;
-        _pad.Position = new Vector3((float)(Const.PAD_DR - org.X), -PadView.DeckH - 0.25f - (float)org.Y, 0);
-        _padMark.Position = _pad.Position;
-        _pad.Visible = _padMark.Visible = camAlt < 12000.0;
         _sea.Position = new Vector3(0, -PadView.DeckH - 0.35f - (float)org.Y, 0);
         _sea.Visible = camAlt < 25000.0;
         float drift = (float)(sim.T * 0.004);

@@ -46,12 +46,12 @@ public sealed class CamRig {
         public float AimAt = 1f;
     }
     private static readonly List<PadCam> Pads = new() {
-        new PadCam { Name = "Стол", Off = new Vector3(-120, 6, 300), Fov = 24, Zoom = true },
-        new PadCam { Name = "Башня сверху", Off = new Vector3(-58, 168, 42), Aim = new Vector3(0, -42, 0), Fov = 52, Range = 3000 },
-        new PadCam { Name = "Панорама", Off = new Vector3(-900, 45, 1150), Fov = 32, Zoom = true, Range = 20000 },
-        new PadCam { Name = "Ловильные руки", Off = new Vector3(-58, 118, 95), Aim = new Vector3(0, -6, 0), Fov = 40, Zoom = true, Range = 1500 },
+        new PadCam { Name = "Стол", Off = new Vector3(-120, 6, -300), Fov = 24, Zoom = true },
+        new PadCam { Name = "Башня сверху", Off = new Vector3(42, 150, 46.9f), Aim = new Vector3(0, -42, 0), Fov = 52, Range = 3000 },
+        new PadCam { Name = "Панорама", Off = new Vector3(-900, 45, -1150), Fov = 32, Zoom = true, Range = 20000 },
+        new PadCam { Name = "Ловильные руки", Off = new Vector3(-22, 128, -48), Aim = new Vector3(0, -6, 0), Fov = 40, Zoom = true, Range = 1500 },
         new PadCam { Name = "Под столом", Off = new Vector3(-3.5f, 3.5f, 6.5f), Fov = 62, Range = 400, AimAt = 0.04f },
-        new PadCam { Name = "Берег", Off = new Vector3(-30, 55, -520), Aim = new Vector3(-18, 0, 0), Fov = 15, Range = 2500, AimAt = 0.3f },
+        new PadCam { Name = "Берег", Off = new Vector3(-260, 55, -460), Aim = new Vector3(0, 0, 12), Fov = 15, Range = 2500, AimAt = 0.3f },
     };
     public int PadIdx;
     public static int Total => Mounts.Count + Pads.Count;

@@ -58,6 +58,8 @@ internal static partial class Program {
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
+        Run gust = Add(Windy(10, true, -20), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
+        Arms(gust, checks);
         checks.Add(() => Head("Высокая орбита и трансатмосферное"));
         ShipDescent(high, "высокая орбита", checks);
         ShipDescent(trans, "трансатмосферное", checks);
@@ -196,22 +198,23 @@ internal static partial class Program {
             double x0 = v.X, y0 = v.Y, th0 = v.Th, vx0 = v.Vx, vy0 = v.Vy;
             bool was = v.Caught, done = false;
             double jump = double.NaN, turn = double.NaN, tCatch = double.NaN, sagV1 = double.NaN, sag1 = double.NaN, tilt1 = double.NaN;
-            double tilt2 = double.NaN, slide2 = double.NaN, stowAlt = double.NaN;
+            double tilt2 = double.NaN, slide2 = double.NaN, stowAlt = double.NaN, stowDr = double.NaN;
             double tReady = double.NaN, gapEnter = double.NaN, gapCatch = double.NaN, early = double.PositiveInfinity, sagMax = 0, sagVLate = double.NaN;
             n.Each(() => {
                 if (done) return;
                 if (!was && v.Caught) {
                     tCatch = sim.T;
-                    gapCatch = sim.ArmGap;
+                    gapCatch = Math.Max(sim.ArmGapL + sim.Downrange(v), sim.ArmGapR - sim.Downrange(v));
                     double px = x0 + vx0 * Const.DT, py = y0 + vy0 * Const.DT;
                     jump = Math.Sqrt((v.X - px) * (v.X - px) + (v.Y - py) * (v.Y - py));
                     turn = Math.Abs(Vehicle.AngDiff(v.Th, th0)) * Const.R2D;
                 }
                 if (v.Launched && !v.Attached && !v.Caught && v.VVert < 0 && v.Alt < 8000) {
                     double rel = v.Alt - Const.CATCH_H;
-                    if (double.IsNaN(tReady) && sim.ArmGap <= Const.ARM_GAP_READY + 0.05) tReady = sim.T;
-                    if (rel > v.CatchPinY + 5) early = Math.Min(early, sim.ArmGap);
-                    if (double.IsNaN(gapEnter) && rel < v.CatchPinY) gapEnter = sim.ArmGap;
+                    double gap = Math.Max(sim.ArmGapL, sim.ArmGapR);
+                    if (double.IsNaN(tReady) && gap <= Const.ARM_GAP_READY + 0.05) tReady = sim.T;
+                    if (rel > v.CatchPinY + 5) early = Math.Min(early, Math.Min(sim.ArmGapL, sim.ArmGapR));
+                    if (double.IsNaN(gapEnter) && rel < v.CatchPinY) gapEnter = gap;
                 }
                 if (!double.IsNaN(tCatch)) {
                     double dt = sim.T - tCatch;
@@ -223,7 +226,7 @@ internal static partial class Program {
                     if (double.IsNaN(tilt2) && dt >= 2.5) { tilt2 = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D; slide2 = Math.Abs(v.HeldVh); }
                     if (double.IsNaN(sagVLate) && dt >= 6) sagVLate = sim.ArmSagV;
                 }
-                if (v.Stowed) { stowAlt = v.Alt; done = true; }
+                if (v.Stowed) { stowAlt = v.Alt; stowDr = sim.Downrange(v); done = true; }
                 x0 = v.X; y0 = v.Y; th0 = v.Th; vx0 = v.Vx; vy0 = v.Vy; was = v.Caught;
             });
             checks.Add(() => {
@@ -235,16 +238,84 @@ internal static partial class Program {
                       ("когда низ проходит рельсы — рабочий", gapEnter <= Const.ARM_GAP_READY + 0.05),
                       ("к захвату дожат до касания", gapCatch <= 0.3));
                 Group($"{name}: захват без телепорта — ложится на рельсы и успокаивается",
-                      $"скачок {N(jump)} м и {N(turn)}°, просадка до {N(sagMax)} м, через 1,2 с {N(sagV1)} м/с и {N(tilt1)}°, через 2,5 с {N(tilt2)}°, на столе {N(stowAlt)} м",
+                      $"скачок {N(jump)} м и {N(turn)}°, просадка до {N(sagMax)} м, через 1,2 с {N(sagV1)} м/с и {N(tilt1)}°, через 2,5 с {N(tilt2)}°, на столе {N(stowAlt)} м, от оси {N(stowDr)} м",
                       ("в кадре захвата положение и наклон не прыгают", jump < 0.1 && turn < 0.2),
                       ("каретка проседает на 0,4…2 м", sagMax >= 0.4 && sagMax <= 2),
                       ("через 1,2 с удар погашен (< 0,1 м/с и ±0,1 м)", sagV1 < 0.1 && sag1 < 0.1),
                       ("через 1,2 с корпус почти прям (< 1°)", tilt1 < 1),
                       ("через 2,5 с прям и не скользит", tilt2 < 0.3 && slide2 < 0.05),
                       ("через 6 с каретка стоит", Math.Abs(sagVLate) < 0.05),
-                      ("опущен ровно на стол", Math.Abs(stowAlt) < 0.05));
+                      ("опущен ровно на стол, на его ось", Math.Abs(stowAlt) < 0.05 && Math.Abs(stowDr) < 0.1));
             });
         }
+    }
+    private static void Put(SimState sim, Vehicle v, double dr, double alt, double vd) {
+        double a = SimState.PadAngle(sim.T) - dr / Const.RE, r = Const.RE + alt;
+        v.X = r * Math.Sin(a); v.Y = r * Math.Cos(a);
+        v.Vx = -Const.W * v.Y - vd * Math.Sin(a); v.Vy = Const.W * v.X - vd * Math.Cos(a);
+    }
+    private static SimState ArmSim(double dr, double alt, double vd, out Vehicle s) {
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 5);
+        sim.T = 1000;
+        s = sim.Veh[1];
+        s.Attached = false; s.Launched = true; s.Mode = "landS"; s.Th = 0; s.Om = 0;
+        Put(sim, s, dr, alt, vd);
+        return sim;
+    }
+    private static (double L, double R, double TravL, double TravR, double Touch, double Rate) Close(double dr, double vd = 2) {
+        double top = Const.CATCH_H + 80;
+        SimState sim = ArmSim(dr, top, vd, out Vehicle s);
+        sim.ArmGapL = sim.ArmGapR = Const.ARM_GAP_READY;
+        double l0 = sim.ArmGapL, r0 = sim.ArmGapR, touch = double.PositiveInfinity, rate = 0;
+        for (int i = 0; i * 0.02 * vd <= top - Const.CATCH_H; i++) {
+            Put(sim, s, dr, top - vd * 0.02 * i, vd);
+            double l = sim.ArmGapL, r = sim.ArmGapR;
+            sim.T += 0.02;
+            Physics.Sim.ArmsTick(sim, 0.02);
+            rate = Math.Max(rate, Math.Max(Math.Abs(sim.ArmGapL - l), Math.Abs(sim.ArmGapR - r)) / 0.02);
+            touch = Math.Min(touch, Math.Min(sim.ArmGapL + dr, sim.ArmGapR - dr));
+        }
+        return (sim.ArmGapL, sim.ArmGapR, Math.Abs(sim.ArmGapL - l0), Math.Abs(sim.ArmGapR - r0), touch, rate);
+    }
+    private static bool CaughtAt(double dr, bool closed, double omDeg) {
+        SimState sim = ArmSim(dr, Const.CATCH_H - 0.5, 1, out Vehicle s);
+        sim.ArmGapL = closed ? -dr : Const.ARM_GAP_READY;
+        sim.ArmGapR = closed ? dr : Const.ARM_GAP_READY;
+        s.Om = omDeg * Const.D2R;
+        sim.T += 0.02;
+        Flight.StepVehicle(sim, s, 0.02);
+        return s.Caught;
+    }
+    private static void Arms(Run g, List<Action> checks) {
+        SimState sim = g.Sim;
+        Vehicle s = g.S;
+        bool was = false;
+        double miss = double.NaN;
+        g.Each(() => {
+            if (!was && s.Caught) miss = sim.Downrange(s);
+            was = s.Caught;
+        });
+        checks.Add(() => {
+            Head("Руки Mechazilla ходят по отдельности");
+            var left = Close(-4);
+            var mid = Close(0);
+            var fast = Close(-4, 8);
+            Group("ступень на 4 м левее: правая рука проходит больше левой",
+                  $"левее: левая {N(left.TravL)} м, правая {N(left.TravR)} м, зазоры {N(left.L)} и {N(left.R)}; по центру {N(mid.TravL)} и {N(mid.TravR)} м; не ближе {N(left.Touch)} м к корпусу; на спуске 8 м/с до {N(fast.Rate)} м/с",
+                  ("правая на 8 м больше левой", Math.Abs(left.TravR - left.TravL - 8) < 0.2),
+                  ("обе сошлись на корпусе там, где он есть", Math.Abs(left.L - 4) < 0.1 && Math.Abs(left.R + 4) < 0.1),
+                  ("по центру — поровну", Math.Abs(mid.TravL - mid.TravR) < 1e-6 && mid.TravL > 1),
+                  ("по дороге корпус не задевают, даже на быстром спуске", left.Touch > -0.01 && fast.Touch > -0.01),
+                  ("не быстрее 3 м/с: на спуске 8 м/с упираются в предел", fast.Rate <= 3 + 1e-9 && fast.Rate > 2.9));
+            Group("захват — когда обе руки сошлись на корпусе", "",
+                  ("промах 9 м, руки сошлись — пойман", CaughtAt(9, true, 0)),
+                  ("руки ещё раскрыты — нет", !CaughtAt(0, false, 0)),
+                  ("вращение 5°/с — нет, 1°/с — да", !CaughtAt(0, true, 5) && CaughtAt(0, true, 1)));
+            Group("ветер с моря 20 м/с: руки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м",
+                  ("пойман", s.Caught),
+                  ("промах больше прежнего допуска 8 м", Math.Abs(miss) > 8));
+        });
     }
     private static void Rails(Run n, List<Action> checks) {
         SimState sim = n.Sim;
@@ -263,7 +334,8 @@ internal static partial class Program {
             if (first470 < 0 && sim.T >= 470) {
                 f470 = arc.Frac(sim.T);
                 first470 = arc.First;
-                caught470 = arc.Passed[Array.IndexOf(arc.Names, "захват ускорителя")];
+                int ci = Array.IndexOf(arc.Names, "захват ускорителя");
+                caught470 = ci >= 0 && arc.Passed[ci];
             }
         });
         checks.Add(() => {
@@ -379,25 +451,32 @@ internal static partial class Program {
         gale.Wind = Wind.Steady(22);
         Run storm = Add(gale, r => Run.Over(r.S));
         checks.Add(() => {
-            Head("Запасная посадка: площадка у башни или море");
-            Group("поверхность", "",
+            Head("Запасная посадка: опор нет — только руки или море");
+            var land = new SimState { Mission = "orbital", AnomOn = false };
+            Physics.Sim.Reset(land, 5);
+            Vehicle ls = land.Veh[1];
+            ls.Attached = false; ls.Launched = true; ls.Mode = "landS"; ls.Th = 0; ls.Om = 0;
+            double la = SimState.PadAngle(land.T) + 300 / Const.RE, lr = Const.RE - Const.DECK_H + 0.01;
+            ls.X = lr * Math.Sin(la); ls.Y = lr * Math.Cos(la);
+            ls.Vx = -Const.W * ls.Y - Math.Sin(la); ls.Vy = Const.W * ls.X - Math.Cos(la);
+            Flight.StepVehicle(land, ls, 0.02);
+            Group("поверхность", $"касание суши: {ls.Mode}, {N(land.Downrange(ls))} м",
                   ("стол на нуле, земля и море на 16 м ниже", SimState.Surface(0) == 0 && SimState.Surface(200) == -Const.DECK_H),
-                  ("за берегом море, площадка и стол на суше", SimState.Water(Const.COAST_DR + 10) && !SimState.Water(Const.PAD_DR) && !SimState.Water(0)));
+                  ("за берегом море, берег и стол на суше", SimState.Water(Const.COAST_DR + 10) && !SimState.Water(Const.COAST_DR - 10) && !SimState.Water(0)),
+                  ("мягкое касание суши — потеря", ls.Landed && ls.Crashed && !ls.Splash && Logged(land, "КАСАНИЕ СУШИ")));
             Vehicle b = copv.B;
             double dr = copv.Sim.Downrange(b);
             Group("утечка наддува: захват отменён до импульса, ускоритель приводняется", $"{b.Mode}, {N(dr)} м, на воде {N(Math.Abs(b.Th) * Const.R2D)}°",
                   ("отмена с уходом в море", b.Site == "sea" && Logged(copv.Sim, "утечка газа наддува: уход в море")),
                   ("мягко у точки в 6 км", b.Landed && !b.Crashed && b.Splash && Math.Abs(dr - Const.SEA_DR) < 150),
                   ("на воде заваливается набок", Math.Abs(Math.Abs(Vehicle.AngDiff(b.Th, 0)) - Math.PI / 2) < 0.05));
-            Group("не зажглись двигатели на посадку: ускоритель в море, корабль на площадку",
-                  $"Б {relB.B.Mode} {N(relB.Sim.Downrange(relB.B))} м; К {relS.S.Mode} {N(relS.Sim.Downrange(relS.S) - Const.PAD_DR)} м от центра площадки",
+            Group("не зажглись двигатели на посадку: ускоритель в море, корабль ловится на оставшихся",
+                  $"Б {relB.B.Mode} {N(relB.Sim.Downrange(relB.B))} м; К {relS.S.Mode}",
                   ("ускоритель уходит от башни и приводняется", relB.B.Landed && !relB.B.Crashed && relB.B.Splash && !relB.B.Caught && Logged(relB.Sim, "посадочных двигателей: уход в море")),
-                  ("корабль уходит на площадку", relS.S.Site == "pad" && Logged(relS.Sim, "уход на площадку у башни")),
-                  ("и садится на неё, а не в руки", relS.S.Landed && !relS.S.Crashed && !relS.S.Caught
-                                                    && Math.Abs(relS.Sim.Downrange(relS.S) - Const.PAD_DR) < 15 && Math.Abs(relS.S.Alt + Const.DECK_H) < 0.1));
+                  ("корабль не уходит, а садится в руки", relS.S.Caught && relS.S.Site == "tower" && Logged(relS.Sim, "захват на оставшихся")));
             Group("естественный отказ на посадку (2 %) ведёт туда же", $"зерно {sb}: Б {natB.B.Mode}; зерно {ss}: К {natS.S.Mode}",
                   ("ускоритель приводняется", natB.B.Splash && natB.B.Landed && !natB.B.Crashed && Logged(natB.Sim, "уход в море")),
-                  ("корабль садится на площадку", natS.S.Site == "pad" && natS.S.Landed && !natS.S.Crashed && Logged(natS.Sim, "уход на площадку у башни")),
+                  ("корабль ловится на оставшихся", natS.S.Caught && Logged(natS.Sim, "захват на оставшихся")),
                   ("без разброса того же зерна отказа нет", offB.B.Caught));
             True("ветер 22 м/с без разброса: опрос уводит обе ступени в море",
                  storm.B.Splash && storm.S.Splash && !storm.B.Crashed && !storm.S.Crashed && Logged(storm.Sim, "ветер у башни"),

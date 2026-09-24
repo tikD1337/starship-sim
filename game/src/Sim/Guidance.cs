@@ -197,8 +197,11 @@ public static class Guidance {
         v.IgnBurn = true;
         if (v.BurnLogged) return;
         v.BurnLogged = true;
-        sim.LogMsg($"{v.Tag}: посадочная жига — {nEng} двигателя, H={e.H:F0} м", 1);
+        sim.LogMsg($"{v.Tag}: посадочная жига — {nEng} {Engines(nEng)}, H={e.H:F0} м", 1);
     }
+    private static string Engines(int n)
+        => n % 10 == 1 && n % 100 != 11 ? "двигатель"
+         : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "двигателя" : "двигателей";
     private static bool Enough(Vehicle v, in Burn e, int k, double margin)
         => k * e.FOne / v.Mass - e.G >= e.Vv * e.Vv / (2 * e.Dh) * margin;
     private static int EnginesFor(Vehicle v, in Burn e, int nEng, double dt) {

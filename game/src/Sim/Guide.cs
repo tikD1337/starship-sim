@@ -80,7 +80,7 @@ public static class Guide {
             if (near < 25e3) { v.NEng = 3; v.Throttle = near < 4e3 ? 0.4 : 1; }
             if (near < 250 || v.Prop < 0.025 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Throttle = 1; v.Mode = "coastB";
-                if (v.Catch && Math.Abs(Mp(v)) > Const.GO_MISS_B) Divert(sim, v, "sea", Const.SEA_DR, $"расчётный промах {Mp(v):F0} м");
+                if (v.Catch && Math.Abs(Mp(v)) > Const.GO_MISS_B) Divert(sim, v, Const.SEA_DR, $"расчётный промах {Mp(v):F0} м");
                 sim.LogMsg($"Б: конец тормозного импульса, топливо {(v.Prop / 1000):F0} т, расчётный промах {Mp(v):F0} м", 1);
             }
             break;
@@ -94,7 +94,7 @@ public static class Guide {
         case "landB": {
             if (v.SeekPad && h < 3500 && Math.Abs(sim.Downrange(v) - v.AimDr) > 2000) {
                 v.SeekPad = false;
-                sim.LogMsg($"Б: {(v.Site == "tower" ? "башня недосягаема" : "цель недосягаема")} ({((sim.Downrange(v) - v.AimDr) / 1000):F1} км) — посадка вне площадки", 2);
+                sim.LogMsg($"Б: {(v.Site == "tower" ? "башня недосягаема" : "цель недосягаема")} ({((sim.Downrange(v) - v.AimDr) / 1000):F1} км) — снижение без точки прицеливания", 2);
             }
             if (!v.IgnBurn) DescentB(sim, v, dt);
             else sim.Once("reach" + v.Tag, () => Reach(sim, v, Const.REACH_B));
@@ -278,11 +278,12 @@ public static class Guide {
                     -Const.ALPHA_RATE * dt, Const.ALPHA_RATE * dt);
             if (v.Heat > v.MaxHeat) v.MaxHeat = v.Heat;
             if (h < Const.GLIDE_H && v.SeekPad) sim.Once("poll" + v.Tag, () => PollShip(sim, v, "на 25 км"));
+            if (h < Const.GO_POLL_H && v.SeekPad) sim.Once("poll3" + v.Tag, () => PollShip(sim, v, "на 3 км"));
             if (v.SeekPad ? h < Const.FLIP_H && Guidance.StopAlt(v, 3) < FlipStop(v)
                           : h < Const.FLIP_H_SEA) {
                 if (v.SeekPad && Math.Abs(sim.Downrange(v) - v.AimDr) > 3000) {
                     v.SeekPad = false;
-                    sim.LogMsg($"К: башня недосягаема ({(sim.Downrange(v) / 1000):F0} км) — посадка вне площадки", 2);
+                    sim.LogMsg($"К: башня недосягаема ({(sim.Downrange(v) / 1000):F0} км) — снижение без точки прицеливания", 2);
                 }
                 Reach(sim, v, Const.REACH_S);
                 v.Mode = "flipS"; v.Tmr = 0; v.Ign = true; v.NEng = 3; v.Throttle = 1;
@@ -327,12 +328,11 @@ public static class Guide {
     }
     private static double Mp(Vehicle v) => double.IsNaN(v.MissPred) ? 0 : v.MissPred;
     private static double FlipStop(Vehicle v) => Const.FLIP_STOP + (v.Catch ? 0 : SimState.Surface(v.AimDr) - Const.CATCH_H);
-    public static void Divert(SimState sim, Vehicle v, string site, double aim, string why) {
-        v.Site = site;
+    public static void Divert(SimState sim, Vehicle v, double aim, string why) {
+        v.Site = "sea";
         v.AimDr = aim;
         v.HoldT = 0; v.WaitT = 0; v.ShipHold = false;
-        string where = site == "pad" ? "уход на площадку у башни" : "уход в море";
-        sim.LogMsg($"{v.Tag}: захват отменён — {why}: {where}", 2);
+        sim.LogMsg($"{v.Tag}: захват отменён — {why}: уход в море", 2);
     }
     private static void Reach(SimState sim, Vehicle v, double r) {
         if (!v.SeekPad || v.Site != "sea") return;
@@ -358,36 +358,36 @@ public static class Guide {
             : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"
             : null;
         if (why == null) sim.LogMsg("Б: опрос перед тормозным импульсом — GO на захват башней", 1);
-        else Divert(sim, v, "sea", Const.SEA_DR, why);
+        else Divert(sim, v, Const.SEA_DR, why);
     }
     private static void PollShip(SimState sim, Vehicle v, string at) {
         if (!v.Catch) return;
-        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H));
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBias);
         string why = v.Dmg > Const.GO_DMG_S ? $"повреждение теплозащиты {v.Dmg * 100:F0} %"
             : v.CtrlK < 1 ? "заедание привода закрылка"
             : v.Prop < Const.GO_PROP_S ? $"топлива на посадку {v.Prop / 1000:F0} т"
             : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"
             : null;
-        if (why == null) sim.LogMsg($"К: опрос {at} — GO на захват башней", 1);
-        else Divert(sim, v, "sea", Const.SEA_DR, why);
+        if (why == null) sim.LogMsg($"К: опрос {at} — GO на захват башней, ветер у башни {wind:F0} м/с", 1);
+        else Divert(sim, v, Const.SEA_DR, why);
     }
     private static void LatePoll(SimState sim, Vehicle v, double dt) {
         if (!v.Catch || !v.Ign || v.Landed) return;
         bool booster = v.Kind == Kind.Booster;
-        bool lee = !booster && Math.Abs(v.WindEst) > Const.GO_WIND_PAD && Math.Sign(v.WindEst) == Math.Sign(Const.COAST_DR);
-        string site = booster || lee ? "sea" : "pad";
-        double aim = booster || lee ? Math.Max(Const.COAST_DR + 200, sim.Downrange(v)) : Const.PAD_DR;
+        double aim = Math.Max(Const.COAST_DR + 200, sim.Downrange(v));
         int dead = booster ? Dead(v, 13) : Dead(v, 3);
-        if (booster ? dead >= 2 : dead >= 1) {
-            Divert(sim, v, site, aim, $"не зажглись {dead} {(booster ? "из 13" : "из 3")} посадочных двигателей");
+        if (booster && dead >= 2) {
+            Divert(sim, v, aim, $"не зажглись {dead} из 13 посадочных двигателей");
             return;
         }
+        if (!booster && dead >= 1)
+            sim.Once("dead" + v.Tag, () => sim.LogMsg($"{v.Tag}: не зажглись {dead} из 3 посадочных двигателей — захват на оставшихся", 2));
         double dh = v.Alt - Const.CATCH_H;
         if (dh < 3 && dh > -Const.CATCH_WIN) v.WaitT += dt;
         if (v.WaitT > Const.WAIT_MAX)
-            Divert(sim, v, site, aim, $"не удалось войти в окно захвата за {Const.WAIT_MAX:F0} с");
+            Divert(sim, v, aim, $"не удалось войти в окно захвата за {Const.WAIT_MAX:F0} с");
         else if (dh <= -Const.CATCH_WIN)
-            Divert(sim, v, site, aim, "ступень прошла ниже рук");
+            Divert(sim, v, aim, "ступень прошла ниже рук");
     }
     private static double Em(Vehicle v) => double.IsNaN(v.EntMiss) ? 0 : v.EntMiss;
 }

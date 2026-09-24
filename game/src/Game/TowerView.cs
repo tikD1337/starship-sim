@@ -4,9 +4,9 @@ using Starship.Game.Ui;
 using Starship.Physics;
 namespace Starship.Game;
 public sealed class TowerView {
-    public const float TowerX = 42.0f;
-    private const float TopY = 128.5f, CableTop = TopY + 0.4f, CableLug = 2.7f;
-    private static readonly float HingeX = (float)(TowerX - ArmGeom.Reach), HingeZ = (float)ArmGeom.HingeZ;
+    public const float TowerZ = 30.9f;
+    private const float TopY = 124.0f, CableTop = TopY + 0.4f, CableLug = 2.7f;
+    private static readonly float HingeX = (float)(TowerZ - ArmGeom.Reach), HingeZ = (float)ArmGeom.HingeZ;
     private static readonly Vector3 RamArm = new(5.0f, -3.2f, -1.2f), RamBase = new(7.2f, -3.2f, -10.13f);
     private static readonly Vector2[] Cables = { new(7.9f, -3.9f), new(7.9f, -3.1f), new(7.9f, 3.1f), new(7.9f, 3.9f) };
     private Node3D _root, _carriage;
@@ -15,7 +15,8 @@ public sealed class TowerView {
     public static TowerView Build(Node parent) {
         ModelLibrary lib = ModelLibrary.Load("res://assets/tower.glb");
         var t = new TowerView();
-        t._root = Node(parent, "Tower", new Vector3(-TowerX, 0, 0));
+        t._root = Node(parent, "Tower", new Vector3(0, 0, TowerZ));
+        t._root.RotateY(Mathf.Pi / 2f);
         lib.Make("tower2", t._root);
         t._carriage = Node(t._root, "Carriage", Vector3.Zero);
         lib.Make("carriage2", t._carriage);
@@ -34,7 +35,7 @@ public sealed class TowerView {
             t._cable[i] = Node(t._root, "Cable", Vector3.Zero);
             lib.Make("cable2", t._cable[i]);
         }
-        t.Set(ArmGeom.Park, 0, Const.ARM_PARK);
+        t.Set(ArmGeom.Park, ArmGeom.Park, 0, Const.ARM_PARK);
         return t;
     }
     private static Node3D Node(Node parent, string name, Vector3 at) {
@@ -43,22 +44,22 @@ public sealed class TowerView {
         return n;
     }
     public void SetOrigin(double ox, double oy) {
-        _root.Position = new Vector3(-TowerX - (float)ox, -(float)oy, 0);
+        _root.Position = new Vector3(-(float)ox, -(float)oy, TowerZ);
     }
     public string Probe() {
         Node3D a = _arm[0];
         Vector3 tip = a.GlobalTransform * new Vector3((float)ArmGeom.Length, 0f, 0f);
         return $"armHinge={a.GlobalPosition.X:F1},{a.GlobalPosition.Y:F1},{a.GlobalPosition.Z:F1}"
-             + $" armTip={tip.X:F1},{tip.Y:F1},{tip.Z:F1} towerX={_root.Position.X:F1}"
+             + $" armTip={tip.X:F1},{tip.Y:F1},{tip.Z:F1} towerZ={_root.Position.Z:F1}"
              + $" carY={_carriage.Position.Y:F1} armDeg={Mathf.RadToDeg(a.Rotation.Y):F1}";
     }
-    public void Set(double gap, double drop, double carriageY) {
-        float ang = (float)ArmGeom.Angle(gap);
+    public void Set(double gapL, double gapR, double drop, double carriageY) {
         float cy = (float)(carriageY - drop);
         _carriage.Position = new Vector3(0, cy, 0);
-        float along = (float)(ArmGeom.Reach * Math.Cos(ang) - ArmGeom.HingeZ * Math.Sin(ang));
         for (int i = 0; i < 2; i++) {
             float side = i == 0 ? -1 : 1;
+            float ang = (float)ArmGeom.Angle(i == 0 ? gapL : gapR);
+            float along = (float)(ArmGeom.Reach * Math.Cos(ang) - ArmGeom.HingeZ * Math.Sin(ang));
             float phi = -side * ang;
             _arm[i].Rotation = new Vector3(0, phi, 0);
             _cart[i].Position = new Vector3(along, 0, -side * (float)ArmGeom.Inset);

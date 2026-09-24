@@ -6,7 +6,8 @@ public static class Const {
     public static readonly double W = WE * Math.Cos(LAT);
     public const double CATCH_H = 62, ARM_PARK = 116, ARM_LOWER = 1.2, ARM_HAUL = 420, CATCH_DR = 8,
         CATCH_WIN = 14, CATCH_VV = 4.0, CATCH_VH = 3.5, CATCH_TILT = 6, CATCH_TILT_CMD = 5, LAND_VTD = 1.1;
-    public const double ARM_GAP_PARK = 24, ARM_GAP_READY = 1.5, ARM_GAP_RATE = 1.2, ARM_APPROACH_H = 8000;
+    public const double ARM_GAP_PARK = 14, ARM_GAP_READY = 10, ARM_GAP_RATE = 3, ARM_APPROACH_H = 8000;
+    public static double ARM_MOVE_V = 2, ARM_MOVE_A = 1, ARM_MOVE_W = 0.8, CATCH_RAIL = 0.5, CATCH_OM = 3;
     public const double ARM_SAG_REST = 0.5, ARM_SAG_PERIOD = 1.2, ARM_SAG_ZETA = 0.75, ARM_HOLD_T = 4,
         ARM_SLIDE_TAU = 0.35, ARM_TILT_PERIOD = 1.2, ARM_TILT_ZETA = 0.8;
     public static double LAND_ALAT = 4.0;
@@ -18,9 +19,9 @@ public static class Const {
     public const int LAND_B_END = 3;
     public static double LAND_THR_MIN = 0.40, LAND_PROJ = 0.5;
     public static double LAND_WIND_K = 2.0, LAND_WIND_H = 3000;
-    public const double DECK_H = 16, MOUNT_R = 23, COAST_DR = 700, LAND_W = 30000, PAD_DR = -450, SEA_DR = 6000;
-    public static double GO_MISS_B = 1500, GO_PROP_B = 75e3, GO_PROP_S = 25e3, GO_DMG_S = 0.15, GO_WIND = 20, GO_WIND_PAD = 12,
-        WAIT_MAX = 12, TIP_K = 0.4, REACH_S = 500, REACH_B = 700, RELIGHT_P = 0.02;
+    public const double DECK_H = 16, MOUNT_R = 23, COAST_DR = 700, LAND_W = 30000, SEA_DR = 6000;
+    public static double GO_MISS_B = 1500, GO_PROP_B = 75e3, GO_PROP_S = 25e3, GO_DMG_S = 0.15, GO_WIND = 20,
+        GO_POLL_H = 3000, WAIT_MAX = 12, TIP_K = 0.4, REACH_S = 500, REACH_B = 700, RELIGHT_P = 0.02;
     public static double ASC_CLEAR_H = 87, ASC_Q_IN = 25.5e3, ASC_Q_OUT = 24.5e3,
         HOT_IGN_F = 0.15, HOT_IGN_T = 1.5, HOT_PC = 0.85, HOT_SEP_T = 3.5;
     public static double NAV_LAG = 0.1, NAV_POS_SIG = 0.8, NAV_POS_TAU = 20, NAV_VEL_SIG = 0.08, NAV_VEL_TAU = 4,

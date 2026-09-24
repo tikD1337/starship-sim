@@ -69,9 +69,7 @@ public sealed class FlightTape {
     private void Gap(float h) =>
         _sumBody.AddChild(new Control { CustomMinimumSize = new Vector2(0, h), MouseFilter = Control.MouseFilterEnum.Ignore });
     private static string Where(Vehicle v) => v.Caught ? "пойман башней"
-        : v.Crashed ? "разбился" : v.Landed && v.Splash ? "приводнился"
-        : v.Landed && v.SeekPad && v.Site == "pad" ? "сел на площадку у башни"
-        : v.Landed ? "сел вне башни" : "остался в полёте";
+        : v.Crashed ? "разбился" : v.Landed ? "приводнился" : "остался в полёте";
     private void Line(string what, string val) {
         var h = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         h.AddThemeConstantOverride("separation", 12);

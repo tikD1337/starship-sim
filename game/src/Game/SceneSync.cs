@@ -98,7 +98,7 @@ public sealed class SceneSync {
         _bay.Update(sim, s);
         _pad.Update(org.X, org.Y);
         _tower.SetOrigin(org.X, org.Y);
-        _tower.Set(sim.ArmGap, sim.ArmDrop + sim.ArmSag, sim.ArmY);
+        _tower.Set(sim.ArmGapL, sim.ArmGapR, sim.ArmDrop + sim.ArmSag, sim.ArmY);
         _smoke.SetOrigin(org.X, org.Y);
         _smoke.Update(b.Alt, Frac(b), b.NRun, b.Pa);
     }

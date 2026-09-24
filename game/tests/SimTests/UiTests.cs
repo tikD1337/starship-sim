@@ -205,11 +205,11 @@ internal static partial class Program {
         string tower = Arc.NamesOf("orbital", sim)[5];
         b.Site = "sea"; b.AimDr = Const.SEA_DR;
         string sea = Arc.NamesOf("orbital", sim)[5];
-        s.Site = "pad"; s.AimDr = Const.PAD_DR;
-        string pad = Arc.NamesOf("orbital", sim)[^1];
+        s.Site = "sea"; s.AimDr = Const.SEA_DR;
+        string shipSea = Arc.NamesOf("orbital", sim)[^1];
         b.Crashed = true;
         Cases("вехи по исходу",
-              ("к башне", tower, "захват ускорителя"), ("в море", sea, "приводнение ускорителя"), ("на площадку", pad, "посадка корабля на площадку"),
+              ("к башне", tower, "захват ускорителя"), ("в море", sea, "приводнение ускорителя"), ("корабль в море", shipSea, "приводнение корабля"),
               ("разбился", Arc.NamesOf("orbital", sim)[5], "потеря ускорителя"), ("трансатмосферное", Arc.NamesOf("trans", sim)[^1], "приводнение"));
         var f = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(f, 12345);
@@ -220,16 +220,12 @@ internal static partial class Program {
         v.Caught = false; v.Site = "sea"; v.Splash = true;
         Aim wet = MissionRules.Catch(v);
         string seaText = MissionRules.Where(v);
-        v.Splash = false; v.Site = "pad";
-        Aim onPad = MissionRules.Catch(v);
-        string padText = MissionRules.Where(v);
         v.Site = "tower"; v.SeekPad = false;
         Aim stray = MissionRules.Catch(v);
         v.Crashed = true;
-        Group("зачёт цели «поймать башней»", $"{seaText}; {padText}",
+        Group("зачёт цели «поймать башней»", seaText,
               ("летит — ждёт, пойман — выполнена", wait == Aim.Wait && done == Aim.Done),
-              ("море и площадка по плану — наполовину, с подписью", wet == Aim.Part && onPad == Aim.Part
-               && seaText == "запасная посадка в море" && padText == "запасная посадка на площадке у башни"),
+              ("море по плану — наполовину, с подписью", wet == Aim.Part && seaText == "запасная посадка в море"),
               ("где попало или разбился — провалена", stray == Aim.Fail && MissionRules.Catch(v) == Aim.Fail),
               ("очки: половина, полные с бонусом, ноль", MissionRules.Score(Aim.Part, 400, 0) == 200 && MissionRules.Score(Aim.Done, 400, 150) == 550
                && MissionRules.Score(Aim.Fail, 400, 0) == 0 && MissionRules.Score(Aim.Wait, 400, 0) == 0));
@@ -242,11 +238,12 @@ internal static partial class Program {
     private static void UiArmGeom() {
         Head("Руки башни: угол от зазора до обшивки");
         Table("рельс стоит ровно на заданном зазоре от обшивки",
-              (from g in new[] { 0.0, 0.7, ArmGeom.Ready, 5, ArmGeom.Park }
+              (from g in new[] { -4, -1.5, 0.0, 0.7, 5, ArmGeom.Ready, ArmGeom.Park }
                select ($"зазор {N(g)} м", ArmGeom.RailDist(ArmGeom.Angle(g)) - ArmGeom.VehR - ArmGeom.RailR + 1, g + 1, 1e-9)).ToArray());
         double ready = ArmGeom.Angle(ArmGeom.Ready) * 180 / Math.PI, park = ArmGeom.Angle(ArmGeom.Park) * 180 / Math.PI;
         Group("углы", $"касание {N(ArmGeom.Angle(0) * 180 / Math.PI)}°, рабочий {N(ready)}°, стоянка {N(park)}°",
-              ("при касании руки параллельны", Math.Abs(ArmGeom.Angle(0)) < 1e-9), ("рабочий зазор — пара градусов", ready > 1 && ready < 4),
+              ("при касании руки параллельны", Math.Abs(ArmGeom.Angle(0)) < 1e-9), ("к ступени левее или правее рука заходит за параллель", ArmGeom.Angle(-4) < 0),
+              ("на подходе раскрыты, но уже, чем на стоянке", ready > 10 && ready < park),
               ("на стоянке раскрыты широко", park > 35 && park < 65));
     }
     private static void UiReplay() {
