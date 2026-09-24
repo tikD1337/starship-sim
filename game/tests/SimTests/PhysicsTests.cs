@@ -186,6 +186,19 @@ internal static partial class Program {
               ("не выходит за корпус", dry > 0 && full < v.Len),
               ("пакет со второй ступенью выше", st.Cm > full));
     }
+    private static void MomentOfInertia() {
+        Head("Момент инерции по частям");
+        var v = new Vehicle(Kind.Booster, 60e3);
+        double Ratio(double k) { v.Prop = v.PropMax * k; double l = v.FullLen; return v.Inertia / (v.Mass * l * l / 12); }
+        double full = Ratio(1), empty = Ratio(0);
+        var s = new Vehicle(Kind.Ship, 0) { Prop = 0 };
+        double shipEmpty = s.Inertia / (s.Mass * s.Len * s.Len / 12);
+        Group("против однородного стержня: полная ступень легче в развороте, пустая тяжелее",
+              $"ускоритель полный {N(full)}, пустой {N(empty)}, корабль пустой {N(shipEmpty)} от стержня",
+              ("полный — топливо в середине, меньше 0,75 стержня", full < 0.75),
+              ("пустой — двигатели и рули по концам, больше 1,2 стержня", empty > 1.2),
+              ("пустой корабль тоже тяжелее стержня", shipEmpty > 1.1));
+    }
     private static void OrbitElements() {
         Head("Орбитальные элементы");
         double r = Const.RE + 200e3, ra = Const.RE + 400e3;

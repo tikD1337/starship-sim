@@ -13,7 +13,7 @@ public static class Const {
     public static double LAND_ALAT = 4.0;
     public static double LAND_TLAG = 2.5, LAND_KLAT = 0.6, LAND_DHPD = 650, LAND_TILT_NEAR = 16;
     public static double LAND_KDAMP = 2.4, LAND_TILT_END = 7, LAND_DH_END = 18;
-    public static double LAND_POLE = 0.55, LAND_B_GMAX = 6;
+    public static double LAND_POLE = 0.43, LAND_B_GMAX = 6;
     public const double OM_DAMP = 0.15;
     public const double LAND_CUT2 = 9, LAND_CUT_HOLD = 0.8;
     public const int LAND_B_END = 3;
@@ -42,7 +42,7 @@ public static class Const {
     public static double OM_ACC_MAX = 0.30, OM_ACC_FLIP = 1.0, GIM_RATE = 30, OM_BRAKE = 0.7;
     public static double FLIP_BRAKE = 0.8, FLIP_KW = 4, FLIP_TW = 2.4, SHIP_FLIP_TW = 1.5, FLIP_END = 10, FLIP_OM_END = 8, FLIP_D = 200;
     public static double SHIP_ALAT = 6, SHIP_TILT = 25, SHIP_GATE = 40, SHIP_AD = 6, SHIP_AB = 9,
-        SHIP_ENG_K = 1.3, SHIP_POLE = 0.9, SHIP_CATCH_V = 2, SHIP_FINAL_A = 2.5, SHIP_KV = 1.5,
+        SHIP_ENG_K = 1.3, SHIP_POLE = 0.9, SHIP_KP = 6, SHIP_KD = 4.5, BOOST_KP = 0.9, BOOST_KD = 2.6, SHIP_CATCH_V = 2, SHIP_FINAL_A = 2.5, SHIP_KV = 1.5,
         SHIP_HOLD_DR = 4, SHIP_HOLD_VH = 2, SHIP_HOLD_H = 15, SHIP_WAIT_T = 5;
     public static double SECO_LEAD = 1.8, SECO_PERI = -800e3;
     public static double CIRC_TAPER = 150e3, CIRC_ONE = 80e3;

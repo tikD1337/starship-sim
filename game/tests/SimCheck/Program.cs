@@ -264,6 +264,10 @@ internal static class Program {
             if (args[k] == "--sab") Const.SHIP_AB = double.Parse(args[k + 1], Inv);
             if (args[k] == "--flipom") Const.FLIP_OM_END = double.Parse(args[k + 1], Inv);
             if (args[k] == "--gimrate") Const.GIM_RATE = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bkp") Const.BOOST_KP = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--bkd") Const.BOOST_KD = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--skp") Const.SHIP_KP = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--skd") Const.SHIP_KD = double.Parse(args[k + 1], Inv);
             if (args[k] == "--spole") Const.SHIP_POLE = double.Parse(args[k + 1], Inv);
             if (args[k] == "--flipd") Const.FLIP_D = double.Parse(args[k + 1], Inv);
             if (args[k] == "--fliptw") Const.FLIP_TW = double.Parse(args[k + 1], Inv);

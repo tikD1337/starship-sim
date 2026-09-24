@@ -52,6 +52,7 @@ internal static partial class Program {
         ChamberCooling();
         PumpCavitation();
         CenterOfMass();
+        MomentOfInertia();
         OrbitElements();
         HeatShield();
         WindProfile();
