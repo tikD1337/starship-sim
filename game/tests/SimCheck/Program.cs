@@ -452,7 +452,8 @@ internal static class Program {
                     + $" vh={b.VHor:F1} dr={sim.Downrange(b):F1} th={(b.Th*Const.R2D):F2}"
                     + $" tc={(b.ThCmd*Const.R2D):F2} n={b.NRun} thr={b.Throttle:F2}"
                     + $" wind={b.WindE:F1} q={(b.Q/1000):F1} aoa={(b.AoaDev*Const.R2D):F1}"
-                    + $" bank={(b.Bank*Const.R2D):F0} fin={b.Fin:F2} v={b.Speed:F0}");
+                    + $" bank={(b.Bank*Const.R2D):F0} fin={b.Fin:F2} v={b.Speed:F0}"
+                    + $" sl={b.SloshY[0]:F2} st={(b.SloshT/1e6):F1} ax={b.AAx:F0} om={(b.Om*Const.R2D):F1}");
             if (lndDbg && (s.Mode == "entryS" && s.Alt < 6000 || s.Mode == "flipS" || s.Mode == "landS")
                 && i % (s.Mode == "flipS" ? 10 : 50) == 0)
                 Console.Error.WriteLine($"LND t={sim.T:F1} {s.Mode} h={s.Alt:F0} vv={s.VVert:F1}"

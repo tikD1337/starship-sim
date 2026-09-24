@@ -170,7 +170,7 @@ public static class Sim {
     }
     public static void Reset(SimState sim, uint seed) {
         sim.Payload = sim.Mission == "high" ? 20e3 : (sim.Mission == "trans" ? 0 : 67e3);
-        sim.MecoFill = 0.12;
+        sim.MecoFill = 0.125;
         sim.MecoV = 1800;
         sim.SecoPeri = sim.Mission == "trans" ? -150e3 : Const.SECO_PERI;
         sim.Seed = seed;

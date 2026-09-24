@@ -11,7 +11,7 @@ public static class Guide {
         b.Vx -= ax.X * 1.2; b.Vy -= ax.Y * 1.2;
         s.Th = b.Th; s.Om = b.Om * 0.5; s.ThCmd = b.Th;
         b.Om -= 0.02;
-        s.Mode = "ascent2"; b.Mode = "flip"; b.Tmr = 0; b.Ign = false; b.NEng = 0;
+        s.Mode = "ascent2"; b.Mode = "flip"; b.Tmr = 0; b.Ign = true; b.NEng = 3;
         sim.LogMsg("РАЗДЕЛЕНИЕ СТУПЕНЕЙ", 2);
         sim.Focus = "ship";
         sim.OnSeparate?.Invoke();
@@ -61,12 +61,12 @@ public static class Guide {
             break;
         }
         case "flip": {
-            v.Ign = false; v.NEng = 0; v.Tmr += dt;
+            v.Ign = true; v.NEng = 3; v.Throttle = 0.4; v.Tmr += dt;
             v.ThCmd = Guidance.BoostbackAim(v);
             if (v.Tmr > 4 || Math.Abs(Vehicle.AngDiff(v.ThCmd, v.Th)) < 12 * Const.D2R) {
                 PollBooster(sim, v);
                 v.Mode = "boostback"; v.Ign = true; v.NEng = 13; v.Throttle = 1;
-                sim.LogMsg("Б: разворот выполнен, включение 13 двигателей — тормозной импульс", 1);
+                sim.LogMsg("Б: разворот на трёх центральных выполнен, включение ещё 10 — тормозной импульс", 1);
             }
             break;
         }

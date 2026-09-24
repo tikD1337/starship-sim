@@ -51,6 +51,10 @@ internal static partial class Program {
         EngineThrust();
         ChamberCooling();
         PumpCavitation();
+        Settling();
+        Ullage();
+        Slosh();
+        LightHover();
         CenterOfMass();
         MomentOfInertia();
         OrbitElements();

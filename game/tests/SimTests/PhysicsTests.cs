@@ -168,10 +168,130 @@ internal static partial class Program {
             EngineSet.Update(v, 0.02, Const.P0);
             v.Tanks.F.P = 40e3;
         }
-        Group("просадка наддува на входе даёт кавитацию и провал напора", $"запас {N(cavGood)} → {N(pf.Cav)}, напор {N(headGood)} → {N(pf.Head)} м",
+        double cavLow = pf.Cav, headLow = pf.Head;
+        v.AAx = 1.5 * Const.G0;
+        for (int i = 0; i < 60; i++) {
+            EngineSet.Update(v, 0.02, Const.P0);
+            v.Tanks.F.P = 40e3;
+        }
+        Group("просадка наддува на входе даёт кавитацию и провал напора", $"запас {N(cavGood)} → {N(cavLow)}, напор {N(headGood)} → {N(headLow)} м; при 1,5 g запас {N(pf.Cav)}",
               ("на штатном наддуве кавитации нет", cavGood > 0.999),
-              ("при срезанном наддуве насос кавитирует", pf.Cav < cavGood && pf.Cav < 1),
-              ("напор просел", pf.Head < headGood));
+              ("при срезанном наддуве насос кавитирует", cavLow < cavGood && cavLow < 1),
+              ("напор просел", headLow < headGood),
+              ("под перегрузкой 1,5 g столб держит вход без кавитации", pf.Cav > 0.999));
+    }
+    private static void Settling() {
+        Head("Осадка топлива");
+        var v = new Vehicle(Kind.Ship, 0) { Prop = 150e3 };
+        for (int i = 0; i < 100; i++) Propellant.Settle(v, 0, 0.01);
+        double free = v.Settled;
+        for (int i = 0; i < 800; i++) Propellant.Settle(v, Const.G0, 0.01);
+        double g1 = v.Settled;
+        double tRcs = Propellant.SettleTau(v, 0.1);
+        Group("жидкость всплывает в невесомости и оседает под тягой", $"за 1 с невесомости {N(free)}, за 8 с при 1 g {N(g1)}, τ при 0,1 м/с² {N(tRcs)} с",
+              ("за секунду невесомости всплывает", free < 0.1), ("за 8 с при 1 g оседает", g1 > 0.95),
+              ("от ДМТ оседает десятки секунд", tRcs > 10 && tRcs < 60));
+        Vehicle wet = Burning(Kind.Ship, 3), dry = Unsettled(3);
+        Group("запуск на неосевшем топливе — авария", $"осевшее: {wet.Eng.Count(e => e.On)} работают; всплывшее: {dry.Eng.Count(e => e.Failed)} выключены — «{dry.Eng[0].Reason}»",
+              ("на осевшем запускаются", wet.Eng.All(e => e.On && !e.Failed)),
+              ("на всплывшем все выключены", dry.Eng.All(e => e.Failed)),
+              ("причина — газ на входе", dry.Eng[0].Reason.Contains("газ")));
+    }
+    private static Vehicle InOrbit(bool rcs) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Ship, 0) {
+            Mode = "man", Prop = 120e3, Settled = 0, Rcs = rcs, Launched = true,
+            Ign = true, NEng = 3, Throttle = 1, Th = Math.PI / 2, ThCmd = Math.PI / 2,
+        };
+        v.Y = Const.RE + 200e3;
+        v.Vx = Math.Sqrt(Const.MU / v.Y);
+        sim.Veh.Add(v);
+        for (int i = 0; i < 9000 && !(v.NRun > 0 && !v.Ullage && v.F > 1e5); i++) {
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+        }
+        return v;
+    }
+    private static void Ullage() {
+        Head("Запуск в невесомости");
+        Vehicle on = InOrbit(true), off = InOrbit(false);
+        Group("перед запуском ДМТ осаживают топливо, без них запуск срывается",
+              $"с ДМТ: {on.NRun} работают, осадка {N(on.Settled)}; без ДМТ: {off.Eng.Count(e => e.Failed)} выключены",
+              ("с ДМТ двигатели работают", on.NRun >= 3 && on.Eng.All(e => !e.Failed)),
+              ("запуск после осадки", on.Settled >= Const.SETTLE_GO),
+              ("без ДМТ выключены по газу", off.Eng.Where(e => !e.IsVac).All(e => e.Failed) && off.Eng[0].Reason.Contains("газ")));
+    }
+    private static void Slosh() {
+        Head("Плескание");
+        var v = new Vehicle(Kind.Booster, 0) { Prop = 0.2 * Spec.Booster.Prop, AAx = Const.G0 };
+        double w = Propellant.Omega(v, true), dt = 0.01, last = 0, t0 = double.NaN, t1 = double.NaN, a0 = 0, a1 = 0;
+        int cross = 0;
+        for (int i = 0; i < 6000; i++) {
+            Propellant.Slosh(v, v.Cm, i < 10 ? 1 : 0, dt);
+            double y = v.SloshY[0];
+            if (i > 10 && last < 0 && y >= 0) {
+                cross++;
+                if (cross == 1) t0 = i * dt;
+                if (cross == 6) t1 = i * dt;
+            }
+            if (cross == 1) a0 = Math.Max(a0, Math.Abs(y));
+            if (cross == 6) a1 = Math.Max(a1, Math.Abs(y));
+            last = y;
+        }
+        double per = (t1 - t0) / 5, zeta = Math.Log(a0 / a1) / (2 * Math.PI * 5);
+        for (int j = 0; j < 2; j++) {
+            double wj = Propellant.Omega(v, j == 0);
+            v.SloshY[j] = -2 / (wj * wj);
+            v.SloshV[j] = 0;
+        }
+        double shift = Const.G0 * (Propellant.SloshMass(v, true) * v.SloshY[0] + Propellant.SloshMass(v, false) * v.SloshY[1]);
+        double steady = Propellant.Slosh(v, v.Cm, 2, dt);
+        v.AAx = 0;
+        v.SloshY[0] = 1;
+        double free = Math.Abs(Propellant.Slosh(v, v.Cm, 1, dt));
+        Group("первый тон: период и затухание; в равновесии — только сдвиг центра масс, в невесомости момента нет",
+              $"период {N(per)} с при расчётных {N(2 * Math.PI / w)}, ζ {N(zeta)}, момент в равновесии {N(steady)} Н·м при сдвиге ЦМ {N(shift)}",
+              ("период по ω² = 1,84·a·th(1,84h/R)/R", w > 0 && Math.Abs(per * w / (2 * Math.PI) - 1) < 0.03),
+              ("затухание по перегородкам", zeta > 0.02 && zeta < 0.04),
+              ("в равновесии момент равен тяге на сдвиг центра масс", shift != 0 && Math.Abs(steady / shift - 1) < 1e-6),
+              ("в невесомости момента нет", free == 0));
+        var calm = SloshHover(0);
+        var wave = SloshHover(1.5);
+        Group("волна в полупустом баке качает ступень, автомат гасит", $"без волны {N(calm.Peak)}°, с волной {N(wave.Peak)}°, к концу {N(wave.End)}°; момент волны до {N(wave.TMax / 1e6)} МН·м при инерции {N(wave.I)} кг·м²",
+              ("волна заметно качает", wave.Peak > 0.15 && wave.Peak > 100 * calm.Peak),
+              ("затухает, а не раскачивается", wave.End < 0.5 * wave.Peak));
+    }
+    private static (double Peak, double End, double TMax, double I) SloshHover(double y0) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Booster, 0) {
+            Mode = "landB", Ign = true, NEng = 3, ThCmd = 0, Launched = true, Kp = Const.BOOST_KP, Kd = Const.BOOST_KD,
+        };
+        v.Prop = 0.1 * v.PropMax;
+        foreach (Tank t in new[] { v.Tanks.F, v.Tanks.O }) t.Mg = t.P * t.V * (1 - v.Fill) / (t.R * 270);
+        v.Y = Const.RE + 1000;
+        v.Vx = -Const.W * v.Y;
+        sim.Veh.Add(v);
+        double peak = 0, end = 0, tMax = 0;
+        for (int i = 0; i < 3200; i++) {
+            v.Throttle = Const.Clamp(v.Mass * Const.G0 / (3 * 2.45e6), 0.4, 1);
+            if (i < 200) v.Settled = 1;
+            if (i == 200) v.SloshY[0] = y0;
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+            double th = Math.Abs(Vehicle.AngDiff(v.Th, 0)) * Const.R2D;
+            if (i > 200) peak = Math.Max(peak, th);
+            if (i > 2700) end = Math.Max(end, th);
+            tMax = Math.Max(tMax, Math.Abs(v.SloshT));
+        }
+        return (peak, end, tMax, v.Inertia);
+    }
+    private static Vehicle Unsettled(double seconds) {
+        var v = new Vehicle(Kind.Ship, 60e3) { Ign = true, NEng = 6, Throttle = 1, Settled = 0 };
+        for (int i = 0; i * 0.02 < seconds; i++) {
+            Pressurant.Step(v, 0.02);
+            EngineSet.Update(v, 0.02, 0);
+        }
+        return v;
     }
     private static void CenterOfMass() {
         Head("Центр масс");
@@ -464,6 +584,24 @@ internal static partial class Program {
               ("сопло отклонено на −asin(0,87 / плечо до центра масс)", Math.Abs(one.G - want) < 0.05 * Math.Abs(want)),
               ("корпус не уводит", Math.Abs(one.Th) < 0.2 * Const.D2R),
               ("на трёх тяга симметрична — сопло прямо", Math.Abs(three.G) < 0.01 * Math.Abs(want)));
+    }
+    private static int OverArms(double prop, double f) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Booster, 0) {
+            Mode = "landB", SeekPad = true, Site = "tower", Launched = true, Ign = true, IgnBurn = true, BurnLogged = true,
+            NEng = 3, NRun = 3, Throttle = Const.LAND_THR_MIN, Prop = prop, F = f,
+        };
+        v.Y = Const.RE + Guidance.CatchHT(v) + 3;
+        v.Vx = -Const.W * v.Y;
+        sim.Veh.Add(v);
+        Guidance.LandingBurn(sim, v, Const.DT, 3);
+        return v.NEng;
+    }
+    private static void LightHover() {
+        Head("Лёгкий ускоритель над руками");
+        int light = OverArms(10e3, 3e6), heavy = OverArms(45e3, 3e6);
+        Group("тяга трёх на минимальном дросселе больше веса — один гасится", $"при 3 МН и 10 т топлива {light}, при 45 т {heavy}",
+              ("лёгкий гасит один", light == 2), ("тяжёлый остаётся на трёх", heavy == 3));
     }
     private static void BadNumbers() {
         Head("Негодные числа");

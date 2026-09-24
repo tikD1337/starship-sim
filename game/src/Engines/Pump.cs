@@ -35,7 +35,7 @@ public sealed class Pump {
             if (v == null || v.Tanks == null) return N.PIn;
             if (v.OnHeader) return 400e3;
             Tank t = IsFuel ? v.Tanks.F : v.Tanks.O;
-            return Math.Max(3e3, t.P);
+            return Math.Max(3e3, t.P + Propellant.Head(v, IsFuel));
         }
     }
     public void Update(double dt, double thr, bool running) {
@@ -47,7 +47,7 @@ public sealed class Pump {
         double rel = Rpm / N.Rpm;
         double npshA = (PIn - N.PVap) / (N.Rho * Const.G0);
         NpshR = N.Npsh * rel * rel * 1.02;
-        Cav = NpshR > 0.1 ? Const.Clamp(npshA / NpshR, 0, 1) : 1;
+        Cav = NpshR > 0.1 ? Const.Clamp(npshA / NpshR, 0, 1) * (running ? Propellant.Feed(Eng.Veh) : 1) : 1;
         double valve = Const.Clamp(IsFuel ? p.ValveF : p.ValveOx, 0, 1.2);
         Head = HeadNom * rel * rel * hk * valve * (1 - 0.35 * Wear) * Math.Pow(Cav, 1.5);
         Q = QNom * rel * (0.8 + 0.2 * thr);

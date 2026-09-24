@@ -213,6 +213,9 @@ public static class Guidance {
             int nb = v.NEng > 0 && v.NEng <= Const.LAND_B_END || need <= Const.LAND_B_END ? Math.Min(Const.LAND_B_END, nEng) : nEng;
             if (!v.Catch && nb <= Const.LAND_B_END)
                 while (nb > 1 && nb * e.FOne * Const.LAND_THR_MIN > v.Mass * e.G * 0.95) nb--;
+            if (v.Catch && nb <= Const.LAND_B_END && nb > 1 && v.NRun == nb && e.DhS > 0 && e.Vv > -0.5
+                && v.Throttle <= Const.LAND_THR_MIN + 1e-3 && v.F > v.Mass * e.G) v.LandCut = true;
+            if (v.LandCut) nb = Math.Min(nb, Const.LAND_B_END - 1);
             return nb;
         }
         v.CutT += dt;

@@ -55,6 +55,8 @@ internal static partial class Program {
         checks.Add(() => Head("Орбитальное задание без разброса: полёт целиком"));
         Marks(nom, checks);
         BoosterReturn(nom, checks);
+        Relights(nom, checks);
+        SloshDescent(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
@@ -99,6 +101,38 @@ internal static partial class Program {
                   ("последняя не позже конца полёта", m[^1].T <= n.Sim.T + 1e-9));
         });
     }
+    private static void SloshDescent(Run n, List<Action> checks) {
+        Vehicle b = n.B;
+        double lag = 0, tq = 0;
+        n.Each(() => {
+            if ((b.Mode == "coastB" || b.Mode == "landB") && b.Alt > Const.BOOST_STRAIGHT_H && b.Q > 30e3) {
+                lag = Math.Max(lag, Math.Abs(Vehicle.AngDiff(b.ThCmd, b.Th)) * Const.R2D);
+                tq = Math.Max(tq, Math.Abs(b.SloshT));
+            }
+        });
+        checks.Add(() => Group("на спуске остаток топлива у стенки сдвигает центр масс, автомат держит наклон",
+            $"момент жидкости до {N(tq / 1e6)} МН·м, отставание от заданного наклона до {N(lag)}°",
+            ("жидкость даёт момент", tq > 1e6), ("наклон держится в пределах 2°", lag < 2)));
+    }
+    private static void Relights(Run n, List<Action> checks) {
+        Vehicle b = n.B, s = n.S;
+        double hold = 0, feedAtIgn = double.NaN, flipRun = 0, flipT = 0, bFeed = double.NaN;
+        bool gas = false;
+        n.Each(() => {
+            if (s.Mode == "deorbit" && s.Ullage) hold += Const.DT;
+            if (s.Mode == "deorbit" && s.NRun > 0 && double.IsNaN(feedAtIgn)) feedAtIgn = s.Settled;
+            if (b.Mode == "flip") { flipT += Const.DT; if (b.NRun == 3) flipRun += Const.DT; }
+            if (b.Mode == "boostback" && double.IsNaN(bFeed)) bFeed = b.Settled;
+            gas |= b.Eng.Concat(s.Eng).Any(e => e.Failed && e.Reason.Contains("газ"));
+        });
+        checks.Add(() => Group("запуск в невесомости: осадка ДМТ перед сходом, ускоритель разворачивается на трёх",
+            $"осадка {N(hold)} с, при запуске {N(feedAtIgn)}; разворот {N(flipT)} с, на трёх {N(flipRun)} с, у тормозного {N(bFeed)}",
+            ("корабль осаживал топливо 10–120 с", hold > 10 && hold < 120),
+            ("запуск на осевшем", feedAtIgn >= Const.SETTLE_GO),
+            ("ускоритель в развороте на трёх центральных", flipT > 0 && flipRun > 0.8 * flipT),
+            ("тормозной импульс на осевшем", bFeed > 0.95),
+            ("ни одного выключения по газу", !gas)));
+    }
     private static void BoosterReturn(Run n, List<Action> checks) {
         Vehicle b = n.B;
         SimState sim = n.Sim;
@@ -140,7 +174,8 @@ internal static partial class Program {
             Group("ускоритель пойман и стоит", $"промах {N(miss)} м, через 1000 с {N(v1000 * 3.6)} км/ч",
                   ("пойман", b.Caught),
                   ("конец полёта записан в события в момент захвата", sim.Events.TryGetValue("overБ", out double t) && Math.Abs(t - tCatch) < 0.05),
-                  ("через 1000 с стоит на месте относительно Земли", v1000 < 0.5));
+                  ("через 1000 с стоит на месте относительно Земли", v1000 < 0.5),
+                  ("двигатели не числятся работающими", b.NRun == 0));
         });
     }
     private static void ShipDescent(Run r, string name, List<Action> checks) {
