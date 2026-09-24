@@ -40,6 +40,8 @@ public static class Const {
     public static double ENTRY_PROP = 45e3;
     public static double FLIP_STOP = 650, FLIP_H_SEA = 700;
     public static double OM_ACC_MAX = 0.30, OM_ACC_FLIP = 1.0, GIM_RATE = 30, OM_BRAKE = 0.7;
+    public static double SETTLE_A = 0.05, UNSETTLE_T = 0.4, SETTLE_TMIN = 0.3, SETTLE_TMAX = 120,
+        SETTLE_GO = 0.9, SETTLE_TRIP = 0.5, GAS_TRIP_T = 0.3, ULLAGE_OFF = 1e5, SLOSH_ZETA = 0.03, SLOSH_MAX = 0.5;
     public static double FLIP_BRAKE = 0.8, FLIP_KW = 4, FLIP_TW = 2.4, SHIP_FLIP_TW = 1.5, FLIP_END = 10, FLIP_OM_END = 8, FLIP_D = 200;
     public static double SHIP_ALAT = 6, SHIP_TILT = 25, SHIP_GATE = 40, SHIP_AD = 6, SHIP_AB = 9,
         SHIP_ENG_K = 1.3, SHIP_POLE = 0.9, SHIP_KP = 6, SHIP_KD = 4.5, BOOST_KP = 0.9, BOOST_KD = 2.6, SHIP_CATCH_V = 2, SHIP_FINAL_A = 2.5, SHIP_KV = 1.5,

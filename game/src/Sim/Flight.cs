@@ -5,9 +5,11 @@ public static class Flight {
         double sa = Math.Sin(alpha);
         return 2 * sa * sa * Math.Sin(Const.FLAP_DEF);
     }
+    public static double RcsAuth(Vehicle v) => v.Rcs ? (v.Kind == Kind.Booster ? 2.4e6 : 1.1e6) * v.RcsK : 0;
     public static void Quench(Vehicle v) {
         foreach (Engine e in v.Eng) { e.On = false; e.Spool = 0; e.F = 0; e.Md = 0; e.Pc = 0; e.Thr = 0; }
         v.Mdot = 0;
+        v.NRun = 0;
     }
     public static void SpoolAttached(Vehicle v, double dt) {
         v.EngAcc += dt;
@@ -39,6 +41,9 @@ public static class Flight {
             v.Bank += Const.Clamp(d, -lim, lim);
         }
         if (v.Prop <= 0) { v.Ign = false; v.NEng = 0; }
+        Propellant.Sequence(v);
+        if (v.Ullage && !v.UllLog) sim.LogMsg($"{v.Tag}: осадка топлива — ДМТ толкают вперёд перед запуском", 1);
+        v.UllLog = v.Ullage;
         v.EngAcc += dt;
         if (v.EngAcc >= 0.02) {
             Pressurant.Step(v, v.EngAcc);
@@ -72,7 +77,7 @@ public static class Flight {
             double dCn = Const.FIN_CN * Math.Sin(Const.FLAP_DEF);
             flapAuth = q * 3 * Const.FIN_S * Math.Abs(Const.FIN_Y - cm) * dCn * v.FinDep * v.CtrlK;
         }
-        double rcsAuth = v.Rcs ? (v.Kind == Kind.Booster ? 2.4e6 : 1.1e6) * v.RcsK : 0;
+        double rcsAuth = RcsAuth(v);
         double gimLim = double.IsNaN(v.GimLim) ? v.Spec.Gimbal : v.GimLim * Const.D2R;
         double gimAuth = v.F > 1e3 ? v.F * Math.Sin(gimLim) * cm : 0;
         double tqEng = 0;
@@ -88,7 +93,7 @@ public static class Flight {
                           -aLim, aLim)
             : Const.Clamp(v.Kd * (Const.Clamp(v.Kp / Math.Max(v.Kd, 0.1) * err, -wCap, wCap) - v.Om), -aLim, aLim);
         double need = aDes * I;
-        need -= Fsd * (v.Cp - cm) + tqEng;
+        need -= Fsd * (v.Cp - cm) + tqEng + Propellant.Trim(v, (v.F * Math.Sin(v.Gimbal) + Fsd) / m);
         double gWant = 0;
         if (v.F > 1e3) gWant = Const.Clamp(Math.Asin(Const.Clamp(-need / (v.F * cm), -1, 1)), -gimLim, gimLim);
         double gStep = Const.GIM_RATE * Const.D2R * dt;
@@ -104,16 +109,23 @@ public static class Flight {
         Vec2 fa = Aero.World(v, af, vr);
         double FaX = fa.X, FaY = fa.Y;
         Nav.Observe(sim, v, FaX, FaY, af.Drag, h, dt);
-        double tvx = (ax.X * Math.Cos(g) + sd.X * Math.Sin(g)) * v.F;
-        double tvy = (ax.Y * Math.Cos(g) + sd.Y * Math.Sin(g)) * v.F;
-        double Fx = tvx + FaX, Fy = tvy + FaY;
+        double fUll = v.Ullage ? Propellant.UllageF(v) : 0;
+        double tvx = (ax.X * Math.Cos(g) + sd.X * Math.Sin(g)) * v.F + ax.X * fUll;
+        double tvy = (ax.Y * Math.Cos(g) + sd.Y * Math.Sin(g)) * v.F + ax.Y * fUll;
         double gr = Const.MU / (v.R * v.R);
+        double aAx = (v.F * Math.Cos(g) + Fax + fUll) / m;
+        if (!v.Launched) aAx = Math.Max(aAx, gr);
+        Propellant.Settle(v, aAx, dt);
+        if (v.Stacked && v.Mate != null) { v.Mate.AAx = v.AAx; v.Mate.Settled = v.Settled; }
+        torque += Propellant.Slosh(v, cm, (v.F * Math.Sin(g) + Fsd) / m, dt);
+        double Fx = tvx + FaX, Fy = tvy + FaY;
         v.Acc = Math.Sqrt(Fx * Fx + Fy * Fy) / m / Const.G0;
         if (v.Acc > v.MaxG) v.MaxG = v.Acc;
         v.Vx += (Fx / m - gr * up.X) * dt;
         v.Vy += (Fy / m - gr * up.Y) * dt;
         v.X += v.Vx * dt; v.Y += v.Vy * dt;
-        v.Om += torque / I * dt;
+        v.OmDot = torque / I;
+        v.Om += v.OmDot * dt;
         v.Om *= 1 - Const.OM_DAMP * dt;
         v.Th += v.Om * dt;
         if (v.Th > Math.PI) v.Th -= 2 * Math.PI; else if (v.Th < -Math.PI) v.Th += 2 * Math.PI;

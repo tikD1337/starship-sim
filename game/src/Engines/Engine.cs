@@ -14,7 +14,7 @@ public sealed class Engine {
     public bool On, Failed, Sep;
     public string Reason = "";
     public double Spool, Pc, F, Md, Thr, Arm;
-    public double TWall = 290, QWall, Burn;
+    public double TWall = 290, QWall, Burn, GasT;
     private const double CHAN_AREA = 0.003, CHAN_DH = 0.0025, COOL_T = 150;
     private const double WALL_LIMIT = 950, BURN_ENG = 2.0e-7;
     public string Anom;
@@ -67,6 +67,11 @@ public sealed class Engine {
         if (Spool < 0.005) Spool = 0;
         Pf.Update(dt, Spool, run);
         Po.Update(dt, Spool, run);
+        if (run && Spool > 0.2 && Propellant.Feed(Veh) < Const.SETTLE_TRIP) {
+            GasT += dt;
+            if (GasT > Const.GAS_TRIP_T) Fail("газ на входе насоса — топливо в баке не осело");
+        }
+        else GasT = 0;
         double rf = Pf.DP / Pump.NomF.DP, ro = Po.DP / Pump.NomO.DP;
         double q = Const.Clamp(Math.Min(rf, ro), 0, 1.25);
         Pc = Pump.PC_NOM * q;
@@ -127,7 +132,7 @@ public static class EngineSet {
         return outp;
     }
     public static void Update(Vehicle v, double dt, double pa) {
-        int n = v.Ign ? v.NEng : 0;
+        int n = v.Ign && !v.IgnHold ? v.NEng : 0;
         double thr = v.Ign ? Const.Clamp(v.Throttle, 0, 1) : 0;
         int live = 0;
         foreach (Engine e in v.Eng) {
