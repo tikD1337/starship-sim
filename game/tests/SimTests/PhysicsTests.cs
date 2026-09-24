@@ -397,8 +397,52 @@ internal static partial class Program {
         }
         return (v.Gimbal, Vehicle.AngDiff(v.Th, 0), v.Cm);
     }
+    private static double GimbalRate() {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Ship, 30e3) { Mode = "landS", Ign = true, NEng = 1, Throttle = 0.45, Kp = 1.4, Kd = 2.8 };
+        v.Y = Const.RE + 1000;
+        v.Vx = -Const.W * v.Y;
+        sim.Veh.Add(v);
+        for (int i = 0; i < 200; i++) { Flight.StepVehicle(sim, v, Const.DT); sim.T += Const.DT; }
+        v.ThCmd = 20 * Const.D2R;
+        double g0 = v.Gimbal, rate = 0;
+        for (int i = 0; i < 500; i++) {
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+            rate = Math.Max(rate, Math.Abs(v.Gimbal - g0) / Const.DT);
+            g0 = v.Gimbal;
+        }
+        return rate * Const.R2D;
+    }
+    private static (double Peak, double Settle) Step(double deg, double kp, double kd) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Ship, 30e3) { Mode = "landS", Ign = true, NEng = 1, Throttle = 0.45, Kp = kp, Kd = kd };
+        v.Y = Const.RE + 1000;
+        v.Vx = -Const.W * v.Y;
+        sim.Veh.Add(v);
+        for (int i = 0; i < 200; i++) { Flight.StepVehicle(sim, v, Const.DT); sim.T += Const.DT; }
+        v.ThCmd = deg * Const.D2R;
+        double peak = 0, settle = double.NaN;
+        for (int i = 0; i < 2000; i++) {
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+            double th = Vehicle.AngDiff(v.Th, 0) * Const.R2D;
+            peak = Math.Max(peak, th);
+            if (Math.Abs(th - deg) > 0.5) settle = double.NaN;
+            else if (double.IsNaN(settle)) settle = i * Const.DT;
+        }
+        return (peak, settle);
+    }
     private static void EngineOut() {
-        Head("Несимметричная тяга");
+        Head("Несимметричная тяга и привод сопел");
+        var soft = Step(20, 1.4, 2.8);
+        var stiff = Step(20, 4, 3);
+        Group("разворот на 20° без перелёта при любом усилении", $"мягкий: пик {N(soft.Peak)}°, {N(soft.Settle)} с; жёсткий: пик {N(stiff.Peak)}°, {N(stiff.Settle)} с",
+              ("мягкий не перелетает", soft.Peak < 21), ("жёсткий не перелетает", stiff.Peak < 21),
+              ("жёсткий успокаивается за 10 с", stiff.Settle < 10));
+        double gr = GimbalRate();
+        Group("сопло перекладывается не быстрее привода", $"до {N(gr)}°/с",
+              ("не быстрее 30°/с", gr <= 30 + 1e-6), ("но перекладывается", gr > 1));
         var one = Hover(1);
         var three = Hover(3);
         double want = -Math.Asin(0.87 / one.Cm);

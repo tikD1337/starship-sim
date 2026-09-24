@@ -81,17 +81,19 @@ public static class Flight {
         double aAvail = Math.Max(0.015,
             (gimAuth + flapAuth + rcsAuth - Math.Abs(Fsd * (v.Cp - cm)) + Math.Sign(err) * tqEng) / I);
         double aLim = Math.Min(v.Mode == "flipS" ? Const.OM_ACC_FLIP : Const.OM_ACC_MAX, aAvail);
+        double lag = aLim * gimLim / (Const.GIM_RATE * Const.D2R);
+        double wCap = Math.Sqrt(lag * lag + 2 * Const.OM_BRAKE * aLim * Math.Abs(err)) - lag;
         double aDes = v.Mode == "flipS"
             ? Const.Clamp((Math.Sign(err) * Math.Sqrt(2 * Const.FLIP_BRAKE * aLim * Math.Abs(err)) - v.Om) * Const.FLIP_KW,
                           -aLim, aLim)
-            : Const.Clamp(v.Kp * err - v.Kd * v.Om, -aLim, aLim);
+            : Const.Clamp(v.Kd * (Const.Clamp(v.Kp / Math.Max(v.Kd, 0.1) * err, -wCap, wCap) - v.Om), -aLim, aLim);
         double need = aDes * I;
         need -= Fsd * (v.Cp - cm) + tqEng;
-        double g = 0;
-        if (v.F > 1e3) {
-            g = Const.Clamp(Math.Asin(Const.Clamp(-need / (v.F * cm), -1, 1)), -gimLim, gimLim);
-            need += v.F * Math.Sin(g) * cm;
-        }
+        double gWant = 0;
+        if (v.F > 1e3) gWant = Const.Clamp(Math.Asin(Const.Clamp(-need / (v.F * cm), -1, 1)), -gimLim, gimLim);
+        double gStep = Const.GIM_RATE * Const.D2R * dt;
+        double g = Const.Clamp(v.Gimbal + Const.Clamp(gWant - v.Gimbal, -gStep, gStep), -gimLim, gimLim);
+        if (v.F > 1e3) need += v.F * Math.Sin(g) * cm;
         v.Gimbal = g;
         double fl = 0;
         if (flapAuth > 1e3) { fl = Const.Clamp(need / flapAuth, -1, 1); need -= fl * flapAuth; }
