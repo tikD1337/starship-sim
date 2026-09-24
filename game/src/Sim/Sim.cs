@@ -332,7 +332,7 @@ public static class Sim {
         }
         if (s.Attached) {
             s.X = b.X; s.Y = b.Y; s.Vx = b.Vx; s.Vy = b.Vy; s.Th = b.Th; s.Om = b.Om;
-            s.Q = b.Q; s.Mach = b.Mach; s.Acc = b.Acc; s.Alpha = b.Alpha; s.Heat = b.Heat; s.F = 0;
+            s.Q = b.Q; s.Mach = b.Mach; s.Acc = b.Acc; s.Alpha = b.Alpha; s.Heat = b.Heat;
         }
         if (b.Alt > 80) sim.Once("tower", () => sim.LogMsg("Носитель прошёл башню", 1));
         if (b.Alt > 100e3) sim.Once("karman", () => sim.LogMsg("Пересечена линия Кармана — 100 км", 1));

@@ -50,7 +50,8 @@ public sealed class Vehicle {
     public double GimLim = double.NaN;
     public double Kp = 1.1, Kd = 2.4;
     public double Settled = 1, AAx;
-    public bool Ullage, UllLog, IgnHold, LandCut;
+    public bool Ullage, UllLog, IgnHold, LandCut, Direct;
+    public double GimCmd, FinCmd, RcsCmd;
     public double SloshT, OmDot;
     public readonly double[] SloshY = new double[2], SloshV = new double[2];
     public Vehicle(Kind kind, double payload) {

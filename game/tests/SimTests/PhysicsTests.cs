@@ -585,6 +585,86 @@ internal static partial class Program {
               ("корпус не уводит", Math.Abs(one.Th) < 0.2 * Const.D2R),
               ("на трёх тяга симметрична — сопло прямо", Math.Abs(three.G) < 0.01 * Math.Abs(want)));
     }
+    private static Vehicle DeepSpace(Kind kind) {
+        var v = new Vehicle(kind, 0) { Mode = "man", Direct = true, Launched = true };
+        v.Y = 1e9;
+        return v;
+    }
+    private static void Fly(SimState sim, Vehicle v, double seconds) {
+        for (int i = 0; i * Const.DT < seconds; i++) {
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+        }
+    }
+    private static (double Got, double Want) Spin(Vehicle v, double arm) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        Fly(sim, v, 1.5);
+        double om = v.Om, f = v.F, i = v.Inertia, c = v.Cm;
+        Fly(sim, v, 1);
+        double fa = (f + v.F) / 2, ia = (i + v.Inertia) / 2, ca = (c + v.Cm) / 2;
+        double want = double.IsNaN(arm) ? -fa * Math.Sin(v.GimCmd) * ca / ia : -fa * arm / ia;
+        return (v.Om - om, want);
+    }
+    private static void OpenLoop() {
+        Head("Физика без автомата");
+        var sim = new SimState { T = 0, RhoK = 1 };
+        Vehicle spin = DeepSpace(Kind.Ship);
+        spin.Om = 2 * Const.D2R;
+        Fly(sim, spin, 60);
+        Group("в пустоте без двигателей вращение сохраняется", $"через 60 с {N(spin.Om * Const.R2D)}°/с из 2, повернулся на {N(spin.Th * Const.R2D)}° из 120",
+              ("угловая скорость та же", Math.Abs(spin.Om / (2 * Const.D2R) - 1) < 1e-3),
+              ("угол равен ω·t", Math.Abs(spin.Th * Const.R2D - 120) < 0.5));
+        Vehicle gim = DeepSpace(Kind.Ship);
+        gim.Ign = true; gim.NEng = 3; gim.Throttle = 1; gim.GimCmd = 2 * Const.D2R;
+        Vehicle one = DeepSpace(Kind.Ship);
+        one.Ign = true; one.NEng = 1; one.Throttle = 1;
+        var g = Spin(gim, double.NaN);
+        var o = Spin(one, 0.87);
+        Group("угловое ускорение без автомата — момент на инерцию", $"сопло 2°: {N(g.Got)} против F·sin δ·l/I {N(g.Want)} рад/с²; один двигатель: {N(o.Got)} против F·0,87/I {N(o.Want)}",
+              ("сопло отклонено на 2°", Math.Abs(g.Got / g.Want - 1) < 0.02),
+              ("один двигатель в 0,87 м от оси", Math.Abs(o.Got / o.Want - 1) < 0.02));
+        Vehicle burn = DeepSpace(Kind.Ship);
+        burn.Ign = true; burn.NEng = 3; burn.Throttle = 1;
+        double m0 = burn.Mass;
+        Fly(sim, burn, 60);
+        double dv = Math.Sqrt(burn.Vx * burn.Vx + burn.Vy * burn.Vy), rocket = 350 * Const.G0 * Math.Log(m0 / burn.Mass);
+        Near("ракетное уравнение в пустоте: 60 с на трёх, Isp 350 с", dv, rocket, 0.01, " м/с");
+        var air = new SimState { T = 0, RhoK = 1, Wind = Wind.Calm() };
+        var fall = new Vehicle(Kind.Booster, 0) { Mode = "man", Direct = true, Launched = true, Prop = 30e3 };
+        fall.Y = Const.RE + 8000;
+        fall.Vx = -Const.W * fall.Y;
+        fall.Vy = -330;
+        air.Veh.Add(fall);
+        double h = 8000, vv = 330, m = fall.Mass;
+        while (h > 5000) {
+            Air at = Atmosphere.At(h);
+            double gr = Const.MU / ((Const.RE + h) * (Const.RE + h)), cd = Atmosphere.CdEngine(vv / at.A) + 0.06;
+            vv += (gr - 0.5 * at.Rho * vv * vv * cd * fall.A / m) * Const.DT;
+            h -= vv * Const.DT;
+        }
+        while (fall.Alt > 5000) {
+            Flight.StepVehicle(air, fall, Const.DT);
+            air.T += Const.DT;
+        }
+        Near("падение двигателями вперёд с 8 до 5 км — как одномерный расчёт с тем же сопротивлением", -fall.VVert, vv, 0.01, " м/с");
+    }
+    private static void HotStaging() {
+        Head("Горячее разделение без автомата");
+        var sim = new SimState();
+        Physics.Sim.Reset(sim, 1);
+        Vehicle b = sim.Veh[0], s = sim.Veh[1];
+        b.Vx = 1500; b.Vy = 800; b.Om = 0.01; b.Prop = 0.12 * b.PropMax;
+        s.Vx = b.Vx; s.Vy = b.Vy; s.Om = b.Om;
+        double m = b.Mass, px = m * b.Vx, py = m * b.Vy;
+        Guide.Separate(sim);
+        double mb = b.Dry + b.Prop, ms = s.Dry + s.Prop;
+        double qx = mb * b.Vx + ms * s.Vx, qy = mb * b.Vy + ms * s.Vy;
+        Group("разделение — внутреннее событие: импульс и вращение связки сохраняются",
+              $"импульс до {N(Math.Sqrt(px * px + py * py) / 1e6)}, после {N(Math.Sqrt(qx * qx + qy * qy) / 1e6)} тыс. т·м/с; вращение {N(b.Om)} и {N(s.Om)} рад/с при 0,01",
+              ("масса та же", Math.Abs(mb + ms - m) < 1e-6),
+              ("импульс тот же", Math.Abs(qx - px) + Math.Abs(qy - py) < 1e-6 * Math.Abs(px)),
+              ("обе ступени вращаются как связка", b.Om == 0.01 && s.Om == 0.01));
+    }
     private static int OverArms(double prop, double f) {
         var sim = new SimState { T = 0, RhoK = 1 };
         var v = new Vehicle(Kind.Booster, 0) {

@@ -154,7 +154,7 @@ public static class Guidance {
     }
     private static double SteerP(Vehicle v, double want, double p) {
         double kp = Math.Max(v.Kp, 0.1), th = Vehicle.AngDiff(v.Th, 0);
-        return th + 6 * p * p / kp * (want - th) - (4 * p - v.Kd - Const.OM_DAMP) / kp * v.Om;
+        return th + 6 * p * p / kp * (want - th) - (4 * p - v.Kd) / kp * v.Om;
     }
     private static double LatTime(double dr, double vh, double aLat)
         => Const.LAND_TLAG + Math.Sqrt(4 * Math.Abs(dr) / aLat) + Math.Abs(vh) / aLat;

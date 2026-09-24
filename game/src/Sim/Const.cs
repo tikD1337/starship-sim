@@ -14,7 +14,6 @@ public static class Const {
     public static double LAND_TLAG = 2.5, LAND_KLAT = 0.6, LAND_DHPD = 650, LAND_TILT_NEAR = 16;
     public static double LAND_KDAMP = 2.4, LAND_TILT_END = 7, LAND_DH_END = 18;
     public static double LAND_POLE = 0.43, LAND_B_GMAX = 6;
-    public const double OM_DAMP = 0.15;
     public const double LAND_CUT2 = 9, LAND_CUT_HOLD = 0.8;
     public const int LAND_B_END = 3;
     public static double LAND_THR_MIN = 0.40, LAND_PROJ = 0.5;

@@ -7,10 +7,8 @@ public static class Guide {
         s.Attached = false; b.Stacked = false;
         double gap = b.Len + Const.SEP_GAP;
         s.X = b.X + ax.X * gap; s.Y = b.Y + ax.Y * gap;
-        s.Vx = b.Vx + ax.X * 2.5; s.Vy = b.Vy + ax.Y * 2.5;
-        b.Vx -= ax.X * 1.2; b.Vy -= ax.Y * 1.2;
-        s.Th = b.Th; s.Om = b.Om * 0.5; s.ThCmd = b.Th;
-        b.Om -= 0.02;
+        s.Vx = b.Vx; s.Vy = b.Vy;
+        s.Th = b.Th; s.Om = b.Om; s.ThCmd = b.Th;
         s.Mode = "ascent2"; b.Mode = "flip"; b.Tmr = 0; b.Ign = true; b.NEng = 3;
         sim.LogMsg("РАЗДЕЛЕНИЕ СТУПЕНЕЙ", 2);
         sim.Focus = "ship";
