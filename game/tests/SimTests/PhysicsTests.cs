@@ -68,10 +68,8 @@ internal static partial class Program {
         AeroForce ref2 = Aero.Compute(v, 0.5 * a2.Rho * v.Speed * v.Speed, v.Speed / a2.A);
         Flight.StepVehicle(sim, v, Const.DT);
         Near("Aero.Compute и шаг полёта дают одно сопротивление", v.Drag, ref2.Drag, 1e-9, " Н");
-        double a90 = Flight.FlapCn(Math.PI / 2), a70 = Flight.FlapCn(70 * Const.D2R), a63 = Flight.FlapCn(Math.Atan(2));
-        Group("закрылки складываются вдоль корпуса: на 90° атаки власть наибольшая (пункт 49)", $"на 90° {N(a90)}, на 70° {N(a70)}",
-              ("на 90° больше, чем на 70°", a90 > a70 && a90 > 0.6),
-              ("на 63° та же, что у прежней модели руля", Math.Abs(a63 - 2 * Math.Sin(2 * Math.Atan(2)) * Math.Sin(Const.FLAP_DEF)) < 1e-9));
+        double a90 = Surfaces.FlapCn(Math.PI / 2), a70 = Surfaces.FlapCn(70 * Const.D2R);
+        True("закрылки складываются вдоль корпуса: на 90° атаки сила наибольшая (пункт 49)", a90 > a70 && a90 > 0.6, $"на 90° {N(a90)}, на 70° {N(a70)}");
     }
     private static Vehicle Burning(Kind kind, double seconds, double pa = Const.P0, double cool = 1, double throttle = 1) {
         var v = new Vehicle(kind, 60e3) { Ign = true, NEng = kind == Kind.Booster ? 33 : 6, Throttle = throttle };
@@ -629,24 +627,94 @@ internal static partial class Program {
         Fly(sim, burn, 60);
         double dv = Math.Sqrt(burn.Vx * burn.Vx + burn.Vy * burn.Vy), rocket = 350 * Const.G0 * Math.Log(m0 / burn.Mass);
         Near("ракетное уравнение в пустоте: 60 с на трёх, Isp 350 с", dv, rocket, 0.01, " м/с");
+        var shut = Drop(false);
+        var open = Drop(true);
+        Group("падение двигателями вперёд с 8 до 5 км — как одномерный расчёт с тем же сопротивлением",
+              $"рули сложены: {N(shut.Got)} против {N(shut.Want)} м/с; раскрыты: {N(open.Got)} против {N(open.Want)} м/с",
+              ("рули сложены — сопротивление корпуса", Math.Abs(shut.Got / shut.Want - 1) < 0.01),
+              ("рули раскрыты — корпус и рули", Math.Abs(open.Got / open.Want - 1) < 0.01),
+              ("раскрытые рули тормозят", open.Got < shut.Got));
+    }
+    private static (double Got, double Want) Drop(bool fins) {
         var air = new SimState { T = 0, RhoK = 1, Wind = Wind.Calm() };
-        var fall = new Vehicle(Kind.Booster, 0) { Mode = "man", Direct = true, Launched = true, Prop = 30e3 };
+        var fall = new Vehicle(Kind.Booster, 0) { Mode = fins ? "man" : "ascent", Direct = true, Launched = true, Prop = 30e3, FinDep = fins ? 1 : 0 };
         fall.Y = Const.RE + 8000;
         fall.Vx = -Const.W * fall.Y;
         fall.Vy = -330;
         air.Veh.Add(fall);
-        double h = 8000, vv = 330, m = fall.Mass;
+        double h = 8000, vv = 330, m = fall.Mass, fin = fins ? 3 * 37.4 * 0.2 : 0;
         while (h > 5000) {
             Air at = Atmosphere.At(h);
             double gr = Const.MU / ((Const.RE + h) * (Const.RE + h)), cd = Atmosphere.CdEngine(vv / at.A) + 0.06;
-            vv += (gr - 0.5 * at.Rho * vv * vv * cd * fall.A / m) * Const.DT;
+            vv += (gr - 0.5 * at.Rho * vv * vv * (cd * fall.A + fin) / m) * Const.DT;
             h -= vv * Const.DT;
         }
         while (fall.Alt > 5000) {
             Flight.StepVehicle(air, fall, Const.DT);
             air.T += Const.DT;
         }
-        Near("падение двигателями вперёд с 8 до 5 км — как одномерный расчёт с тем же сопротивлением", -fall.VVert, vv, 0.01, " м/с");
+        return (-fall.VVert, vv);
+    }
+    private static (double Max, double End) FinFall(bool open, double defl) {
+        var sim = new SimState { T = 0, RhoK = 1, Wind = Wind.Calm() };
+        var v = new Vehicle(Kind.Booster, 0) {
+            Mode = open ? "man" : "ascent", Direct = true, Launched = true, Prop = 30e3, FinDep = open ? 1 : 0,
+            FinCmd = defl * Const.D2R, FinDefl = defl * Const.D2R, Th = 8 * Const.D2R,
+        };
+        v.Y = Const.RE + 25e3;
+        v.Vx = -Const.W * v.Y;
+        v.Vy = -900;
+        sim.Veh.Add(v);
+        double max = 0;
+        for (int i = 0; i < 2000; i++) {
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+            max = Math.Max(max, v.AoaDev * Const.R2D);
+        }
+        return (max, v.AoaDev * Const.R2D);
+    }
+    private static void Fins() {
+        Head("Решётчатые рули без автомата");
+        var open = FinFall(true, 0);
+        var shut = FinFall(false, 0);
+        var trim = FinFall(true, 10);
+        Group("раскрытые рули ставят падающую ступень по потоку, сложенные — нет",
+              $"раскрыты: до {N(open.Max)}°, через 20 с {N(open.End)}°; сложены: до {N(shut.Max)}°; руль на 10°: через 20 с {N(trim.End)}°",
+              ("раскрыты — отклонение гаснет", open.End < 8 && open.Max < 9),
+              ("сложены — корпус неустойчив", shut.Max > 15),
+              ("руль на 10° — балансировка у 10…16°", trim.End > 10 && trim.End < 16));
+    }
+    private static (double Mean, double Early, double Late) FlapFall(double fwd, double aft) {
+        var sim = new SimState { T = 0, RhoK = 1, Wind = Wind.Calm() };
+        var v = new Vehicle(Kind.Ship, 0) {
+            Mode = "man", Direct = true, Launched = true, Prop = 45e3, Th = 110 * Const.D2R,
+            FlapFwdCmd = fwd * Const.D2R, FlapAftCmd = aft * Const.D2R, FlapFwd = fwd * Const.D2R, FlapAft = aft * Const.D2R,
+        };
+        v.Y = Const.RE + 15e3;
+        v.Vx = -Const.W * v.Y;
+        v.Vy = -250;
+        sim.Veh.Add(v);
+        double eLo = 1e9, eHi = -1e9, lLo = 1e9, lHi = -1e9, sum = 0;
+        int n = 0;
+        for (int i = 0; i < 3000; i++) {
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+            double a = v.Alpha * Const.R2D;
+            if (i >= 200 && i < 1200) { eLo = Math.Min(eLo, a); eHi = Math.Max(eHi, a); }
+            if (i >= 2000) { lLo = Math.Min(lLo, a); lHi = Math.Max(lHi, a); }
+            if (i >= 2500) { sum += a; n++; }
+        }
+        return (sum / n, eHi - eLo, lHi - lLo);
+    }
+    private static void Flaps() {
+        Head("Закрылки корабля без автомата");
+        var fwd = FlapFall(10, 60);
+        var aft = FlapFall(40, 20);
+        Group("закрылки задают балансировку падения брюхом, колебания гаснут сами",
+              $"передние выпущены (10°), задние убраны (60°): {N(fwd.Mean)}°, размах {N(fwd.Early)} → {N(fwd.Late)}°; наоборот (40°/20°): {N(aft.Mean)}°, размах {N(aft.Early)} → {N(aft.Late)}°",
+              ("балансировки различаются больше чем на 20°", Math.Abs(fwd.Mean - aft.Mean) > 20),
+              ("передние выпущены больше — брюхом к потоку", fwd.Mean > 35 && fwd.Mean < 90),
+              ("колебания гаснут", fwd.Late < 0.6 * fwd.Early && aft.Late < 0.6 * aft.Early));
     }
     private static void HotStaging() {
         Head("Горячее разделение без автомата");

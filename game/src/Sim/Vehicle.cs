@@ -51,7 +51,7 @@ public sealed class Vehicle {
     public double Kp = 1.1, Kd = 2.4;
     public double Settled = 1, AAx;
     public bool Ullage, UllLog, IgnHold, LandCut, Direct;
-    public double GimCmd, FinCmd, RcsCmd;
+    public double GimCmd, FinCmd, RcsCmd, FinDefl, FlapFwd, FlapAft, FlapFwdCmd, FlapAftCmd;
     public double SloshT, OmDot;
     public readonly double[] SloshY = new double[2], SloshV = new double[2];
     public Vehicle(Kind kind, double payload) {

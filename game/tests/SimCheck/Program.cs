@@ -239,6 +239,9 @@ internal static class Program {
             if (args[k] == "--flipstop") Const.FLIP_STOP = double.Parse(args[k + 1], Inv);
                         if (args[k] == "--omacc") Const.OM_ACC_MAX = double.Parse(args[k + 1], Inv);
             if (args[k] == "--omflip") Const.OM_ACC_FLIP = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--fincd") Const.FIN_CD = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--findef") Const.FIN_DEF = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--boostaoa") Const.BOOST_AOA = double.Parse(args[k + 1], Inv);
             if (args[k] == "--secolead") Const.SECO_LEAD = double.Parse(args[k + 1], Inv);
             if (args[k] == "--circtaper") Const.CIRC_TAPER = double.Parse(args[k + 1], Inv);
             if (args[k] == "--circone") Const.CIRC_ONE = double.Parse(args[k + 1], Inv);

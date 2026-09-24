@@ -1,10 +1,6 @@
 using System;
 namespace Starship.Physics;
 public static class Flight {
-    public static double FlapCn(double alpha) {
-        double sa = Math.Sin(alpha);
-        return 2 * sa * sa * Math.Sin(Const.FLAP_DEF);
-    }
     public static double RcsAuth(Vehicle v) => v.Rcs ? (v.Kind == Kind.Booster ? 2.4e6 : 1.1e6) * v.RcsK : 0;
     public static void Quench(Vehicle v) {
         foreach (Engine e in v.Eng) { e.On = false; e.Spool = 0; e.F = 0; e.Md = 0; e.Pc = 0; e.Thr = 0; }
@@ -60,6 +56,7 @@ public static class Flight {
         AeroForce af = Aero.Compute(v, q, M);
         v.Alpha = af.Alpha;
         double Fax = af.Fax, Fsd = af.Fsd;
+        if (v.Kind == Kind.Booster) Fax += Surfaces.FinDrag(v, q, vr.X * ax.X + vr.Y * ax.Y);
         v.Drag = af.Drag;
         double I = v.Inertia, cm = v.Cm;
         if (v.Kind == Kind.Booster) {
@@ -67,16 +64,9 @@ public static class Flight {
             v.FinDep = Const.Clamp(v.FinDep + Const.Clamp(want - v.FinDep, -0.3 * dt, 0.3 * dt), 0, 1);
         }
         double flapAuth;
-        if (v.Kind == Kind.Ship) {
-            double dCn = FlapCn(v.Alpha);
-            double swept = 2 * Const.FLAP_S_FWD * Math.Abs(Const.FLAP_Y_FWD - cm)
-                         + 2 * Const.FLAP_S_AFT * Math.Abs(Const.FLAP_Y_AFT - cm);
-            flapAuth = q * swept * dCn * v.CtrlK;
-        }
-        else {
-            double dCn = Const.FIN_CN * Math.Sin(Const.FLAP_DEF);
-            flapAuth = q * 3 * Const.FIN_S * Math.Abs(Const.FIN_Y - cm) * dCn * v.FinDep * v.CtrlK;
-        }
+        if (v.Kind == Kind.Ship) flapAuth = Surfaces.FlapAuth(v, q, v.Alpha, cm);
+        else flapAuth = q * Const.FIN_N * Const.FIN_S * Const.FIN_CN * Math.Sin(Const.FIN_DEF * Const.D2R)
+                        * Math.Abs(Const.FIN_Y - cm) * v.FinDep * v.CtrlK;
         double rcsAuth = RcsAuth(v);
         double gimLim = double.IsNaN(v.GimLim) ? v.Spec.Gimbal : v.GimLim * Const.D2R;
         double gimAuth = v.F > 1e3 ? v.F * Math.Sin(gimLim) * cm : 0;
@@ -100,15 +90,36 @@ public static class Flight {
         double g = Const.Clamp(v.Gimbal + Const.Clamp(gWant - v.Gimbal, -gStep, gStep), -gimLim, gimLim);
         if (v.F > 1e3) need += v.F * Math.Sin(g) * cm;
         v.Gimbal = g;
-        double fl = v.Direct ? Const.Clamp(v.FinCmd, -1, 1) : 0;
-        if (!v.Direct && flapAuth > 1e3) { fl = Const.Clamp(need / flapAuth, -1, 1); need -= fl * flapAuth; }
-        if (v.Kind == Kind.Ship) v.Flap = fl; else v.Fin = fl;
+        double fSurf = 0, tSurf = 0;
+        if (v.Kind == Kind.Booster) {
+            double arm = Const.FIN_Y - cm, lim = Const.FIN_DEF * Const.D2R, fStep = Const.FIN_RATE * Const.D2R * dt;
+            double aLoc = Surfaces.FinLocal(vr.X * sd.X + vr.Y * sd.Y, vr.X * ax.X + vr.Y * ax.Y, cm, v.Om);
+            double want = v.Direct ? v.FinCmd : Surfaces.FinFor(v, q, aLoc, need / arm);
+            v.FinDefl = Const.Clamp(v.FinDefl + Const.Clamp(want - v.FinDefl, -fStep, fStep), -lim, lim);
+            fSurf = Surfaces.FinForce(v, q, aLoc, v.FinDefl);
+            tSurf = fSurf * arm;
+            need -= tSurf;
+            v.Fin = v.FinDefl / lim;
+        }
+        else {
+            (double wf, double wa) = v.Direct ? (v.FlapFwdCmd, v.FlapAftCmd)
+                : Surfaces.FlapsLive(v, q) ? Surfaces.FlapFor(v, q, v.Alpha, cm, need) : Surfaces.FlapBase(v);
+            double pStep = Const.FLAP_RATE * Const.D2R * dt;
+            v.FlapFwd = Const.Clamp(v.FlapFwd + Const.Clamp(wf - v.FlapFwd, -pStep, pStep), 0, Const.FLAP_FWD_MAX * Const.D2R);
+            v.FlapAft = Const.Clamp(v.FlapAft + Const.Clamp(wa - v.FlapAft, -pStep, pStep), 0, Const.FLAP_AFT_MAX * Const.D2R);
+            (fSurf, tSurf) = Surfaces.FlapForce(q, v.Alpha, cm, v.FlapFwd, v.FlapAft);
+            need -= tSurf;
+            (double bf, double ba) = Surfaces.FlapBase(v);
+            v.Flap = Const.Clamp((v.FlapFwd - bf - (v.FlapAft - ba)) / (2 * Const.FLAP_SPAN * Const.D2R), -1, 1);
+        }
         double rcsT = v.Direct ? Const.Clamp(v.RcsCmd, -1, 1) * rcsAuth : Const.Clamp(need, -rcsAuth, rcsAuth);
         v.RcsUse = rcsAuth > 1 ? rcsT / rcsAuth : 0;
-        double torque = Fsd * (v.Cp - cm) + tqEng - v.F * Math.Sin(g) * cm + fl * flapAuth + rcsT;
-        Vec2 fa = Aero.World(v, af, vr);
+        double torque = Fsd * (v.Cp - cm) + tqEng - v.F * Math.Sin(g) * cm + tSurf + rcsT;
+        double fsdAll = af.Fsd + fSurf;
+        v.Drag = Math.Sqrt(Fax * Fax + fsdAll * fsdAll);
+        Vec2 fa = Aero.World(v, new AeroForce(af.Alpha, af.CA, af.CN, Fax, fsdAll, v.Drag), vr);
         double FaX = fa.X, FaY = fa.Y;
-        Nav.Observe(sim, v, FaX, FaY, af.Drag, h, dt);
+        Nav.Observe(sim, v, FaX, FaY, v.Drag, h, dt);
         double fUll = (v.Ullage ? Propellant.UllageF(v) : 0) + (v.Stacked && v.Mate != null ? v.Mate.F : 0);
         double tvx = (ax.X * Math.Cos(g) + sd.X * Math.Sin(g)) * v.F + ax.X * fUll;
         double tvy = (ax.Y * Math.Cos(g) + sd.Y * Math.Sin(g)) * v.F + ax.Y * fUll;
