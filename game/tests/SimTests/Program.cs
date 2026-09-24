@@ -55,6 +55,8 @@ internal static partial class Program {
         Ullage();
         Slosh();
         LightHover();
+        OpenLoop();
+        HotStaging();
         CenterOfMass();
         MomentOfInertia();
         OrbitElements();

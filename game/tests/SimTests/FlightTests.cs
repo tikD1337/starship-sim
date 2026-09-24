@@ -57,6 +57,7 @@ internal static partial class Program {
         BoosterReturn(nom, checks);
         Relights(nom, checks);
         SloshDescent(nom, checks);
+        StackPush(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
@@ -101,6 +102,18 @@ internal static partial class Program {
                   ("последняя не позже конца полёта", m[^1].T <= n.Sim.T + 1e-9));
         });
     }
+    private static void StackPush(Run n, List<Action> checks) {
+        Vehicle b = n.B, s = n.S;
+        double extra = 0, ship = 0;
+        n.Each(() => {
+            if (b.Mode != "meco" || !s.Attached || s.F < 1e6) return;
+            double push = b.AAx * b.Mass - b.F * Math.Cos(b.Gimbal);
+            if (push > extra) { extra = push; ship = s.F; }
+        });
+        checks.Add(() => Group("при горячем разделении тяга корабля разгоняет связку",
+            $"сверх тяги ускорителя {N(extra / 1e6)} МН при тяге корабля {N(ship / 1e6)} МН",
+            ("корабль уже тянет", ship > 1e6), ("его тяга действует на связку", extra > 0.8 * ship)));
+    }
     private static void SloshDescent(Run n, List<Action> checks) {
         Vehicle b = n.B;
         double lag = 0, tq = 0;
@@ -136,7 +149,7 @@ internal static partial class Program {
     private static void BoosterReturn(Run n, List<Action> checks) {
         Vehicle b = n.B;
         SimState sim = n.Sim;
-        bool back = false, coast = false, over = false;
+        bool back = false, coast = false, over = false, off = false;
         double lit = 0, hIgn = double.NaN, vIgn = double.NaN, tIgn = double.NaN, qDesc = 0, g = 0, t13 = 0, tCatch = double.NaN, v1000 = double.NaN, miss = double.NaN;
         int nIgn = 0, nLast = 0;
         var counts = new SortedSet<int>();
@@ -147,7 +160,10 @@ internal static partial class Program {
             }
             if (b.Mode == "boostback") back = true;
             else if (back && !b.IgnBurn) coast = true;
-            if (coast && !b.IgnBurn && b.NRun > 0) lit += Const.DT;
+            if (coast && !b.IgnBurn) {
+                if (b.NRun == 0) off = true;
+                else if (off) lit += Const.DT;
+            }
             if (coast) qDesc = Math.Max(qDesc, b.Q);
             if (b.IgnBurn && b.NRun > 0) {
                 if (double.IsNaN(hIgn)) { hIgn = b.Alt; nIgn = b.NRun; tIgn = sim.T; vIgn = b.Speed; }

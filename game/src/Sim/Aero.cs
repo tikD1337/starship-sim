@@ -25,6 +25,13 @@ public static class Aero {
         double fsd = -q * a * CN;
         return new AeroForce(alpha, CA, CN, fax, fsd, Math.Sqrt(fax * fax + fsd * fsd));
     }
+    public static double PitchDamping(Vehicle v, double rho, double sp, double alpha, double cm) {
+        if (sp < 1 || rho <= 0) return 0;
+        double l = v.FullLen, lead = Math.Cos(alpha) >= 0 ? l - cm : cm;
+        double cross = rho * sp * v.Dia * 1.15 * Math.Abs(Math.Sin(alpha)) * (Math.Pow(l - cm, 3) + Math.Pow(cm, 3)) / 3;
+        double nose = rho * sp * v.A * lead * lead * Math.Max(0, Math.Cos(2 * alpha));
+        return cross + nose;
+    }
     public static Vec2 World(Vehicle v, in AeroForce f, Vec2 vr) {
         Vec2 ax = v.Axis, sd = v.Side;
         double fx = f.Fax * ax.X + f.Fsd * sd.X, fy = f.Fax * ax.Y + f.Fsd * sd.Y, sp = vr.Len;
