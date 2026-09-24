@@ -58,25 +58,10 @@ public sealed class SceneSync {
             _stack.ShipRoot.Position = org.Place(sim.Downrange(s), s.Alt);
             _stack.ShipRoot.Rotation = new Vector3(0, 0, (float)-s.Th);
         }
-        _stack.SetFins((float)b.FinDep, (float)b.Fin);
-        (float tf, float ta) = FlapTarget(s);
-        _stack.StepFlaps(dt, tf, ta);
+        _stack.SetFins((float)b.FinDep, (float)b.FinDefl);
+        _stack.SetFlaps(Mathf.RadToDeg((float)s.FlapFwd), Mathf.RadToDeg((float)s.FlapAft));
         return new ShipPose(_stack.ShipRoot.GlobalPosition + _stack.ShipRoot.GlobalBasis.Y * 24f,
                             _stack.ShipRoot.Basis);
-    }
-    private static (float Fwd, float Aft) FlapTarget(Vehicle s) {
-        float trim = 18f * (float)s.Flap;
-        switch (s.Mode) {
-        case "entryS":
-            return (40f - trim, 55f + trim);
-        case "coastD":
-            return (24f - trim, 34f + trim);
-        case "flipS":
-        case "landS":
-            return (14f, 20f);
-        default:
-            return (0f, 0f);
-        }
     }
     private void Plumes(SimState sim, bool tileGlow) {
         Vehicle b = sim.Veh[0], s = sim.Veh[1];

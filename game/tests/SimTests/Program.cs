@@ -57,6 +57,8 @@ internal static partial class Program {
         LightHover();
         OpenLoop();
         HotStaging();
+        Fins();
+        Flaps();
         CenterOfMass();
         MomentOfInertia();
         OrbitElements();

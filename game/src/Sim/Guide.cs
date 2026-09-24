@@ -231,7 +231,7 @@ public static class Guide {
                 double qq = 0.5 * Atmosphere.At(h, v.RhoEst).Rho * sp * sp;
                 if (qq > 200) {
                     double aA = Math.Abs(v.Alpha), sa = Math.Sin(aA), ca = Math.Abs(Math.Cos(aA));
-                    double cnm = 2 * Math.Abs(sa * ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa;
+                    double cnm = 2 * Math.Abs(sa * ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa + Surfaces.FlapCnA(v, aA, v.FlapFwd, v.FlapAft);
                     double cdMod = cnm * sa + (0.2 * ca * ca * 2.6 + 0.06) * ca;
                     double cdAct = v.Drag / Math.Max(qq * v.A, 1);
                     v.EntK = Const.Clamp(0.85 * v.EntK + 0.15 * (cdAct / Math.Max(cdMod, 0.1)), 0.4, 2.5);
@@ -263,7 +263,7 @@ public static class Guide {
                 double thGlide = Guidance.AimLift(v, aGlide, Guidance.LiftSign(v, "east", rf.East));
                 v.AlphaCmd = aGlide + (Math.Abs(Vehicle.AngDiff(vp * Const.D2R, thBelly)) * Const.R2D - aGlide) * flat;
                 double aa = aGlide * Const.D2R, sa2 = Math.Sin(aa), ca2 = Math.Cos(aa);
-                double cn2 = 2 * sa2 * ca2 + 1.15 * (v.FullLen * v.Dia / v.A) * sa2 * sa2;
+                double cn2 = 2 * sa2 * ca2 + 1.15 * (v.FullLen * v.Dia / v.A) * sa2 * sa2 + Surfaces.FlapCnA(v, aa, v.FlapFwd, v.FlapAft);
                 double ca20 = Atmosphere.Cd0(v.Mach) * ca2 * ca2 + 0.06;
                 double lacc = v.Q * v.A * Math.Max(0, cn2 * ca2 - ca20 * sa2) / v.Mass;
                 v.BankCmd = (1 - flat) * Guidance.GlideBank(lead, v.VHor, h, v.VVert, lacc, Math.Abs(rf.East));

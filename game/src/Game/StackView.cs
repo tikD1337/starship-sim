@@ -9,14 +9,13 @@ public sealed class StackView {
     private readonly List<float> _finAzim = new();
     private readonly List<Node3D> _flapsFwd = new(), _flapsAft = new();
     private readonly List<float> _flapFwdAzim = new(), _flapAftAzim = new();
+    private readonly List<Vector3> _flapFwdAxis = new(), _flapAftAxis = new();
     private static readonly float[] _flapSide = { 1f, -1f };
     private readonly List<MeshInstance3D> _glow = new();
     private float _flapFwdNow, _flapAftNow;
     public (float Fwd, float Aft) FlapAngles => (_flapFwdNow, _flapAftNow);
     public Node3D FlapFwd => _flapsFwd.Count > 0 ? _flapsFwd[0] : null;
     public Node3D FlapAft => _flapsAft.Count > 0 ? _flapsAft[0] : null;
-    public const float FlapFwdMax = 42f, FlapAftMax = 68f;
-    private const float FlapRate = 26f;
     public Plume BoosterPlume, ShipPlume;
     private readonly List<Node3D> _boosterBells = new(), _shipBells = new();
     private Node _world;
@@ -24,7 +23,12 @@ public sealed class StackView {
     private const float BoosterLen = 72.3f, GridFinY = 61.2f, FlapFwdY = 47.641f, FlapAftY = 5.913f,
         FwdAzimA = 115.150f, FwdAzimB = 247.650f, AftAzimA = 92.580f, AftAzimB = 270.220f,
         FlapFwdR = 2.880f, FlapFwdRB = 2.880f, FlapAftR = 4.559f, FlapAftRB = 4.559f, FinR = 4.40f,
-        BellY = 2.9f, BellVacY = 4.5f;
+        BellY = 2.9f, BellVacY = 4.5f, FlapFwdTilt = 6f, FlapAftOff = 0.1f;
+    private static Vector3 HingeAxis(float azimDeg, float tiltDeg) {
+        float a = Mathf.DegToRad(azimDeg), t = Mathf.DegToRad(tiltDeg);
+        var radial = new Vector3(Mathf.Cos(a), 0, -Mathf.Sin(a));
+        return (Vector3.Up * Mathf.Cos(t) - radial * Mathf.Sin(t)).Normalized();
+    }
     private static void Ring(ModelLibrary lib, Node3D root, string part, int n, float rad, float y,
                              float phase, List<Node3D> into) {
         for (int k = 0; k < n; k++) {
@@ -82,7 +86,9 @@ public sealed class StackView {
             (Node3D pf, MeshInstance3D mf) = Mount(lib, v.ShipRoot,
                 k == 0 ? "flap_fwd" : "flap_fwd_b", fa, k == 0 ? FlapFwdR : FlapFwdRB, FlapFwdY);
             (Node3D pa, MeshInstance3D ma) = Mount(lib, v.ShipRoot,
-                k == 0 ? "flap_aft" : "flap_aft_b", aa, k == 0 ? FlapAftR : FlapAftRB, FlapAftY);
+                k == 0 ? "flap_aft" : "flap_aft_b", aa, (k == 0 ? FlapAftR : FlapAftRB) + FlapAftOff, FlapAftY);
+            v._flapFwdAxis.Add(HingeAxis(fa, FlapFwdTilt));
+            v._flapAftAxis.Add(HingeAxis(aa, 0f));
             v._flapsFwd.Add(pf);
             v._flapsAft.Add(pa);
             if (mf != null) v._glow.Add(mf);
@@ -183,30 +189,22 @@ public sealed class StackView {
             m.EmissionEnergyMultiplier = e;
         }
     }
-    public void SetFins(float deploy, float deflect) {
+    public void SetFins(float deploy, float deflRad) {
         for (int i = 0; i < _gridFins.Count; i++) {
             float fold = Mathf.DegToRad(70f * (1f - deploy));
-            float defl = Mathf.DegToRad(18f * deflect);
+            float defl = -deflRad * Mathf.Sin(_finAzim[i]);
             _gridFins[i].Basis =
                 Basis.FromEuler(new Vector3(0, _finAzim[i], 0)) *
                 Basis.FromEuler(new Vector3(0, 0, -fold)) *
                 Basis.FromEuler(new Vector3(defl, 0, 0));
         }
     }
-    public void StepFlaps(double dt, float tgtFwd, float tgtAft) {
-        float lim = FlapRate * (float)Mathf.Max(dt, 0.0);
-        tgtFwd = Mathf.Clamp(tgtFwd, 0f, FlapFwdMax);
-        tgtAft = Mathf.Clamp(tgtAft, 0f, FlapAftMax);
-        _flapFwdNow += Mathf.Clamp(tgtFwd - _flapFwdNow, -lim, lim);
-        _flapAftNow += Mathf.Clamp(tgtAft - _flapAftNow, -lim, lim);
-        SetFlaps(_flapFwdNow, _flapAftNow);
-    }
     public void SetFlaps(float fwdDeg, float aftDeg) {
+        _flapFwdNow = fwdDeg;
+        _flapAftNow = aftDeg;
         for (int i = 0; i < _flapsFwd.Count; i++)
-            _flapsFwd[i].Basis = Basis.FromEuler(
-                new Vector3(0, _flapSide[i] * Mathf.DegToRad(fwdDeg), 0));
+            _flapsFwd[i].Basis = new Basis(_flapFwdAxis[i], _flapSide[i] * Mathf.DegToRad(fwdDeg));
         for (int i = 0; i < _flapsAft.Count; i++)
-            _flapsAft[i].Basis = Basis.FromEuler(
-                new Vector3(0, _flapSide[i] * Mathf.DegToRad(aftDeg), 0));
+            _flapsAft[i].Basis = new Basis(_flapAftAxis[i], _flapSide[i] * Mathf.DegToRad(aftDeg));
     }
 }

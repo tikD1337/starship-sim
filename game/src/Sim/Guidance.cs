@@ -77,7 +77,7 @@ public static class Guidance {
     public static double BellyTilt(Vehicle v, double dr, double vE, double tgo) {
         double lim = Const.BELLY_TILT * Const.D2R;
         double aA = Math.Abs(v.Alpha), sa = Math.Sin(aA), ca = Math.Cos(aA);
-        double cn = 2 * sa * Math.Abs(ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa;
+        double cn = 2 * sa * Math.Abs(ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa + Surfaces.FlapCnA(v, aA, v.FlapFwd, v.FlapAft);
         double aN = Math.Max(v.Q * v.A * cn / v.Mass, 0.5 * Const.MU / (v.R * v.R));
         double aLat = Zem0(-dr, vE, Const.BELLY_VF, Math.Max(tgo, Const.BELLY_TMIN));
         return Math.Asin(Const.Clamp(aLat / aN, -Math.Sin(lim), Math.Sin(lim)));
@@ -389,9 +389,10 @@ public static class Guidance {
             double va = (rvx * axX + rvy * axY) / sp, vs = (rvx * sdX + rvy * sdY) / sp;
             double al = Math.Atan2(vs, va), sa = Math.Sin(al), ca = Math.Cos(al);
             double q = 0.5 * at.Rho * sp * sp;
-            double CA = Atmosphere.CdAxial(sp / at.A, va) * ca * ca + 0.06;
+            double CA = Atmosphere.CdAxial(sp / at.A, va) * ca * ca + 0.06 + 3 * Const.FIN_S * Const.FIN_CD / A;
             double CN = 2 * sa * Math.Abs(ca) + 1.15 * LD * sa * Math.Abs(sa);
-            double fax = -q * A * CA * Math.Sign(va != 0 ? va : 1), fsd = -q * A * CN;
+            double cp = v.FullLen * (0.5 + 0.16 * ca * Math.Abs(ca)), cmv = v.Cm;
+            double fax = -q * A * CA * Math.Sign(va != 0 ? va : 1), fsd = -q * A * CN * Surfaces.FinTrim(cp, cmv);
             double fx = fax * axX + fsd * sdX, fy = fax * axY + fsd * sdY;
             double dx = rvx / sp, dy = rvy / sp, alng = fx * dx + fy * dy;
             fx = alng * dx + (fx - alng * dx) * lift;
@@ -449,7 +450,7 @@ public static class Guidance {
         void Coef(double h, double sp, Air at, out double dOut, out double lOut) {
             double aa = (h > 60e3 ? a0 : (h > Const.GLIDE_H ? 70 : 58)) * Const.D2R;
             double sa = Math.Abs(Math.Sin(aa)), ca = Math.Abs(Math.Cos(aa));
-            double CN = 2 * sa * ca + 1.15 * LD * sa * sa;
+            double CN = 2 * sa * ca + 1.15 * LD * sa * sa + Surfaces.FlapCnA(v, aa, 40 * Const.D2R, 55 * Const.D2R);
             double CA = Atmosphere.Cd0(sp / at.A) * ca * ca + 0.06;
             double q = 0.5 * at.Rho * sp * sp;
             dOut = q * A * K * (CN * sa + CA * ca) / m;
