@@ -1,7 +1,6 @@
 using System;
 namespace Starship.Physics;
 public static class Flight {
-    public static double RcsAuth(Vehicle v) => v.Rcs ? (v.Kind == Kind.Booster ? 2.4e6 : 1.1e6) * v.RcsK : 0;
     public static void Quench(Vehicle v) {
         foreach (Engine e in v.Eng) { e.On = false; e.Spool = 0; e.F = 0; e.Md = 0; e.Pc = 0; e.Thr = 0; }
         v.Mdot = 0;
@@ -67,7 +66,7 @@ public static class Flight {
         if (v.Kind == Kind.Ship) flapAuth = Surfaces.FlapAuth(v, q, v.Alpha, cm);
         else flapAuth = q * Const.FIN_N * Const.FIN_S * Const.FIN_CN * Math.Sin(Const.FIN_DEF * Const.D2R)
                         * Math.Abs(Const.FIN_Y - cm) * v.FinDep * v.CtrlK;
-        double rcsAuth = RcsAuth(v);
+        double rcsAuth = Rcs.Auth(v);
         double gimLim = double.IsNaN(v.GimLim) ? v.Spec.Gimbal : v.GimLim * Const.D2R;
         double gimAuth = v.F > 1e3 ? v.F * Math.Sin(gimLim) * cm : 0;
         double tqEng = 0;
@@ -78,7 +77,7 @@ public static class Flight {
         double aLim = Math.Min(v.Mode == "flipS" ? Const.OM_ACC_FLIP : Const.OM_ACC_MAX, aAvail);
         double lag = aLim * gimLim / (Const.GIM_RATE * Const.D2R);
         double wCap = Math.Sqrt(lag * lag + 2 * Const.OM_BRAKE * aLim * Math.Abs(err)) - lag;
-        if (v.F < 1e3 && q < Const.Q_VAC && v.Mode != "flipS") wCap = Math.Min(wCap, Const.OM_VAC * Const.D2R);
+        if ((v.F < 1e3 || !v.Ign) && q < Const.Q_VAC && v.Mode != "flipS") wCap = Math.Min(wCap, Const.OM_VAC * Const.D2R);
         double aDes = v.Mode == "flipS"
             ? Const.Clamp((Math.Sign(err) * Math.Sqrt(2 * Const.FLIP_BRAKE * aLim * Math.Abs(err)) - v.Om) * Const.FLIP_KW,
                           -aLim, aLim)
@@ -121,7 +120,9 @@ public static class Flight {
         Vec2 fa = Aero.World(v, new AeroForce(af.Alpha, af.CA, af.CN, Fax, fsdAll, v.Drag), vr);
         double FaX = fa.X, FaY = fa.Y;
         Nav.Observe(sim, v, FaX, FaY, v.Drag, h, dt);
-        double fUll = (v.Ullage ? Propellant.UllageThrust(v, m) : 0) + (v.Stacked && v.Mate != null ? v.Mate.F : 0);
+        double ull = v.Ullage ? Propellant.UllageThrust(v, m) : 0;
+        Rcs.Draw(v, rcsT, ull, dt);
+        double fUll = ull + (v.Stacked && v.Mate != null ? v.Mate.F : 0);
         double tvx = (ax.X * Math.Cos(g) + sd.X * Math.Sin(g)) * v.F + ax.X * fUll;
         double tvy = (ax.Y * Math.Cos(g) + sd.Y * Math.Sin(g)) * v.F + ax.Y * fUll;
         double gr = Const.MU / (v.R * v.R);

@@ -28,9 +28,9 @@ public sealed class Vehicle {
     public double EntK = Const.ENTRY_K0;
     public bool SeekPad, Caught;
     public bool Rcs = true;
-    public double EntSA;
+    public double EntSA, RcsGas;
     public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT, SatAcc, HeldVh, HeldOm, CatchH = Const.CATCH_H;
-    public double NavH, NavX, NavVv, NavVh, WindBias, WindEst, RhoEst = 1, ObsAcc, FRef;
+    public double NavH, NavX, NavVv, NavVh, WindBias, WindBiasAvg, WindEst, RhoEst = 1, ObsAcc, FRef;
     public double NzH, NzX, NzVv, NzVh;
     public readonly double[] LagH = new double[32], LagX = new double[32], LagVv = new double[32], LagVh = new double[32];
     public int LagI, LagN;
@@ -134,7 +134,7 @@ public sealed class Vehicle {
         get {
             double c = Math.Cos(Alpha), s = Math.Sin(Alpha);
             double sub = Const.Clamp((Const.CP_BELLY_M1 - Mach) / (Const.CP_BELLY_M1 - Const.CP_BELLY_M0), 0, 1);
-            double s2 = s * s, belly = Kind == Kind.Ship ? Const.CP_BELLY * sub * s2 * s2 * s2 * s2 : 0;
+            double s2 = s * s, belly = Kind == Kind.Ship && Mode != "flipS" && Mode != "landS" ? Const.CP_BELLY * sub * s2 * s2 * s2 * s2 : 0;
             return FullLen * (0.5 + 0.16 * c * Math.Abs(c) + belly);
         }
     }

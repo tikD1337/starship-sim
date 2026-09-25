@@ -203,6 +203,7 @@ internal static partial class Program {
         };
         v.Y = Const.RE + 200e3;
         v.Vx = Math.Sqrt(Const.MU / v.Y);
+        foreach (Tank t in new[] { v.Tanks.F, v.Tanks.O }) t.Mg = t.P * t.V * (1 - v.Fill) / (t.R * 270);
         sim.Veh.Add(v);
         double push = 0;
         for (int i = 0; i < 30000 && !(v.NRun > 0 && !v.Ullage && v.F > 1e5); i++) {
@@ -622,7 +623,7 @@ internal static partial class Program {
         one.Ign = true; one.NEng = 1; one.Throttle = 1;
         var g = Spin(gim, double.NaN);
         var o = Spin(one, 0.87);
-        Vehicle turn = DeepSpace(Kind.Ship);
+        Vehicle turn = Gassed(Kind.Ship, 0.1);
         turn.Direct = false; turn.Kp = Const.SHIP_KP; turn.Kd = Const.SHIP_KD; turn.ThCmd = Math.PI / 2;
         double omPeak = 0;
         for (int i = 0; i * Const.DT < 90; i++) {
@@ -648,6 +649,35 @@ internal static partial class Program {
               ("рули сложены — сопротивление корпуса", Math.Abs(shut.Got / shut.Want - 1) < 0.01),
               ("рули раскрыты — корпус и рули", Math.Abs(open.Got / open.Want - 1) < 0.01),
               ("раскрытые рули тормозят", open.Got < shut.Got));
+    }
+    private static double SonicIsp(double r, double g) {
+        double vs = Math.Sqrt(g * r * 2 * 270 / (g + 1));
+        return vs * (1 + 1 / g) / Const.G0;
+    }
+    private static Vehicle Gassed(Kind kind, double fill) {
+        Vehicle v = DeepSpace(kind);
+        v.Prop = fill * v.PropMax; v.Tanks.Copv = 0;
+        foreach (Tank t in new[] { v.Tanks.F, v.Tanks.O }) t.Mg = t.P * t.V * (1 - v.Fill) / (t.R * 270);
+        return v;
+    }
+    private static void RcsGas() {
+        Head("Газ ДМТ");
+        var sim = new SimState { T = 0, RhoK = 1 };
+        Vehicle v = Gassed(Kind.Ship, 0.1);
+        v.RcsCmd = 1;
+        double f0 = v.Tanks.F.Mg, o0 = v.Tanks.O.Mg;
+        Fly(sim, v, 5);
+        double imp = v.Inertia * v.Om / Rcs.Span(v);
+        double ispF = imp / ((f0 - v.Tanks.F.Mg) * Const.G0), ispO = imp / ((o0 - v.Tanks.O.Mg) * Const.G0);
+        Group("ДМТ в пустоте: импульс пары равен Isp·g₀·Δm газа, Isp — звуковое сопло",
+              $"метан {N(ispF)} с против {N(SonicIsp(518, 1.31))}, кислород {N(ispO)} с против {N(SonicIsp(260, 1.40))}",
+              ("метановый конец", Math.Abs(ispF / SonicIsp(518, 1.31) - 1) < 0.02),
+              ("кислородный конец", Math.Abs(ispO / SonicIsp(260, 1.40) - 1) < 0.02));
+        Vehicle full = Gassed(Kind.Ship, 0.1), half = Gassed(Kind.Ship, 0.1);
+        half.Tanks.O.Mg /= 2; half.Tanks.O.P /= 2;
+        full.RcsCmd = half.RcsCmd = 1;
+        Fly(sim, full, 0.02); Fly(sim, half, 0.02);
+        Near("власть ДМТ пропорциональна давлению в слабейшем баке", half.OmDot / full.OmDot, 0.5, 0.03);
     }
     private static (double Got, double Want) Drop(bool fins) {
         var air = new SimState { T = 0, RhoK = 1, Wind = Wind.Calm() };

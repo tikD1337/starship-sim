@@ -136,7 +136,8 @@ public static class Guide {
                 v.Mode = "orbit";
                 break;
             }
-            if (vrIn < 5 && h > 100e3) {
+            double vt = (v.X * v.Vy - v.Y * v.Vx) / v.R, aR = Const.MU / (v.R * v.R) - vt * vt / v.R;
+            if (vrIn < 5 + Math.Max(aR, 0) * Propellant.SettleLeft(v) && h > 100e3) {
                 v.Mode = "circ"; v.Ign = true; v.NEng = 3; v.Throttle = 1; v.PeriPrev = -1e12;
                 sim.LogMsg("Круговое довыведение: включение трёх вакуумных двигателей", 1);
             }
@@ -363,7 +364,7 @@ public static class Guide {
     }
     private static void PollShip(SimState sim, Vehicle v, string at) {
         if (!v.Catch) return;
-        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBias);
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBiasAvg);
         string why = v.Dmg > Const.GO_DMG_S ? $"повреждение теплозащиты {v.Dmg * 100:F0} %"
             : v.CtrlK < 1 ? "заедание привода закрылка"
             : v.Prop < Const.GO_PROP_S ? $"топлива на посадку {v.Prop / 1000:F0} т"

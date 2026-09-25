@@ -10,7 +10,7 @@ public static class Propellant {
         return ox ? (z0, col * OxVol) : (z0 + col * OxVol, col * (1 - OxVol));
     }
     public static double Feed(Vehicle v) => v.OnHeader ? 1 : v.Settled;
-    public static double UllageF(Vehicle v) => Flight.RcsAuth(v) / v.Len;
+    public static double UllageF(Vehicle v) => Rcs.UllageF(v);
     public static double UllageThrust(Vehicle v, double m) => Math.Min(UllageF(v), m * Const.ULLAGE_A);
     public static double SettleLeft(Vehicle v) {
         if (Feed(v) >= Const.SETTLE_GO) return 0;

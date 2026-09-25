@@ -56,6 +56,7 @@ internal static partial class Program {
         Slosh();
         LightHover();
         OpenLoop();
+        RcsGas();
         HotStaging();
         Fins();
         Flaps();

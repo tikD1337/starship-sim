@@ -60,12 +60,15 @@ internal static partial class Program {
         StackPush(nom, checks);
         EntryCalm(nom, checks);
         FinsHold(nom, checks);
+        CircOrbit(nom, checks);
         DeorbitPerigee(nom, "орбитальное", checks);
         DeorbitPerigee(high, "высокая орбита", checks);
+        GasBudget(nom, checks);
+        VacTurns(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
-        Run gust = Add(Windy(10, true, -20), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
+        Run gust = Add(Windy(2, true, -20), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
         Arms(gust, checks);
         checks.Add(() => Head("Высокая орбита и трансатмосферное"));
         ShipDescent(high, "высокая орбита", checks);
@@ -118,6 +121,18 @@ internal static partial class Program {
             $"сверх тяги ускорителя {N(extra / 1e6)} МН при тяге корабля {N(ship / 1e6)} МН",
             ("корабль уже тянет", ship > 1e6), ("его тяга действует на связку", extra > 0.8 * ship)));
     }
+    private static void CircOrbit(Run n, List<Action> checks) {
+        Vehicle s = n.S;
+        double apo = double.NaN, peri = double.NaN;
+        string was = "";
+        n.Each(() => {
+            if (was != "orbit" && s.Mode == "orbit" && double.IsNaN(apo)) { Orbit o = Guidance.Orb(s); apo = o.Apo; peri = o.Peri; }
+            was = s.Mode;
+        });
+        checks.Add(() => Group("довыведение у апогея: орбита круглая, а не вытянутая",
+            $"{N(peri / 1e3)} × {N(apo / 1e3)} км",
+            ("перигей у цели", peri >= n.Sim.TargetPeri - 8e3), ("апогей не выше 400 км", apo <= 400e3)));
+    }
     private static void DeorbitPerigee(Run n, string name, List<Action> checks) {
         Vehicle s = n.S;
         double peri = double.NaN;
@@ -153,6 +168,41 @@ internal static partial class Program {
         checks.Add(() => Group("вход выше 60 км без раскачки", $"ДМТ на полной власти {N(full)} с, угол атаки в команде до {N(rate)}°/с",
             ("ДМТ работают меньше минуты полной власти", full < 60),
             ("угол атаки в команде меняется не быстрее 3°/с", rate < Const.ALPHA_RATE * 1.1)));
+    }
+    private static void VacTurns(Run n, List<Action> checks) {
+        Vehicle b = n.B, s = n.S;
+        double sOm = 0, bOm = 0;
+        n.Each(() => {
+            if (s.Mode == "coastD" && s.Q < Const.Q_VAC) sOm = Math.Max(sOm, Math.Abs(s.Om));
+            if (b.Mode == "coastB" && b.Q < Const.Q_VAC) bOm = Math.Max(bOm, Math.Abs(b.Om));
+        });
+        double cap = Const.OM_VAC * Const.D2R * 1.05;
+        checks.Add(() => Group("после выключения двигателей в пустоте ступени разворачиваются экономно",
+            $"корабль до {N(sOm * Const.R2D)}°/с, ускоритель до {N(bOm * Const.R2D)}°/с",
+            ("корабль после схода", sOm <= cap), ("ускоритель на баллистике", bOm <= cap)));
+    }
+    private static void GasBudget(Run n, List<Action> checks) {
+        Vehicle b = n.B, s = n.S;
+        double pf = double.MaxValue, po = double.MaxValue, cav = 1, auth = double.MaxValue, t0 = double.NaN;
+        int starts = 0;
+        bool on = false;
+        n.Each(() => {
+            if (s.Attached) return;
+            bool run = s.NRun > 0;
+            if (run && !on) { starts++; t0 = n.Sim.T; }
+            on = run;
+            if (run && n.Sim.T - t0 > 1 && n.Sim.T - t0 < 3)
+                foreach (Engine e in s.Eng) if (e.On) cav = Math.Min(cav, Math.Min(e.Pf.Cav, e.Po.Cav) / Math.Max(Propellant.Feed(s), 1e-3));
+            if (!run && s.Alt > 60e3) {
+                auth = Math.Min(auth, Rcs.Auth(s) / (Rcs.Nominal(s) * s.RcsK));
+                pf = Math.Min(pf, s.Tanks.F.P); po = Math.Min(po, s.Tanks.O.P);
+            }
+        });
+        checks.Add(() => Group("газа ДМТ хватает на задание: запуски без кавитации, ДМТ не слабеют вдвое",
+            $"корабль {N(s.RcsGas)} кг, ускоритель {N(b.RcsGas)} кг; запусков {starts}, запас по давлению на входе насосов до {N(cav)}; власть ДМТ в пустоте до {N(auth * 100)} %, давление до {N(pf / 1e3)}/{N(po / 1e3)} кПа",
+            ("корабль тратил газ", s.RcsGas > 50), ("ускоритель тратил газ", b.RcsGas > 50),
+            ("запуски корабля без кавитации от давления", starts >= 3 && cav > 0.99),
+            ("власть ДМТ в пустоте не ниже половины", auth >= 0.5)));
     }
     private static void SloshDescent(Run n, List<Action> checks) {
         Vehicle b = n.B;

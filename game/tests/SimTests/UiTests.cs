@@ -94,6 +94,7 @@ internal static partial class Program {
               ($"у каждой строки с зонами есть шкала ({miss})", miss.Length == 0),
               ("наддув правится у ступени, обороты — у одного двигателя", ParamDefs.Row("pTankF").Stage && ParamDefs.Row("pTankOx").Stage && !ParamDefs.Row("rpmSet").Stage),
               ("неизвестный ключ — пусто", ParamDefs.Row("нет такого") == null),
+              ("газ на ДМТ — из ступени", ParamDefs.Row("_rcsgas")?.FromVehicle(new Vehicle(Kind.Ship, 0) { RcsGas = 123 }) == 123),
               ($"в каждой группе обе колонки не пустые ({cols})", cols.Length == 0));
         var sim = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(sim, 12345);
