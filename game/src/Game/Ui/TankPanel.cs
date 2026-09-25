@@ -9,7 +9,7 @@ public sealed class TankPanel {
         public ProgressBar Lox, Ch4;
         public VBoxContainer Extra;
         public readonly List<(ParamRow Row, ZoneGauge Gauge, Label Val)> Zones = new();
-        public KvRow Gas, Hdr, Settle, Slosh;
+        public KvRow Gas, Rcs, Hdr, Settle, Slosh;
     }
     private static readonly (string Name, string Key)[] Gauges = {
         ("Наддув горючего", "_pf"), ("Наддув окислителя", "_po"), ("Баллоны наддува", "_copv"),
@@ -53,6 +53,7 @@ public sealed class TankPanel {
             b.Zones.Add((r, g, val));
         }
         b.Gas = KvRow.Make(b.Extra, "Газ в подушках");
+        b.Rcs = KvRow.Make(b.Extra, "Газ на ДМТ");
         b.Hdr = KvRow.Make(b.Extra, "Головные баки");
         b.Settle = KvRow.Make(b.Extra, "Осадка топлива");
         b.Slosh = KvRow.Make(b.Extra, "Плескание");
@@ -103,6 +104,7 @@ public sealed class TankPanel {
             Look.Tint(val, z == "crit" ? Look.Crit : z == "warn" ? Look.Warn : Look.Ink);
         }
         b.Gas.Set(NumFmt.F(ParamDefs.Row("_gas").FromVehicle(v), 0), "кг");
+        b.Rcs.Set(NumFmt.F(ParamDefs.Row("_rcsgas").FromVehicle(v), 0), "кг");
         b.Hdr.Set(v.Hdr <= 0 ? "нет" : v.HdrLeft <= 0 ? "пусты" : NumFmt.F(v.HdrLeft / 1000, 1),
                   v.Hdr > 0 && v.HdrLeft > 0 ? "т" : "");
         double feed = Propellant.Feed(v);

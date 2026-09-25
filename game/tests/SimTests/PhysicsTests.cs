@@ -185,17 +185,17 @@ internal static partial class Program {
         double free = v.Settled;
         for (int i = 0; i < 800; i++) Propellant.Settle(v, Const.G0, 0.01);
         double g1 = v.Settled;
-        double tRcs = Propellant.SettleTau(v, 0.1);
-        Group("жидкость всплывает в невесомости и оседает под тягой", $"за 1 с невесомости {N(free)}, за 8 с при 1 g {N(g1)}, τ при 0,1 м/с² {N(tRcs)} с",
+        double tRcs = Propellant.SettleTau(v, Const.ULLAGE_A);
+        Group("жидкость всплывает в невесомости и оседает под тягой", $"за 1 с невесомости {N(free)}, за 8 с при 1 g {N(g1)}, τ при мягкой осадке {N(tRcs)} с",
               ("за секунду невесомости всплывает", free < 0.1), ("за 8 с при 1 g оседает", g1 > 0.95),
-              ("от ДМТ оседает десятки секунд", tRcs > 10 && tRcs < 60));
+              ("от ДМТ оседает десятки секунд", tRcs > 20 && tRcs < 80));
         Vehicle wet = Burning(Kind.Ship, 3), dry = Unsettled(3);
         Group("запуск на неосевшем топливе — авария", $"осевшее: {wet.Eng.Count(e => e.On)} работают; всплывшее: {dry.Eng.Count(e => e.Failed)} выключены — «{dry.Eng[0].Reason}»",
               ("на осевшем запускаются", wet.Eng.All(e => e.On && !e.Failed)),
               ("на всплывшем все выключены", dry.Eng.All(e => e.Failed)),
               ("причина — газ на входе", dry.Eng[0].Reason.Contains("газ")));
     }
-    private static Vehicle InOrbit(bool rcs) {
+    private static (Vehicle V, double Push) InOrbit(bool rcs) {
         var sim = new SimState { T = 0, RhoK = 1 };
         var v = new Vehicle(Kind.Ship, 0) {
             Mode = "man", Prop = 120e3, Settled = 0, Rcs = rcs, Launched = true,
@@ -203,20 +203,25 @@ internal static partial class Program {
         };
         v.Y = Const.RE + 200e3;
         v.Vx = Math.Sqrt(Const.MU / v.Y);
+        foreach (Tank t in new[] { v.Tanks.F, v.Tanks.O }) t.Mg = t.P * t.V * (1 - v.Fill) / (t.R * 270);
         sim.Veh.Add(v);
-        for (int i = 0; i < 9000 && !(v.NRun > 0 && !v.Ullage && v.F > 1e5); i++) {
+        double push = 0;
+        for (int i = 0; i < 30000 && !(v.NRun > 0 && !v.Ullage && v.F > 1e5); i++) {
             Flight.StepVehicle(sim, v, Const.DT);
             sim.T += Const.DT;
+            if (v.Ullage && v.NRun == 0) push = Math.Max(push, v.AAx);
         }
-        return v;
+        return (v, push);
     }
     private static void Ullage() {
         Head("Запуск в невесомости");
-        Vehicle on = InOrbit(true), off = InOrbit(false);
-        Group("перед запуском ДМТ осаживают топливо, без них запуск срывается",
-              $"с ДМТ: {on.NRun} работают, осадка {N(on.Settled)}; без ДМТ: {off.Eng.Count(e => e.Failed)} выключены",
+        (Vehicle on, double push) = InOrbit(true);
+        Vehicle off = InOrbit(false).V;
+        Group("перед запуском ДМТ мягко осаживают топливо, без них запуск срывается",
+              $"с ДМТ: {on.NRun} работают, осадка {N(on.Settled)}, ускорение {N(push)} м/с²; без ДМТ: {off.Eng.Count(e => e.Failed)} выключены",
               ("с ДМТ двигатели работают", on.NRun >= 3 && on.Eng.All(e => !e.Failed)),
               ("запуск после осадки", on.Settled >= Const.SETTLE_GO),
+              ("ДМТ толкают мягко", push > 0 && push <= Const.ULLAGE_A * 1.25),
               ("без ДМТ выключены по газу", off.Eng.Where(e => !e.IsVac).All(e => e.Failed) && off.Eng[0].Reason.Contains("газ")));
     }
     private static void Slosh() {
@@ -618,9 +623,19 @@ internal static partial class Program {
         one.Ign = true; one.NEng = 1; one.Throttle = 1;
         var g = Spin(gim, double.NaN);
         var o = Spin(one, 0.87);
+        Vehicle turn = Gassed(Kind.Ship, 0.1);
+        turn.Direct = false; turn.Kp = Const.SHIP_KP; turn.Kd = Const.SHIP_KD; turn.ThCmd = Math.PI / 2;
+        double omPeak = 0;
+        for (int i = 0; i * Const.DT < 90; i++) {
+            Flight.StepVehicle(sim, turn, Const.DT);
+            omPeak = Math.Max(omPeak, Math.Abs(turn.Om));
+        }
+        double turnErr = Math.Abs(Vehicle.AngDiff(turn.ThCmd, turn.Th)) * Const.R2D;
         Group("угловое ускорение без автомата — момент на инерцию", $"сопло 2°: {N(g.Got)} против F·sin δ·l/I {N(g.Want)} рад/с²; один двигатель: {N(o.Got)} против F·0,87/I {N(o.Want)}",
               ("сопло отклонено на 2°", Math.Abs(g.Got / g.Want - 1) < 0.02),
               ("один двигатель в 0,87 м от оси", Math.Abs(o.Got / o.Want - 1) < 0.02));
+        Group("в пустоте автомат разворачивается экономно", $"пик {N(omPeak * Const.R2D)}°/с, через 90 с ошибка {N(turnErr)}°",
+              ("не быстрее 1,5°/с", omPeak <= Const.OM_VAC * Const.D2R * 1.02), ("разворот на 90° закончен", turnErr < 1));
         Vehicle burn = DeepSpace(Kind.Ship);
         burn.Ign = true; burn.NEng = 3; burn.Throttle = 1;
         double m0 = burn.Mass;
@@ -634,6 +649,35 @@ internal static partial class Program {
               ("рули сложены — сопротивление корпуса", Math.Abs(shut.Got / shut.Want - 1) < 0.01),
               ("рули раскрыты — корпус и рули", Math.Abs(open.Got / open.Want - 1) < 0.01),
               ("раскрытые рули тормозят", open.Got < shut.Got));
+    }
+    private static double SonicIsp(double r, double g) {
+        double vs = Math.Sqrt(g * r * 2 * 270 / (g + 1));
+        return vs * (1 + 1 / g) / Const.G0;
+    }
+    private static Vehicle Gassed(Kind kind, double fill) {
+        Vehicle v = DeepSpace(kind);
+        v.Prop = fill * v.PropMax; v.Tanks.Copv = 0;
+        foreach (Tank t in new[] { v.Tanks.F, v.Tanks.O }) t.Mg = t.P * t.V * (1 - v.Fill) / (t.R * 270);
+        return v;
+    }
+    private static void RcsGas() {
+        Head("Газ ДМТ");
+        var sim = new SimState { T = 0, RhoK = 1 };
+        Vehicle v = Gassed(Kind.Ship, 0.1);
+        v.RcsCmd = 1;
+        double f0 = v.Tanks.F.Mg, o0 = v.Tanks.O.Mg;
+        Fly(sim, v, 5);
+        double imp = v.Inertia * v.Om / Rcs.Span(v);
+        double ispF = imp / ((f0 - v.Tanks.F.Mg) * Const.G0), ispO = imp / ((o0 - v.Tanks.O.Mg) * Const.G0);
+        Group("ДМТ в пустоте: импульс пары равен Isp·g₀·Δm газа, Isp — звуковое сопло",
+              $"метан {N(ispF)} с против {N(SonicIsp(518, 1.31))}, кислород {N(ispO)} с против {N(SonicIsp(260, 1.40))}",
+              ("метановый конец", Math.Abs(ispF / SonicIsp(518, 1.31) - 1) < 0.02),
+              ("кислородный конец", Math.Abs(ispO / SonicIsp(260, 1.40) - 1) < 0.02));
+        Vehicle full = Gassed(Kind.Ship, 0.1), half = Gassed(Kind.Ship, 0.1);
+        half.Tanks.O.Mg /= 2; half.Tanks.O.P /= 2;
+        full.RcsCmd = half.RcsCmd = 1;
+        Fly(sim, full, 0.02); Fly(sim, half, 0.02);
+        Near("власть ДМТ пропорциональна давлению в слабейшем баке", half.OmDot / full.OmDot, 0.5, 0.03);
     }
     private static (double Got, double Want) Drop(bool fins) {
         var air = new SimState { T = 0, RhoK = 1, Wind = Wind.Calm() };
@@ -708,13 +752,29 @@ internal static partial class Program {
     }
     private static void Flaps() {
         Head("Закрылки корабля без автомата");
-        var fwd = FlapFall(10, 60);
-        var aft = FlapFall(40, 20);
-        Group("закрылки задают балансировку падения брюхом, колебания гаснут сами",
-              $"передние выпущены (10°), задние убраны (60°): {N(fwd.Mean)}°, размах {N(fwd.Early)} → {N(fwd.Late)}°; наоборот (40°/20°): {N(aft.Mean)}°, размах {N(aft.Early)} → {N(aft.Late)}°",
+        var fwd = FlapFall(25, 70);
+        var aft = FlapFall(55, 40);
+        Group("закрылки задают балансировку падения брюхом; плашмя корпус почти безразличен",
+              $"передние выпущены больше (25°/70°): {N(fwd.Mean)}°, размах {N(fwd.Early)} → {N(fwd.Late)}°; задние (55°/40°): {N(aft.Mean)}°, размах {N(aft.Early)} → {N(aft.Late)}°",
               ("балансировки различаются больше чем на 20°", Math.Abs(fwd.Mean - aft.Mean) > 20),
-              ("передние выпущены больше — брюхом к потоку", fwd.Mean > 35 && fwd.Mean < 90),
-              ("колебания гаснут", fwd.Late < 0.6 * fwd.Early && aft.Late < 0.6 * aft.Early));
+              ("передние выпущены больше — плашмя", fwd.Mean > 75 && fwd.Mean < 105),
+              ("под углом колебания гаснут", aft.Late < 0.6 * aft.Early),
+              ("плашмя колебания не растут", fwd.Late < fwd.Early));
+        var belly = new Vehicle(Kind.Ship, 0) { Prop = Const.ENTRY_PROP, Mode = "entryS", Mach = 0.3 };
+        double q = 2000, cm = belly.Cm, top = Const.FLAP_FWD_MAX * Const.D2R, worst = 0;
+        var at = new List<string>();
+        foreach (double deg in new[] { 75.0, 90, 105 }) {
+            double a = deg * Const.D2R, sa = Math.Sin(a), ca = Math.Cos(a);
+            belly.Alpha = a;
+            double body = -q * belly.A * (2 * sa * Math.Abs(ca) + 1.15 * (belly.FullLen * belly.Dia / belly.A) * sa * sa) * (belly.Cp - cm);
+            (double bf, double ba) = Surfaces.FlapFor(belly, q, a, cm, -body);
+            double rest = Math.Abs(body + Surfaces.FlapForce(q, a, cm, bf, ba).T) / Math.Abs(body);
+            double edge = Math.Min(Math.Min(bf, top - bf), Math.Min(ba, top - ba)) / top;
+            worst = Math.Max(worst, rest > 0.01 ? 1 : 0.05 - Math.Min(edge, 0.05));
+            at.Add($"{N(deg)}°: {N(bf * Const.R2D)}/{N(ba * Const.R2D)}");
+        }
+        True("плашмя (75…105°) закрылки держат корабль с запасом на посадку сами, не упираясь", worst == 0,
+             $"центр масс {N(cm)} м; закрылки {string.Join(", ", at)}");
     }
     private static void HotStaging() {
         Head("Горячее разделение без автомата");

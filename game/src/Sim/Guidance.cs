@@ -30,10 +30,11 @@ public static class Guidance {
         }
         return 70 * Const.D2R;
     }
-    public static Orbit Orb(Vehicle v) {
-        double r = v.R, v2 = v.Vx * v.Vx + v.Vy * v.Vy;
+    public static Orbit Orb(Vehicle v) => Orb(new Vec2(v.X, v.Y), new Vec2(v.Vx, v.Vy));
+    public static Orbit Orb(Vec2 p, Vec2 u) {
+        double r = p.Len, v2 = u.Dot(u);
         double e0 = v2 / 2 - Const.MU / r, a = -Const.MU / (2 * e0);
-        double h = v.X * v.Vy - v.Y * v.Vx;
+        double h = p.X * u.Y - p.Y * u.X;
         double e = Math.Sqrt(Math.Max(0, 1 + 2 * e0 * h * h / (Const.MU * Const.MU)));
         return new Orbit(a, e, a * (1 + e) - Const.RE, a * (1 - e) - Const.RE,
                          a > 0 ? 2 * Math.PI * Math.Sqrt(a * a * a / Const.MU) : 0);
@@ -87,6 +88,8 @@ public static class Guidance {
         double vv = Math.Max(-v.VVert, 10);
         return Math.Max(v.Alt - hStop - vv * vv / (2 * a3), 0) / vv;
     }
+    public static double GlideAlpha(double lead)
+        => Const.GLIDE_KA > 0 ? Const.Clamp(58 + lead / Const.GLIDE_KA, Const.GLIDE_A_LO, Const.GLIDE_A_HI) : 58;
     public static double GlideBank(double dr, double vE, double h, double vv, double lacc, double ePerp) {
         double aL = Math.Max(Math.Min(lacc * Math.Abs(ePerp), 6), 0.5);
         const double tau = 6;
@@ -425,28 +428,47 @@ public static class Guidance {
         }
         return 0.5 * (lo + hi);
     }
-    public static double DeorbitDv(Vehicle v, double rp) {
-        double r = v.R, sp = Math.Sqrt(v.Vx * v.Vx + v.Vy * v.Vy);
-        double vNew = Math.Sqrt(2 * Const.MU * rp / (r * (r + rp)));
-        return Math.Max(0, sp - vNew);
-    }
-    public static double DeorbitSolve(SimState sim, Vehicle v) {
-        double aim = Const.DEO_AIM;
-        double lo = DeorbitDv(v, Const.RE + 60e3), hi = DeorbitDv(v, Const.RE + 5e3);
-        if (PredictEntry(sim, v, lo, 62, Const.ENTRY_BANK0).Miss < aim) return lo;
-        if (PredictEntry(sim, v, hi, 62, Const.ENTRY_BANK0).Miss > aim) return hi;
-        for (int i = 0; i < 11; i++) {
+    public static double DeorbitDv(Vehicle v, double rp) => DeorbitDv(new Vec2(v.X, v.Y), new Vec2(v.Vx, v.Vy), rp);
+    public static double DeorbitDv(Vec2 pos, Vec2 vel, double rp) {
+        double sp = vel.Len, lo = 0, hi = sp;
+        if (Orb(pos, vel).Peri + Const.RE <= rp) return 0;
+        for (int i = 0; i < 40; i++) {
             double mid = (lo + hi) / 2;
-            if (PredictEntry(sim, v, mid, 62, Const.ENTRY_BANK0).Miss > aim) lo = mid; else hi = mid;
+            if (Orb(pos, vel * (1 - mid / sp)).Peri + Const.RE > rp) lo = mid; else hi = mid;
         }
         return (lo + hi) / 2;
     }
-    public static EntryPred PredictEntry(SimState sim, Vehicle v, double dv, double alphaDeg, double bankDeg)
+    public static (Vec2 Pos, Vec2 Vel) Coast(Vehicle v, double t) {
+        Vec2 p = new(v.X, v.Y), u = new(v.Vx, v.Vy);
+        static Vec2 G(Vec2 q) { double r = q.Len; return q * (-Const.MU / (r * r * r)); }
+        for (double c = 0; c < t; ) {
+            double h = Math.Min(1, t - c);
+            Vec2 a1 = G(p), a2 = G(p + u * (h / 2));
+            p += (u + a1 * (h / 2)) * h;
+            u += a2 * h;
+            c += h;
+        }
+        return (p, u);
+    }
+    public static double DeorbitSolve(SimState sim, Vehicle v) {
+        double aim = Const.DEO_AIM;
+        double wait = Propellant.SettleLeft(v);
+        (Vec2 bp, Vec2 bv) = Coast(v, wait);
+        double lo = DeorbitDv(bp, bv, Const.RE + 60e3), hi = DeorbitDv(bp, bv, Const.RE + 5e3);
+        if (PredictEntry(sim, v, lo, 62, Const.ENTRY_BANK0, wait).Miss < aim) return lo;
+        if (PredictEntry(sim, v, hi, 62, Const.ENTRY_BANK0, wait).Miss > aim) return hi;
+        for (int i = 0; i < 11; i++) {
+            double mid = (lo + hi) / 2;
+            if (PredictEntry(sim, v, mid, 62, Const.ENTRY_BANK0, wait).Miss > aim) lo = mid; else hi = mid;
+        }
+        return (lo + hi) / 2;
+    }
+    public static EntryPred PredictEntry(SimState sim, Vehicle v, double dv, double alphaDeg, double bankDeg, double coast = 0)
     {
-        double x = v.X, y = v.Y, vx = v.Vx, vy = v.Vy, t = 0, phi = v.Bank;
+        (Vec2 cp, Vec2 cv) = Coast(v, coast);
+        double x = cp.X, y = cp.Y, vx = cv.X, vy = cv.Y, t = coast, phi = v.Bank;
         double a0 = alphaDeg, bk = bankDeg * Const.D2R;
         double K = v.EntK, m = v.Mass, A = v.A, LD = v.FullLen * v.Dia / A;
-        if (dv > 0) { double sp0 = Math.Sqrt(vx * vx + vy * vy), k = (sp0 - dv) / sp0; vx *= k; vy *= k; }
         void Coef(double h, double sp, Air at, out double dOut, out double lOut) {
             double aa = (h > 60e3 ? a0 : (h > Const.GLIDE_H ? 70 : 58)) * Const.D2R;
             double sa = Math.Abs(Math.Sin(aa)), ca = Math.Abs(Math.Cos(aa));
@@ -474,6 +496,7 @@ public static class Guidance {
                 ax += lp * rx; ay += lp * ry;
             }
         }
+        if (dv > 0) { double sp0 = Math.Sqrt(vx * vx + vy * vy), k = (sp0 - dv) / sp0; vx *= k; vy *= k; }
         double gx = x, gy = y, gt = t;
         for (int i = 0; i < 24000; i++) {
             double r = Math.Sqrt(x * x + y * y), h = r - Const.RE;

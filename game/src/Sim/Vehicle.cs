@@ -28,8 +28,9 @@ public sealed class Vehicle {
     public double EntK = Const.ENTRY_K0;
     public bool SeekPad, Caught;
     public bool Rcs = true;
+    public double EntSA, RcsGas;
     public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT, SatAcc, HeldVh, HeldOm, CatchH = Const.CATCH_H;
-    public double NavH, NavX, NavVv, NavVh, WindBias, WindEst, RhoEst = 1, ObsAcc, FRef;
+    public double NavH, NavX, NavVv, NavVh, WindBias, WindBiasAvg, WindEst, RhoEst = 1, ObsAcc, FRef;
     public double NzH, NzX, NzVv, NzVh;
     public readonly double[] LagH = new double[32], LagX = new double[32], LagVv = new double[32], LagVh = new double[32];
     public int LagI, LagN;
@@ -113,7 +114,7 @@ public sealed class Vehicle {
             double mp = Prop;
             double pay = Math.Max(0, Dry - Spec.Dry);
             double md = Dry - pay;
-            double dryF = Kind == Kind.Booster ? 0.38 : 0.44;
+            double dryF = DryF;
             double hd = Math.Min(HdrLeft, mp), mn = mp - hd;
             double mfMax = Math.Max(PropMax - Hdr, 1);
             double num = md * dryF * Len + pay * 0.5 * (Const.BAY_Z0 + Const.BAY_Z1)
@@ -128,8 +129,14 @@ public sealed class Vehicle {
             return num / den;
         }
     }
+    public double DryF => Kind == Kind.Booster ? 0.38 : 0.41;
     public double Cp {
-        get { double c = Math.Cos(Alpha); return FullLen * (0.5 + 0.16 * c * Math.Abs(c)); }
+        get {
+            double c = Math.Cos(Alpha), s = Math.Sin(Alpha);
+            double sub = Const.Clamp((Const.CP_BELLY_M1 - Mach) / (Const.CP_BELLY_M1 - Const.CP_BELLY_M0), 0, 1);
+            double s2 = s * s, belly = Kind == Kind.Ship && Mode != "flipS" && Mode != "landS" ? Const.CP_BELLY * sub * s2 * s2 * s2 * s2 : 0;
+            return FullLen * (0.5 + 0.16 * c * Math.Abs(c) + belly);
+        }
     }
     public double Inertia {
         get {
@@ -143,7 +150,7 @@ public sealed class Vehicle {
         double L = Len, R = Dia / 2, mp = Prop;
         bool b = Kind == Kind.Booster;
         double pay = Math.Max(0, Dry - Spec.Dry), md = Dry - pay;
-        double dryF = b ? 0.38 : 0.44, zb = b ? 0.03 : 0.04, zt = b ? 0.93 : 0.85, ft = b ? 0.055 : 0.105;
+        double dryF = DryF, zb = b ? 0.03 : 0.04, zt = b ? 0.93 : 0.85, ft = b ? 0.055 : 0.105;
         double fb = (0.5 - dryF + ft * (zt - 0.5)) / (0.5 - zb);
         double ms = md * (1 - fb - ft);
         double I = md * fb * Sq(zb * L - c) + md * ft * Sq(zt * L - c) + ms * (L * L / 12 + R * R / 2 + Sq(0.5 * L - c));

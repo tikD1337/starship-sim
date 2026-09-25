@@ -47,6 +47,7 @@ public static class Nav {
             if (Math.Abs(s) > Const.NAV_OBS_SMIN * v.Mass) {
                 double step = Const.Clamp((fx * e.X + fy * e.Y - f0) / s, -4, 4);
                 v.WindBias = Const.Clamp(v.WindBias + step * Math.Min(odt / Const.NAV_WIND_TAU, 1), -30, 30);
+                v.WindBiasAvg += (v.WindBias - v.WindBiasAvg) * Math.Min(odt / Const.NAV_POLL_TAU, 1);
             }
         }
         v.WindEst = wf + v.WindBias;

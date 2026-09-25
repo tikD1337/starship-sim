@@ -136,7 +136,8 @@ public static class Guide {
                 v.Mode = "orbit";
                 break;
             }
-            if (vrIn < 5 && h > 100e3) {
+            double vt = (v.X * v.Vy - v.Y * v.Vx) / v.R, aR = Const.MU / (v.R * v.R) - vt * vt / v.R;
+            if (vrIn < 5 + Math.Max(aR, 0) * Propellant.SettleLeft(v) && h > 100e3) {
                 v.Mode = "circ"; v.Ign = true; v.NEng = 3; v.Throttle = 1; v.PeriPrev = -1e12;
                 sim.LogMsg("Круговое довыведение: включение трёх вакуумных двигателей", 1);
             }
@@ -164,14 +165,16 @@ public static class Guide {
                 sim.Once("orbMsg" + v.Tag, () => sim.LogMsg(
                     $"ВЫХОД НА ОРБИТУ {(o.Peri / 1000):F0} × {(o.Apo / 1000):F0} км, период {(o.Per / 60):F1} мин", 1));
             if (v.SeekPad && Sim.DeployStep(sim, v, dt)) { v.ThCmd = Guidance.AimPro(v); break; }
-            v.ThCmd = (v.SeekPad && !double.IsNaN(v.DeoMiss) && Math.Abs(v.DeoMiss) < 500e3)
+            v.ThCmd = (v.SeekPad && !double.IsNaN(v.DeoMiss) && Math.Abs(v.DeoMiss) < Const.DEO_TURN)
                       ? Guidance.AimRetro(v) : Guidance.AimPro(v);
             if (!v.SeekPad) break;
             v.DeoAcc += dt;
             if (v.DeoAcc > 3) {
                 v.DeoAcc = 0;
-                double dv = Guidance.DeorbitDv(v, Const.RE + 35e3);
-                EntryPred p = Guidance.PredictEntry(sim, v, dv, 62, Const.ENTRY_BANK0);
+                double wait = Propellant.SettleLeft(v);
+                (Vec2 bp, Vec2 bv) = Guidance.Coast(v, wait);
+                double dv = Guidance.DeorbitDv(bp, bv, Const.RE + 35e3);
+                EntryPred p = Guidance.PredictEntry(sim, v, dv, 62, Const.ENTRY_BANK0, wait);
                 double prev = v.DeoMiss;
                 v.DeoMiss = p.Miss;
                 if (!double.IsNaN(prev) && Math.Abs(p.Miss) < 400e3 &&
@@ -238,17 +241,22 @@ public static class Guide {
                 }
                 double bk0 = v.Bank * Const.R2D;
                 double aDeg = Math.Abs(v.Alpha * Const.R2D);
-                v.EntMiss = Guidance.PredictEntry(sim, v, 0, aDeg != 0 ? aDeg : 62, bk0).Miss;
-                double bWant = Const.Clamp(bk0 + Em(v) * Const.ENTRY_KB, 0, 120) * Const.D2R;
+                double a0 = aDeg != 0 ? aDeg : 62;
+                v.EntMiss = Guidance.PredictEntry(sim, v, 0, a0, bk0).Miss;
+                v.EntSA = Math.Abs(Guidance.PredictEntry(sim, v, 0, a0 + 1, bk0).Miss - v.EntMiss);
+                double sB = Math.Abs(Guidance.PredictEntry(sim, v, 0, a0, bk0 + 2).Miss - v.EntMiss) / 2;
+                double kb = Math.Min(Const.ENTRY_KB, Const.ENTRY_GAIN / Math.Max(sB, 1));
+                double bWant = Const.Clamp(bk0 + Em(v) * kb, 0, 120) * Const.D2R;
                 v.BankCmd += Const.BANK_SMOOTH * (bWant - v.BankCmd);
             }
-            double trim = Const.Clamp(Em(v) / Const.ENTRY_KT, Const.ENTRY_TRIM_LO, Const.ENTRY_TRIM_HI);
+            double trim = Const.Clamp(Em(v) / Math.Max(Const.ENTRY_KT, v.EntSA / Const.ENTRY_GAIN), Const.ENTRY_TRIM_LO, Const.ENTRY_TRIM_HI);
             double aPrev = v.AlphaCmd;
             v.AlphaCmd = Const.Clamp(62 + trim, 45, 74);
             LiftRefV rf = Guidance.LiftRef(v);
             if (h > Const.GLIDE_H || !v.SeekPad) {
                 if (!v.SeekPad && h <= Const.GLIDE_H) { v.AlphaCmd = 58; v.BankCmd = 0; }
                 else v.AlphaCmd = h > 60e3 ? v.AlphaCmd : Const.Clamp(70 + trim, 45, 74);
+                v.AlphaCmd = RateAlpha(aPrev, v.AlphaCmd, dt);
                 v.ThCmd = Guidance.AimLift(v, v.AlphaCmd, Guidance.LiftSign(v, "up", rf.Up));
             }
             else {
@@ -256,9 +264,7 @@ public static class Guide {
                 double vp = Guidance.AimPro(v) * Const.R2D;
                 double flat = Const.Clamp((Math.Abs(vp) - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
                 double lead = miss + Const.BELLY_LEAD;
-                double aGlide = Const.GLIDE_KA > 0
-                    ? Const.Clamp(58 + lead / Const.GLIDE_KA, Const.GLIDE_A_LO, Const.GLIDE_A_HI)
-                    : 58;
+                double aGlide = Guidance.GlideAlpha(lead);
                 double thBelly = Math.PI / 2 + Guidance.BellyTilt(v, miss, v.VHor, Guidance.FlipTgo(v, FlipStop(v)));
                 double thGlide = Guidance.AimLift(v, aGlide, Guidance.LiftSign(v, "east", rf.East));
                 v.AlphaCmd = aGlide + (Math.Abs(Vehicle.AngDiff(vp * Const.D2R, thBelly)) * Const.R2D - aGlide) * flat;
@@ -270,10 +276,8 @@ public static class Guide {
                 sim.Once("glide" + v.Tag, () =>
                     sim.LogMsg($"{v.Tag}: терминальное наведение — гашение сноса, до {(v.Site == "sea" ? "точки приводнения" : "башни")} {((v.AimDr - sim.Downrange(v)) / 1000):F0} км", 2));
                 v.ThCmd = thGlide + Vehicle.AngDiff(thBelly, thGlide) * flat;
+                v.AlphaCmd = RateAlpha(aPrev, v.AlphaCmd, dt);
             }
-            if (aPrev > 0)
-                v.AlphaCmd = aPrev + Const.Clamp(v.AlphaCmd - aPrev,
-                    -Const.ALPHA_RATE * dt, Const.ALPHA_RATE * dt);
             if (v.Heat > v.MaxHeat) v.MaxHeat = v.Heat;
             if (h < Const.GLIDE_H && v.SeekPad) sim.Once("poll" + v.Tag, () => PollShip(sim, v, "на 25 км"));
             if (h < Const.GO_POLL_H && v.SeekPad) sim.Once("poll3" + v.Tag, () => PollShip(sim, v, "на 3 км"));
@@ -360,7 +364,7 @@ public static class Guide {
     }
     private static void PollShip(SimState sim, Vehicle v, string at) {
         if (!v.Catch) return;
-        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBias);
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBiasAvg);
         string why = v.Dmg > Const.GO_DMG_S ? $"повреждение теплозащиты {v.Dmg * 100:F0} %"
             : v.CtrlK < 1 ? "заедание привода закрылка"
             : v.Prop < Const.GO_PROP_S ? $"топлива на посадку {v.Prop / 1000:F0} т"
@@ -388,4 +392,6 @@ public static class Guide {
             Divert(sim, v, aim, "ступень прошла ниже рук");
     }
     private static double Em(Vehicle v) => double.IsNaN(v.EntMiss) ? 0 : v.EntMiss;
+    private static double RateAlpha(double prev, double want, double dt)
+        => prev > 0 ? prev + Const.Clamp(want - prev, -Const.ALPHA_RATE * dt, Const.ALPHA_RATE * dt) : want;
 }

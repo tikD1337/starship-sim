@@ -1,7 +1,7 @@
 using System;
 namespace Starship.Physics;
 public sealed class Tank {
-    public double V, Mg, P, R;
+    public double V, Mg, P, R, G, P0;
     public string Name;
 }
 public sealed class TankSet {
@@ -12,18 +12,18 @@ public sealed class TankSet {
         double vf = prop / (1 + 3.6) / 423;
         double vo = prop * 3.6 / (1 + 3.6) / 1141;
         var ts = new TankSet {
-            F = new Tank { V = vf * 1.04, P = 350e3, R = 518, Name = "горючего" },
-            O = new Tank { V = vo * 1.04, P = 380e3, R = 260, Name = "окислителя" },
+            F = new Tank { V = vf * 1.04, P = 350e3, P0 = 350e3, R = 518, G = 1.31, Name = "горючего" },
+            O = new Tank { V = vo * 1.04, P = 380e3, P0 = 380e3, R = 260, G = 1.40, Name = "окислителя" },
             Copv = kind == Kind.Booster ? 900 : 420, Copv0 = kind == Kind.Booster ? 900 : 420,
         };
         foreach (Tank t in new[] { ts.F, ts.O })
-            t.Mg = t.P * Math.Max(t.V * 0.02, 1) / (t.R * 270);
+            t.Mg = t.P * Math.Max(t.V * 0.02, 1) / (t.R * Const.GAS_T);
         return ts;
     }
 }
 public static class Pressurant {
     public static void Step(Vehicle v, double dt) {
-        const double T = 270;
+        const double T = Const.GAS_T;
         double fill = Const.Clamp(v.Fill, 0, 1);
         EngineParams p0 = v.Eng[0].P;
         bool running = v.F > 1e3;
