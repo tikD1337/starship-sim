@@ -78,6 +78,7 @@ public static class Flight {
         double aLim = Math.Min(v.Mode == "flipS" ? Const.OM_ACC_FLIP : Const.OM_ACC_MAX, aAvail);
         double lag = aLim * gimLim / (Const.GIM_RATE * Const.D2R);
         double wCap = Math.Sqrt(lag * lag + 2 * Const.OM_BRAKE * aLim * Math.Abs(err)) - lag;
+        if (v.F < 1e3 && q < Const.Q_VAC && v.Mode != "flipS") wCap = Math.Min(wCap, Const.OM_VAC * Const.D2R);
         double aDes = v.Mode == "flipS"
             ? Const.Clamp((Math.Sign(err) * Math.Sqrt(2 * Const.FLIP_BRAKE * aLim * Math.Abs(err)) - v.Om) * Const.FLIP_KW,
                           -aLim, aLim)
@@ -120,7 +121,7 @@ public static class Flight {
         Vec2 fa = Aero.World(v, new AeroForce(af.Alpha, af.CA, af.CN, Fax, fsdAll, v.Drag), vr);
         double FaX = fa.X, FaY = fa.Y;
         Nav.Observe(sim, v, FaX, FaY, v.Drag, h, dt);
-        double fUll = (v.Ullage ? Propellant.UllageF(v) : 0) + (v.Stacked && v.Mate != null ? v.Mate.F : 0);
+        double fUll = (v.Ullage ? Propellant.UllageThrust(v, m) : 0) + (v.Stacked && v.Mate != null ? v.Mate.F : 0);
         double tvx = (ax.X * Math.Cos(g) + sd.X * Math.Sin(g)) * v.F + ax.X * fUll;
         double tvy = (ax.Y * Math.Cos(g) + sd.Y * Math.Sin(g)) * v.F + ax.Y * fUll;
         double gr = Const.MU / (v.R * v.R);

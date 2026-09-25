@@ -28,6 +28,7 @@ public sealed class Vehicle {
     public double EntK = Const.ENTRY_K0;
     public bool SeekPad, Caught;
     public bool Rcs = true;
+    public double EntSA;
     public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT, SatAcc, HeldVh, HeldOm, CatchH = Const.CATCH_H;
     public double NavH, NavX, NavVv, NavVh, WindBias, WindEst, RhoEst = 1, ObsAcc, FRef;
     public double NzH, NzX, NzVv, NzVh;

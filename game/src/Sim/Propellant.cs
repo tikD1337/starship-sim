@@ -11,6 +11,12 @@ public static class Propellant {
     }
     public static double Feed(Vehicle v) => v.OnHeader ? 1 : v.Settled;
     public static double UllageF(Vehicle v) => Flight.RcsAuth(v) / v.Len;
+    public static double UllageThrust(Vehicle v, double m) => Math.Min(UllageF(v), m * Const.ULLAGE_A);
+    public static double SettleLeft(Vehicle v) {
+        if (Feed(v) >= Const.SETTLE_GO) return 0;
+        double a = UllageThrust(v, v.Mass) / v.Mass;
+        return SettleTau(v, a) * Math.Log((1 - v.Settled) / (1 - Const.SETTLE_GO));
+    }
     public static void Sequence(Vehicle v) {
         bool want = v.Ign && v.Prop > 0 && UllageF(v) > 0;
         if (!want) v.Ullage = false;

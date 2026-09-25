@@ -58,6 +58,7 @@ internal static partial class Program {
         Relights(nom, checks);
         SloshDescent(nom, checks);
         StackPush(nom, checks);
+        EntryCalm(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
@@ -114,6 +115,20 @@ internal static partial class Program {
             $"сверх тяги ускорителя {N(extra / 1e6)} МН при тяге корабля {N(ship / 1e6)} МН",
             ("корабль уже тянет", ship > 1e6), ("его тяга действует на связку", extra > 0.8 * ship)));
     }
+    private static void EntryCalm(Run n, List<Action> checks) {
+        Vehicle s = n.S;
+        double full = 0, rate = 0, last = double.NaN;
+        n.Each(() => {
+            if (s.Mode != "entryS" || s.Alt < 60e3) { last = double.NaN; return; }
+            full += Math.Abs(s.RcsUse) * Const.DT;
+            double a = Math.Abs(Vehicle.AngDiff(s.ThCmd, Guidance.AimPro(s))) * Const.R2D;
+            if (!double.IsNaN(last) && Math.Abs(a - last) < 20) rate = Math.Max(rate, Math.Abs(a - last) / Const.DT);
+            last = a;
+        });
+        checks.Add(() => Group("вход выше 60 км без раскачки", $"ДМТ на полной власти {N(full)} с, угол атаки в команде до {N(rate)}°/с",
+            ("ДМТ работают меньше минуты полной власти", full < 60),
+            ("угол атаки в команде меняется не быстрее 3°/с", rate < Const.ALPHA_RATE * 1.1)));
+    }
     private static void SloshDescent(Run n, List<Action> checks) {
         Vehicle b = n.B;
         double lag = 0, tq = 0;
@@ -140,7 +155,7 @@ internal static partial class Program {
         });
         checks.Add(() => Group("запуск в невесомости: осадка ДМТ перед сходом, ускоритель разворачивается на трёх",
             $"осадка {N(hold)} с, при запуске {N(feedAtIgn)}; разворот {N(flipT)} с, на трёх {N(flipRun)} с, у тормозного {N(bFeed)}",
-            ("корабль осаживал топливо 10–120 с", hold > 10 && hold < 120),
+            ("корабль осаживал топливо 10–200 с", hold > 10 && hold < 200),
             ("запуск на осевшем", feedAtIgn >= Const.SETTLE_GO),
             ("ускоритель в развороте на трёх центральных", flipT > 0 && flipRun > 0.8 * flipT),
             ("тормозной импульс на осевшем", bFeed > 0.95),

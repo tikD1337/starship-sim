@@ -185,17 +185,17 @@ internal static partial class Program {
         double free = v.Settled;
         for (int i = 0; i < 800; i++) Propellant.Settle(v, Const.G0, 0.01);
         double g1 = v.Settled;
-        double tRcs = Propellant.SettleTau(v, 0.1);
-        Group("жидкость всплывает в невесомости и оседает под тягой", $"за 1 с невесомости {N(free)}, за 8 с при 1 g {N(g1)}, τ при 0,1 м/с² {N(tRcs)} с",
+        double tRcs = Propellant.SettleTau(v, Const.ULLAGE_A);
+        Group("жидкость всплывает в невесомости и оседает под тягой", $"за 1 с невесомости {N(free)}, за 8 с при 1 g {N(g1)}, τ при мягкой осадке {N(tRcs)} с",
               ("за секунду невесомости всплывает", free < 0.1), ("за 8 с при 1 g оседает", g1 > 0.95),
-              ("от ДМТ оседает десятки секунд", tRcs > 10 && tRcs < 60));
+              ("от ДМТ оседает десятки секунд", tRcs > 20 && tRcs < 80));
         Vehicle wet = Burning(Kind.Ship, 3), dry = Unsettled(3);
         Group("запуск на неосевшем топливе — авария", $"осевшее: {wet.Eng.Count(e => e.On)} работают; всплывшее: {dry.Eng.Count(e => e.Failed)} выключены — «{dry.Eng[0].Reason}»",
               ("на осевшем запускаются", wet.Eng.All(e => e.On && !e.Failed)),
               ("на всплывшем все выключены", dry.Eng.All(e => e.Failed)),
               ("причина — газ на входе", dry.Eng[0].Reason.Contains("газ")));
     }
-    private static Vehicle InOrbit(bool rcs) {
+    private static (Vehicle V, double Push) InOrbit(bool rcs) {
         var sim = new SimState { T = 0, RhoK = 1 };
         var v = new Vehicle(Kind.Ship, 0) {
             Mode = "man", Prop = 120e3, Settled = 0, Rcs = rcs, Launched = true,
@@ -204,19 +204,23 @@ internal static partial class Program {
         v.Y = Const.RE + 200e3;
         v.Vx = Math.Sqrt(Const.MU / v.Y);
         sim.Veh.Add(v);
-        for (int i = 0; i < 9000 && !(v.NRun > 0 && !v.Ullage && v.F > 1e5); i++) {
+        double push = 0;
+        for (int i = 0; i < 30000 && !(v.NRun > 0 && !v.Ullage && v.F > 1e5); i++) {
             Flight.StepVehicle(sim, v, Const.DT);
             sim.T += Const.DT;
+            if (v.Ullage && v.NRun == 0) push = Math.Max(push, v.AAx);
         }
-        return v;
+        return (v, push);
     }
     private static void Ullage() {
         Head("Запуск в невесомости");
-        Vehicle on = InOrbit(true), off = InOrbit(false);
-        Group("перед запуском ДМТ осаживают топливо, без них запуск срывается",
-              $"с ДМТ: {on.NRun} работают, осадка {N(on.Settled)}; без ДМТ: {off.Eng.Count(e => e.Failed)} выключены",
+        (Vehicle on, double push) = InOrbit(true);
+        Vehicle off = InOrbit(false).V;
+        Group("перед запуском ДМТ мягко осаживают топливо, без них запуск срывается",
+              $"с ДМТ: {on.NRun} работают, осадка {N(on.Settled)}, ускорение {N(push)} м/с²; без ДМТ: {off.Eng.Count(e => e.Failed)} выключены",
               ("с ДМТ двигатели работают", on.NRun >= 3 && on.Eng.All(e => !e.Failed)),
               ("запуск после осадки", on.Settled >= Const.SETTLE_GO),
+              ("ДМТ толкают мягко", push > 0 && push <= Const.ULLAGE_A * 1.25),
               ("без ДМТ выключены по газу", off.Eng.Where(e => !e.IsVac).All(e => e.Failed) && off.Eng[0].Reason.Contains("газ")));
     }
     private static void Slosh() {
@@ -618,9 +622,19 @@ internal static partial class Program {
         one.Ign = true; one.NEng = 1; one.Throttle = 1;
         var g = Spin(gim, double.NaN);
         var o = Spin(one, 0.87);
+        Vehicle turn = DeepSpace(Kind.Ship);
+        turn.Direct = false; turn.Kp = Const.SHIP_KP; turn.Kd = Const.SHIP_KD; turn.ThCmd = Math.PI / 2;
+        double omPeak = 0;
+        for (int i = 0; i * Const.DT < 90; i++) {
+            Flight.StepVehicle(sim, turn, Const.DT);
+            omPeak = Math.Max(omPeak, Math.Abs(turn.Om));
+        }
+        double turnErr = Math.Abs(Vehicle.AngDiff(turn.ThCmd, turn.Th)) * Const.R2D;
         Group("угловое ускорение без автомата — момент на инерцию", $"сопло 2°: {N(g.Got)} против F·sin δ·l/I {N(g.Want)} рад/с²; один двигатель: {N(o.Got)} против F·0,87/I {N(o.Want)}",
               ("сопло отклонено на 2°", Math.Abs(g.Got / g.Want - 1) < 0.02),
               ("один двигатель в 0,87 м от оси", Math.Abs(o.Got / o.Want - 1) < 0.02));
+        Group("в пустоте автомат разворачивается экономно", $"пик {N(omPeak * Const.R2D)}°/с, через 90 с ошибка {N(turnErr)}°",
+              ("не быстрее 1,5°/с", omPeak <= Const.OM_VAC * Const.D2R * 1.02), ("разворот на 90° закончен", turnErr < 1));
         Vehicle burn = DeepSpace(Kind.Ship);
         burn.Ign = true; burn.NEng = 3; burn.Throttle = 1;
         double m0 = burn.Mass;

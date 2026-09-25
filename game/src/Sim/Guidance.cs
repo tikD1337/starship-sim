@@ -432,21 +432,20 @@ public static class Guidance {
     }
     public static double DeorbitSolve(SimState sim, Vehicle v) {
         double aim = Const.DEO_AIM;
-        double lo = DeorbitDv(v, Const.RE + 60e3), hi = DeorbitDv(v, Const.RE + 5e3);
-        if (PredictEntry(sim, v, lo, 62, Const.ENTRY_BANK0).Miss < aim) return lo;
-        if (PredictEntry(sim, v, hi, 62, Const.ENTRY_BANK0).Miss > aim) return hi;
+        double lo = DeorbitDv(v, Const.RE + 60e3), hi = DeorbitDv(v, Const.RE + 5e3), wait = Propellant.SettleLeft(v);
+        if (PredictEntry(sim, v, lo, 62, Const.ENTRY_BANK0, wait).Miss < aim) return lo;
+        if (PredictEntry(sim, v, hi, 62, Const.ENTRY_BANK0, wait).Miss > aim) return hi;
         for (int i = 0; i < 11; i++) {
             double mid = (lo + hi) / 2;
-            if (PredictEntry(sim, v, mid, 62, Const.ENTRY_BANK0).Miss > aim) lo = mid; else hi = mid;
+            if (PredictEntry(sim, v, mid, 62, Const.ENTRY_BANK0, wait).Miss > aim) lo = mid; else hi = mid;
         }
         return (lo + hi) / 2;
     }
-    public static EntryPred PredictEntry(SimState sim, Vehicle v, double dv, double alphaDeg, double bankDeg)
+    public static EntryPred PredictEntry(SimState sim, Vehicle v, double dv, double alphaDeg, double bankDeg, double coast = 0)
     {
         double x = v.X, y = v.Y, vx = v.Vx, vy = v.Vy, t = 0, phi = v.Bank;
         double a0 = alphaDeg, bk = bankDeg * Const.D2R;
         double K = v.EntK, m = v.Mass, A = v.A, LD = v.FullLen * v.Dia / A;
-        if (dv > 0) { double sp0 = Math.Sqrt(vx * vx + vy * vy), k = (sp0 - dv) / sp0; vx *= k; vy *= k; }
         void Coef(double h, double sp, Air at, out double dOut, out double lOut) {
             double aa = (h > 60e3 ? a0 : (h > Const.GLIDE_H ? 70 : 58)) * Const.D2R;
             double sa = Math.Abs(Math.Sin(aa)), ca = Math.Abs(Math.Cos(aa));
@@ -474,6 +473,14 @@ public static class Guidance {
                 ax += lp * rx; ay += lp * ry;
             }
         }
+        while (t < coast) {
+            double ct = Math.Min(1, coast - t), hc = ct / 2;
+            Acc(x, y, vx, vy, phi, out double cx1, out double cy1);
+            Acc(x + vx * hc, y + vy * hc, vx + cx1 * hc, vy + cy1 * hc, phi, out double cx2, out double cy2);
+            x += (vx + cx1 * hc) * ct; y += (vy + cy1 * hc) * ct;
+            vx += cx2 * ct; vy += cy2 * ct; t += ct;
+        }
+        if (dv > 0) { double sp0 = Math.Sqrt(vx * vx + vy * vy), k = (sp0 - dv) / sp0; vx *= k; vy *= k; }
         double gx = x, gy = y, gt = t;
         for (int i = 0; i < 24000; i++) {
             double r = Math.Sqrt(x * x + y * y), h = r - Const.RE;
