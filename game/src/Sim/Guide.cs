@@ -170,8 +170,10 @@ public static class Guide {
             v.DeoAcc += dt;
             if (v.DeoAcc > 3) {
                 v.DeoAcc = 0;
-                double dv = Guidance.DeorbitDv(v, Const.RE + 35e3);
-                EntryPred p = Guidance.PredictEntry(sim, v, dv, 62, Const.ENTRY_BANK0, Propellant.SettleLeft(v));
+                double wait = Propellant.SettleLeft(v);
+                (Vec2 bp, Vec2 bv) = Guidance.Coast(v, wait);
+                double dv = Guidance.DeorbitDv(bp, bv, Const.RE + 35e3);
+                EntryPred p = Guidance.PredictEntry(sim, v, dv, 62, Const.ENTRY_BANK0, wait);
                 double prev = v.DeoMiss;
                 v.DeoMiss = p.Miss;
                 if (!double.IsNaN(prev) && Math.Abs(p.Miss) < 400e3 &&
@@ -261,9 +263,7 @@ public static class Guide {
                 double vp = Guidance.AimPro(v) * Const.R2D;
                 double flat = Const.Clamp((Math.Abs(vp) - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
                 double lead = miss + Const.BELLY_LEAD;
-                double aGlide = Const.GLIDE_KA > 0
-                    ? Const.Clamp(58 + lead / Const.GLIDE_KA, Const.GLIDE_A_LO, Const.GLIDE_A_HI)
-                    : 58;
+                double aGlide = Guidance.GlideAlpha(lead);
                 double thBelly = Math.PI / 2 + Guidance.BellyTilt(v, miss, v.VHor, Guidance.FlipTgo(v, FlipStop(v)));
                 double thGlide = Guidance.AimLift(v, aGlide, Guidance.LiftSign(v, "east", rf.East));
                 v.AlphaCmd = aGlide + (Math.Abs(Vehicle.AngDiff(vp * Const.D2R, thBelly)) * Const.R2D - aGlide) * flat;

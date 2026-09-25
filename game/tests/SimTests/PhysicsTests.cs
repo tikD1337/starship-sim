@@ -722,13 +722,29 @@ internal static partial class Program {
     }
     private static void Flaps() {
         Head("Закрылки корабля без автомата");
-        var fwd = FlapFall(10, 60);
-        var aft = FlapFall(40, 20);
-        Group("закрылки задают балансировку падения брюхом, колебания гаснут сами",
-              $"передние выпущены (10°), задние убраны (60°): {N(fwd.Mean)}°, размах {N(fwd.Early)} → {N(fwd.Late)}°; наоборот (40°/20°): {N(aft.Mean)}°, размах {N(aft.Early)} → {N(aft.Late)}°",
+        var fwd = FlapFall(25, 70);
+        var aft = FlapFall(55, 40);
+        Group("закрылки задают балансировку падения брюхом; плашмя корпус почти безразличен",
+              $"передние выпущены больше (25°/70°): {N(fwd.Mean)}°, размах {N(fwd.Early)} → {N(fwd.Late)}°; задние (55°/40°): {N(aft.Mean)}°, размах {N(aft.Early)} → {N(aft.Late)}°",
               ("балансировки различаются больше чем на 20°", Math.Abs(fwd.Mean - aft.Mean) > 20),
-              ("передние выпущены больше — брюхом к потоку", fwd.Mean > 35 && fwd.Mean < 90),
-              ("колебания гаснут", fwd.Late < 0.6 * fwd.Early && aft.Late < 0.6 * aft.Early));
+              ("передние выпущены больше — плашмя", fwd.Mean > 75 && fwd.Mean < 105),
+              ("под углом колебания гаснут", aft.Late < 0.6 * aft.Early),
+              ("плашмя колебания не растут", fwd.Late < fwd.Early));
+        var belly = new Vehicle(Kind.Ship, 0) { Prop = Const.ENTRY_PROP, Mode = "entryS", Mach = 0.3 };
+        double q = 2000, cm = belly.Cm, top = Const.FLAP_FWD_MAX * Const.D2R, worst = 0;
+        var at = new List<string>();
+        foreach (double deg in new[] { 75.0, 90, 105 }) {
+            double a = deg * Const.D2R, sa = Math.Sin(a), ca = Math.Cos(a);
+            belly.Alpha = a;
+            double body = -q * belly.A * (2 * sa * Math.Abs(ca) + 1.15 * (belly.FullLen * belly.Dia / belly.A) * sa * sa) * (belly.Cp - cm);
+            (double bf, double ba) = Surfaces.FlapFor(belly, q, a, cm, -body);
+            double rest = Math.Abs(body + Surfaces.FlapForce(q, a, cm, bf, ba).T) / Math.Abs(body);
+            double edge = Math.Min(Math.Min(bf, top - bf), Math.Min(ba, top - ba)) / top;
+            worst = Math.Max(worst, rest > 0.01 ? 1 : 0.05 - Math.Min(edge, 0.05));
+            at.Add($"{N(deg)}°: {N(bf * Const.R2D)}/{N(ba * Const.R2D)}");
+        }
+        True("плашмя (75…105°) закрылки держат корабль с запасом на посадку сами, не упираясь", worst == 0,
+             $"центр масс {N(cm)} м; закрылки {string.Join(", ", at)}");
     }
     private static void HotStaging() {
         Head("Горячее разделение без автомата");

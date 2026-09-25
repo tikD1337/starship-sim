@@ -59,6 +59,9 @@ internal static partial class Program {
         SloshDescent(nom, checks);
         StackPush(nom, checks);
         EntryCalm(nom, checks);
+        FinsHold(nom, checks);
+        DeorbitPerigee(nom, "орбитальное", checks);
+        DeorbitPerigee(high, "высокая орбита", checks);
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
@@ -114,6 +117,28 @@ internal static partial class Program {
         checks.Add(() => Group("при горячем разделении тяга корабля разгоняет связку",
             $"сверх тяги ускорителя {N(extra / 1e6)} МН при тяге корабля {N(ship / 1e6)} МН",
             ("корабль уже тянет", ship > 1e6), ("его тяга действует на связку", extra > 0.8 * ship)));
+    }
+    private static void DeorbitPerigee(Run n, string name, List<Action> checks) {
+        Vehicle s = n.S;
+        double peri = double.NaN;
+        string was = "";
+        n.Each(() => {
+            if (was == "deorbit" && s.Mode == "coastD") peri = Guidance.Orb(s).Peri;
+            was = s.Mode;
+        });
+        checks.Add(() => True($"{name}: тормозной импульс в окне — перигей не упёрся в предел 12 км", peri > 15e3,
+            $"перигей после импульса {N(peri / 1e3)} км"));
+    }
+    private static void FinsHold(Run n, List<Action> checks) {
+        Vehicle b = n.B;
+        double full = 0, fin = 0;
+        n.Each(() => {
+            if (b.Mode != "landB" || b.F > 1e3 || b.Alt < 3e3) return;
+            full += Math.Abs(b.RcsUse) * Const.DT;
+            fin = Math.Max(fin, Math.Abs(b.FinDefl) * Const.R2D);
+        });
+        checks.Add(() => True("спуск ускорителя под 17° держат рули, ДМТ почти не нужны", full < 3,
+            $"ДМТ на полной власти {N(full)} с, рули до {N(fin)}°"));
     }
     private static void EntryCalm(Run n, List<Action> checks) {
         Vehicle s = n.S;

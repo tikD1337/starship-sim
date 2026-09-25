@@ -33,7 +33,7 @@ public static class Const {
     public const double BANK_RATE = 8, BANK_SMOOTH = 0.35, ALPHA_RATE = 3.0, ENTRY_PRED_DT = 0.5;
     public static double FLIP_H = 1500, HOLD_MAX = 2, LAND_STOP_S = 500;
     public const double SEP_GAP = 2.35;
-    public static double HDR_Z = 0.82;
+    public static double HDR_Z = 0.82, CP_BELLY = 0.059, CP_BELLY_M0 = 0.8, CP_BELLY_M1 = 1.5;
     public const double BAY_Z0 = 21.6, BAY_Z1 = 35.2, PRED_H_MAX = 2000e3, PRED_T_MAX = 12000,
         GLIDE_H = 25000, ENTRY_K0 = 1.08;
     public static double ENTRY_PROP = 45e3;
@@ -41,7 +41,7 @@ public static class Const {
     public static double OM_ACC_MAX = 0.30, OM_ACC_FLIP = 1.0, GIM_RATE = 30, OM_BRAKE = 0.7, OM_VAC = 1.5, Q_VAC = 100;
     public static double SETTLE_A = 0.005, UNSETTLE_T = 0.4, SETTLE_TMIN = 0.3, SETTLE_TMAX = 120,
         SETTLE_GO = 0.9, SETTLE_TRIP = 0.5, GAS_TRIP_T = 0.3, ULLAGE_OFF = 1e5, ULLAGE_A = 0.02, SLOSH_ZETA = 0.03, SLOSH_MAX = 0.5;
-    public static double FLIP_BRAKE = 0.8, FLIP_KW = 4, FLIP_TW = 2.4, SHIP_FLIP_TW = 1.5, FLIP_END = 10, FLIP_OM_END = 8, FLIP_D = 200;
+    public static double FLIP_BRAKE = 0.5, FLIP_KW = 4, FLIP_TW = 2.4, SHIP_FLIP_TW = 1.5, FLIP_END = 10, FLIP_OM_END = 8, FLIP_D = 200;
     public static double SHIP_ALAT = 6, SHIP_TILT = 25, SHIP_GATE = 40, SHIP_AD = 6, SHIP_AB = 9,
         SHIP_ENG_K = 1.3, SHIP_POLE = 0.9, SHIP_KP = 6, SHIP_KD = 4.5, BOOST_KP = 0.9, BOOST_KD = 2.6, SHIP_CATCH_V = 2, SHIP_FINAL_A = 2.5, SHIP_KV = 1.5,
         SHIP_HOLD_DR = 4, SHIP_HOLD_VH = 2, SHIP_HOLD_H = 15, SHIP_WAIT_T = 5;
@@ -51,7 +51,7 @@ public static class Const {
     public const double FLAP_Y_FWD = 47.64, FLAP_Y_AFT = 5.91;
     public static double FLAP_FWD_MAX = 85, FLAP_AFT_MAX = 85, FLAP_RATE = 26, FLAP_SPAN = 85;
     public const double FIN_S = 37.4, FIN_Y = 61.2, FIN_N = 2;
-    public static double FIN_RATE = 20, FIN_DEF = 20, FIN_CD = 0.2;
+    public static double FIN_RATE = 20, FIN_DEF = 25, FIN_CD = 0.2;
     public static double FIN_CN = 1.5;
     public static double GLIDE_KA = 400, GLIDE_A_LO = 45, GLIDE_A_HI = 70;
     public static double BELLY_TILT = 15, BELLY_VP0 = 150, BELLY_VP1 = 170, BELLY_LEAD = 1600, BELLY_VF = 0, BELLY_TMIN = 3;
