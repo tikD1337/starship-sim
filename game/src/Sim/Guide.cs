@@ -385,11 +385,17 @@ public static class Guide {
         if (!booster && dead >= 1)
             sim.Once("dead" + v.Tag, () => sim.LogMsg($"{v.Tag}: не зажглись {dead} из 3 посадочных двигателей — захват на оставшихся", 2));
         double dh = v.Alt - Const.CATCH_H;
+        if (v.Retry && v.Alt - Guidance.CatchHT(v) > 1) v.Retry = false;
         if (dh < 3 && dh > -Const.CATCH_WIN) v.WaitT += dt;
         if (v.WaitT > Const.WAIT_MAX)
-            Divert(sim, v, aim, $"не удалось войти в окно захвата за {Const.WAIT_MAX:F0} с");
-        else if (dh <= -Const.CATCH_WIN)
-            Divert(sim, v, aim, "ступень прошла ниже рук");
+            Abort(sim, v, aim, $"не удалось войти в окно захвата за {Const.WAIT_MAX:F0} с");
+        else if (dh <= -Const.CATCH_WIN && !v.Retry)
+            Abort(sim, v, aim, "ступень прошла ниже рук");
+    }
+    private static void Abort(SimState sim, Vehicle v, double aim, string why) {
+        if (Guidance.CanDivert(sim, v)) { Divert(sim, v, aim, why); return; }
+        v.WaitT = 0; v.Retry = true;
+        sim.LogMsg($"{v.Tag}: {why} — до моря не долететь, повторный заход к рукам", 2);
     }
     private static double Em(Vehicle v) => double.IsNaN(v.EntMiss) ? 0 : v.EntMiss;
     private static double RateAlpha(double prev, double want, double dt)
