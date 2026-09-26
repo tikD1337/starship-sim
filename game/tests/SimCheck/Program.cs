@@ -357,6 +357,7 @@ internal static class Program {
         var cuts = new List<string>();
         double errMax = 0, errSum = 0, errT = 0; int omSign = 0, flips = 0;
         double tbMax = 0, vbMax = 0, wrMax = 0, pcMin = 1e9, pfMin = 1e9, poMin = 1e9, copvMin = 1e9;
+        double sPf = double.NaN, sPo = double.NaN;
         int i = 0;
         for (; i < 1400000; i++) {
             if ((b.Landed || b.Crashed) && (s.Landed || s.Crashed)) break;
@@ -434,6 +435,10 @@ internal static class Program {
                 qPeak = s.Q; aPeak = s.Alpha * Const.R2D; bkPeak = s.Bank * Const.R2D;
                 cmPeak = s.Cm; mPeak = s.Mass;
             }
+            if (!s.Attached && s.NRun == 0 && s.Alt > 60e3 && s.Tanks != null) {
+                sPf = double.IsNaN(sPf) ? s.Tanks.F.P : Math.Min(sPf, s.Tanks.F.P);
+                sPo = double.IsNaN(sPo) ? s.Tanks.O.P : Math.Min(sPo, s.Tanks.O.P);
+            }
             if (!s.Attached && s.Alt > 60e3) {
                 Orbit ob = Guidance.Orb(s);
                 if (ob.Apo > apoMax && ob.Apo < 5e7) apoMax = ob.Apo;
@@ -500,6 +505,7 @@ internal static class Program {
                                 $"bTouch={Math.Abs(bTouch):F2}m/s sTouch={Math.Abs(sTouch):F2}m/s " +
                                 $"bIgnH={bIgnH:F0}m bIgnV={bIgnV:F0}kmh b13={b13T:F1}s bBurnG={bBurnG:F1}");
         Console.Error.WriteLine($"FLIP sVhMax={sVhFlip:F1}m/s sHover={sHoverT:F1}s sTiltMax={sTiltMax:F1}deg sFlipMiss={sDrFlip:F0}m sFlipVh={sVhFlip0:F1}m/s");
+        Console.Error.WriteLine($"MET sGas={s.RcsGas:F0}kg bGas={b.RcsGas:F0}kg sPf={sPf / 1000:F1}kPa sPo={sPo / 1000:F1}kPa cpu={System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime.TotalSeconds:F2}s");
         if (steerCsv != null) System.IO.File.WriteAllText(steerPath, steerCsv.ToString());
         if (landCsv != null) System.IO.File.WriteAllText(landPath, landCsv.ToString());
         Console.Error.WriteLine($"STEER bTiltRms={Math.Sqrt(stSq[0] / Math.Max(stT[0], 1e-9)):F2} bRate={stVar[0] / Math.Max(stT[0], 1e-9):F2} bRev={stRev[0]} bT={stT[0]:F1} " +
