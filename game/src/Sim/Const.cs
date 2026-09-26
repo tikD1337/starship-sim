@@ -29,7 +29,7 @@ public static class Const {
     public const double TILE_CAP = 6000, SKIN_CAP = 15800, BODY_CAP = 160e3, TILE_LIMIT = 1700,
         SKIN_LIMIT = 1100, TILE_EPS = 0.85, SKIN_EPS = 0.45, LEE_SHADE = 0.03, BURN_RATE = 1.2e-6,
         ENTRY_BANK0 = 45;
-    public static double ENTRY_KB = 6e-5, ENTRY_GAIN = 0.5, ENTRY_KT = 5e3, ENTRY_TRIM_LO = -18, ENTRY_TRIM_HI = 8;
+    public static double ENTRY_KB = 6e-5, ENTRY_GAIN = 0.5, ENTRY_TRIM_LO = -18, ENTRY_TRIM_HI = 8, ENTRY_TRIM_STEP = 1, ENTRY_SLOPE_MIN = 50;
     public const double BANK_RATE = 8, BANK_SMOOTH = 0.35, ALPHA_RATE = 1.5, ENTRY_PRED_DT = 0.5, ENTRY_SENS_DT = 2;
     public static double FLIP_H = 1500, HOLD_MAX = 2, LAND_STOP_S = 500;
     public const double SEP_GAP = 2.35;

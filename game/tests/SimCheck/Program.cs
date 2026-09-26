@@ -313,7 +313,6 @@ internal static class Program {
             if (args[k] == "--klat") Const.LAND_KLAT = double.Parse(args[k + 1], Inv);
             if (args[k] == "--dhpd") Const.LAND_DHPD = double.Parse(args[k + 1], Inv);
             if (args[k] == "--tiltn") Const.LAND_TILT_NEAR = double.Parse(args[k + 1], Inv);
-            if (args[k] == "--trimk") Const.ENTRY_KT = double.Parse(args[k + 1], Inv);
             if (args[k] == "--trimhi") Const.ENTRY_TRIM_HI = double.Parse(args[k + 1], Inv);
             if (args[k] == "--trimlo") Const.ENTRY_TRIM_LO = double.Parse(args[k + 1], Inv);
             if (args[k] == "--proj") Const.LAND_PROJ = double.Parse(args[k + 1], Inv);

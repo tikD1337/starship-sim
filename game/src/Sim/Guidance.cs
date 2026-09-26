@@ -14,6 +14,10 @@ public readonly struct EntryPred {
     public readonly double Miss, T;
     public EntryPred(double miss, double t) { Miss = miss; T = t; }
 }
+public readonly struct GlideCmd {
+    public readonly double Alpha, Bank, Flat, Tilt;
+    public GlideCmd(double alpha, double bank, double flat, double tilt) { Alpha = alpha; Bank = bank; Flat = flat; Tilt = tilt; }
+}
 public static class Guidance {
     private static readonly double[,] PitchTab = {
         { 0, 0 }, { 50, 1.2 }, { 90, 6 }, { 160, 12 }, { 300, 21 }, { 500, 31 },
@@ -75,18 +79,25 @@ public static class Guidance {
         }
         else v.Venting = false;
     }
-    public static double BellyTilt(Vehicle v, double dr, double vE, double tgo) {
+    public static GlideCmd GlideLaw(double miss, double vE, double vv, double h, double vpDeg, double q, double m,
+                                    double r, double lenDia, double area, double alphaNow, double fwd, double aft,
+                                    double mach, double hStop, double east) {
+        double flat = Const.Clamp((Math.Abs(vpDeg) - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
+        double lead = miss + Const.BELLY_LEAD, aG = GlideAlpha(lead);
         double lim = Const.BELLY_TILT * Const.D2R;
-        double aA = Math.Abs(v.Alpha), sa = Math.Sin(aA), ca = Math.Cos(aA);
-        double cn = 2 * sa * Math.Abs(ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * sa + Surfaces.FlapCnA(v, aA, v.FlapFwd, v.FlapAft);
-        double aN = Math.Max(v.Q * v.A * cn / v.Mass, 0.5 * Const.MU / (v.R * v.R));
-        double aLat = Zem0(-dr, vE, Const.BELLY_VF, Math.Max(tgo, Const.BELLY_TMIN));
-        return Math.Asin(Const.Clamp(aLat / aN, -Math.Sin(lim), Math.Sin(lim)));
-    }
-    public static double FlipTgo(Vehicle v, double hStop) {
-        double g = Const.MU / (v.R * v.R), a3 = Math.Max(3 * Spec.RaptorSL.Fv / v.Mass - g, 5);
-        double vv = Math.Max(-v.VVert, 10);
-        return Math.Max(v.Alt - hStop - vv * vv / (2 * a3), 0) / vv;
+        double aA = Math.Abs(alphaNow), sa = Math.Sin(aA), ca = Math.Cos(aA);
+        double cn = 2 * sa * Math.Abs(ca) + 1.15 * (lenDia / area) * sa * sa + Surfaces.FlapCn(Math.Abs(aA)) * Surfaces.FlapSpan(fwd, aft) / area;
+        double aN = Math.Max(q * area * cn / m, 0.5 * Const.MU / (r * r));
+        double g = Const.MU / (r * r), a3 = Math.Max(3 * Spec.RaptorSL.Fv / m - g, 5), vd = Math.Max(-vv, 10);
+        double tgo = Math.Max(h - hStop - vd * vd / (2 * a3), 0) / vd;
+        double aLat = Zem0(-miss, vE, Const.BELLY_VF, Math.Max(tgo, Const.BELLY_TMIN));
+        double tilt = Math.Asin(Const.Clamp(aLat / aN, -Math.Sin(lim), Math.Sin(lim)));
+        double belly = Math.Abs(Vehicle.AngDiff(vpDeg * Const.D2R, Math.PI / 2 + tilt)) * Const.R2D;
+        double aa = aG * Const.D2R, sa2 = Math.Sin(aa), ca2 = Math.Cos(aa);
+        double cn2 = 2 * sa2 * ca2 + 1.15 * (lenDia / area) * sa2 * sa2 + Surfaces.FlapCn(Math.Abs(aa)) * Surfaces.FlapSpan(fwd, aft) / area;
+        double ca20 = Atmosphere.Cd0(mach) * ca2 * ca2 + 0.06;
+        double lacc = q * area * Math.Max(0, cn2 * ca2 - ca20 * sa2) / m;
+        return new GlideCmd(aG + (belly - aG) * flat, (1 - flat) * GlideBank(lead, vE, h, vv, lacc, east), flat, tilt);
     }
     public static double GlideAlpha(double lead)
         => Const.GLIDE_KA > 0 ? Const.Clamp(58 + lead / Const.GLIDE_KA, Const.GLIDE_A_LO, Const.GLIDE_A_HI) : 58;
@@ -488,6 +499,63 @@ public static class Guidance {
             f1 = f(x1);
         }
         return double.NaN;
+    }
+    public static EntryPred PredictFlip(SimState sim, Vehicle v, double trim, double bankDeg) {
+        double x = v.X, y = v.Y, vx = v.Vx, vy = v.Vy, t = 0, phi = v.Bank;
+        double al = Math.Abs(v.Alpha * Const.R2D), bk = bankDeg * Const.D2R;
+        double K = v.EntK, m = v.Mass, A = v.A, LD = v.FullLen * v.Dia / A;
+        double fwd = 40 * Const.D2R, aft = 55 * Const.D2R, span = Surfaces.FlapSpan(fwd, aft);
+        double hStop = Const.FLIP_STOP + (v.Catch ? 0 : SimState.Surface(v.AimDr) - Const.CATCH_H);
+        void Acc(double px, double py, double pvx, double pvy, double ph, double aDeg, Air at, out double ax, out double ay) {
+            double r = Math.Sqrt(px * px + py * py), h = r - Const.RE;
+            double g = Const.MU / (r * r);
+            ax = -g * px / r; ay = -g * py / r;
+            double rvx = pvx + Const.W * py, rvy = pvy - Const.W * px;
+            double sp = Math.Sqrt(rvx * rvx + rvy * rvy);
+            if (sp <= 1 || at.Rho <= 0) return;
+            double aa = aDeg * Const.D2R, sa = Math.Sin(aa), ca = Math.Cos(aa);
+            double CN = 2 * Math.Abs(sa * ca) + 1.15 * LD * sa * sa + Surfaces.FlapCn(Math.Abs(aa)) * span / A;
+            double CA = Atmosphere.Cd0(sp / at.A) * ca * ca + 0.06;
+            double q = 0.5 * at.Rho * sp * sp;
+            double cd = q * A * K * (CN * Math.Abs(sa) + CA * Math.Abs(ca)) / m;
+            double cl = q * A * K * (CN * ca - CA * Math.Abs(sa)) / m;
+            double dx = rvx / sp, dy = rvy / sp;
+            ax -= cd * dx; ay -= cd * dy;
+            double ux = px / r, uy = py / r, ex = -uy, ey = ux, rx = -dy, ry = dx;
+            double sg = (h > Const.GLIDE_H ? rx * ux + ry * uy : rx * ex + ry * ey) >= 0 ? 1 : -1;
+            ax += cl * Math.Cos(ph) * sg * rx; ay += cl * Math.Cos(ph) * sg * ry;
+        }
+        for (int i = 0; i < 30000; i++) {
+            double r = Math.Sqrt(x * x + y * y), h = r - Const.RE;
+            if (!double.IsFinite(r) || h > Const.PRED_H_MAX || t > Const.PRED_T_MAX || h <= 0) break;
+            double ux = x / r, uy = y / r, ex = -uy, ey = ux;
+            double rvx = vx + Const.W * y, rvy = vy - Const.W * x, sp = Math.Sqrt(rvx * rvx + rvy * rvy);
+            double vE = rvx * ex + rvy * ey, vv = rvx * ux + rvy * uy;
+            double g = Const.MU / (r * r), a3 = Math.Max(3 * Spec.RaptorSL.Fv / m - g, 5), vd = Math.Max(-vv, 10);
+            if (h < Const.FLIP_H && h - hStop - vd * vd / (2 * a3) < 0) break;
+            Air at = Atmosphere.At(h, v.RhoEst);
+            double q = 0.5 * at.Rho * sp * sp;
+            double dt = q < 20 ? 4 : (q < 2e3 ? 1.5 : (q < 2e4 ? 0.5 : 0.25));
+            double aCmd, phiCmd = bk;
+            if (h > 60e3) aCmd = Const.Clamp(62 + trim, 45, 74);
+            else if (h > Const.GLIDE_H) aCmd = Const.Clamp(70 + trim, 45, 74);
+            else {
+                double dr = (SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE + Const.FLIP_D - v.AimDr;
+                double dx = rvx / sp, dy = rvy / sp;
+                GlideCmd gc = GlideLaw(dr, vE, vv, h, Math.Atan2(vE, vv) * Const.R2D, q * K, m, r, v.FullLen * v.Dia, A,
+                                       al * Const.D2R, fwd, aft, sp / at.A, hStop, Math.Abs(-dy * ex + dx * ey));
+                aCmd = gc.Alpha; phiCmd = gc.Bank;
+            }
+            al += Const.Clamp(aCmd - al, -Const.ALPHA_RATE * dt, Const.ALPHA_RATE * dt);
+            phi += Const.Clamp(phiCmd - phi, -Const.BANK_RATE * Const.D2R * dt, Const.BANK_RATE * Const.D2R * dt);
+            Acc(x, y, vx, vy, phi, al, at, out double ax1, out double ay1);
+            double hd = dt / 2, xm = x + vx * hd, ym = y + vy * hd;
+            Acc(xm, ym, vx + ax1 * hd, vy + ay1 * hd, phi, al,
+                Atmosphere.At(Math.Sqrt(xm * xm + ym * ym) - Const.RE, v.RhoEst), out double ax2, out double ay2);
+            x += (vx + ax1 * hd) * dt; y += (vy + ay1 * hd) * dt;
+            vx += ax2 * dt; vy += ay2 * dt; t += dt;
+        }
+        return new EntryPred((SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE + Const.FLIP_D - v.AimDr, t);
     }
     public static EntryPred PredictEntry(SimState sim, Vehicle v, double dv, double alphaDeg, double bankDeg, double coast = 0)
     {

@@ -60,6 +60,8 @@ internal static partial class Program {
         SloshDescent(nom, checks);
         StackPush(nom, checks);
         EntryCalm(nom, checks);
+        EntryForecast(nom, checks);
+        EntryNoJerk(nom, checks);
         FinsHold(nom, checks);
         CircOrbit(nom, checks);
         DeorbitPerigee(nom, "орбитальное", checks);
@@ -201,6 +203,28 @@ internal static partial class Program {
             big > 10000 && err < 100,
             $"крупных шагов {big}, участков {parts}, самый длинный {N(longest)} с; сверка на {N(span)} с — расхождение {N(err)} м"));
     }
+    private static void EntryForecast(Run n, List<Action> checks) {
+        Vehicle s = n.S;
+        double at60 = double.NaN, flip = double.NaN, at25 = double.NaN;
+        n.Each(() => {
+            if (s.Mode == "entryS" && s.Alt < 60e3 && double.IsNaN(at60)) at60 = s.EntMiss;
+            if (s.Mode == "entryS" && s.Alt < Const.GLIDE_H && double.IsNaN(at25)) at25 = n.Sim.Downrange(s) + Const.FLIP_D - s.AimDr;
+            if (s.Mode == "flipS" && double.IsNaN(flip)) flip = n.Sim.Downrange(s) + Const.FLIP_D - s.AimDr;
+        });
+        checks.Add(() => True("прогноз входа видит точку переворота до 1 км с 60 км и приводит на 25 км в середину коридора посадки",
+            Math.Abs(at60 - flip) < 1000 && at25 > -18e3 && at25 < -8e3,
+            $"прогноз на 60 км {N(at60)} м, на перевороте {N(flip)} м; на 25 км до точки {N(-at25 / 1e3)} км (коридор 6–20)"));
+    }
+    private static void EntryNoJerk(Run n, List<Action> checks) {
+        Vehicle s = n.S;
+        double lo = double.MaxValue, hi = double.MinValue;
+        n.Each(() => {
+            if (s.Mode != "entryS" || s.Alt > 70e3 || s.Alt < 50e3) return;
+            lo = Math.Min(lo, s.EntTrim); hi = Math.Max(hi, s.EntTrim);
+        });
+        checks.Add(() => True("вход без рывка: поправка угла атаки от 70 до 50 км гуляет не больше 2°",
+            hi - lo <= 2, $"поправка от {N(lo)}° до {N(hi)}°"));
+    }
     private static void FinsHold(Run n, List<Action> checks) {
         Vehicle b = n.B;
         double full = 0, fin = 0;
@@ -259,7 +283,8 @@ internal static partial class Program {
             $"корабль {N(s.RcsGas)} кг, ускоритель {N(b.RcsGas)} кг; запусков {starts}, запас по давлению на входе насосов до {N(cav)}; власть ДМТ в пустоте до {N(auth * 100)} %, давление до {N(pf / 1e3)}/{N(po / 1e3)} кПа",
             ("корабль тратил газ", s.RcsGas > 50), ("ускоритель тратил газ", b.RcsGas > 50),
             ("запуски корабля без кавитации от давления", starts >= 3 && cav > 0.99),
-            ("власть ДМТ в пустоте не ниже половины", auth >= 0.5)));
+            ("власть ДМТ в пустоте не ниже половины", auth >= 0.5),
+            ("давление газа к концу не ниже 280/300 кПа", pf >= 280e3 && po >= 300e3)));
     }
     private static void SloshDescent(Run n, List<Action> checks) {
         Vehicle b = n.B;
