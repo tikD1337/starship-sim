@@ -44,7 +44,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - run: dotnet build game/tests/SimCheck -c Release -v q -nologo
-      - run: python3 game/tests/bench/bench.py run --seeds 20 --workers 4 --missions '${{ matrix.missions }}' --name '${{ matrix.name }}' --json out.json -- ${{ matrix.args }}
+      - run: python3 game/tests/bench/bench.py run --seeds 20 --workers 4 --missions '${{ matrix.missions }}' --name='${{ matrix.name }}' --json out.json -- ${{ matrix.args }}
       - uses: actions/upload-artifact@v4
         with:
           name: bench-${{ strategy.job-index }}
