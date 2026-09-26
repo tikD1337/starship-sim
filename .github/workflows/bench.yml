@@ -1,0 +1,52 @@
+name: bench
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths: ['game/src/**', 'game/tests/**', '.github/workflows/bench.yml']
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet run --project game/tests/SimTests -c Release | tee simtests.txt
+      - run: tail -1 simtests.txt >> "$GITHUB_STEP_SUMMARY"; grep -q "провалов 0" simtests.txt
+  run:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        set: ['', '--anom', '--disp', '--disp --wind 15', '--disp --wind -12', '--disp --wind 20',
+              '--disp --wind 22', '--disp --wind -20', '--anomkey relightS --disp --wind -15', '--anomkey engOut --disp']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet build game/tests/SimCheck -c Release -v q -nologo
+      - run: python3 game/tests/bench/bench.py run --seeds 20 --workers 4 --json out.json -- ${{ matrix.set }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ strategy.job-index }}
+          path: out.json
+  report:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bench-*
+          path: res
+      - run: python3 game/tests/bench/bench.py report res --baseline game/tests/bench/baseline.json --write bench.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-all
+          path: bench.json
