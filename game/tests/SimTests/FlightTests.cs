@@ -63,6 +63,7 @@ internal static partial class Program {
         CircOrbit(nom, checks);
         DeorbitPerigee(nom, "орбитальное", checks);
         DeorbitPerigee(high, "высокая орбита", checks);
+        WarmSolves(nom, checks);
         GasBudget(nom, checks);
         VacTurns(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
@@ -143,6 +144,28 @@ internal static partial class Program {
         });
         checks.Add(() => True($"{name}: тормозной импульс в окне — перигей не упёрся в предел 12 км", peri > 15e3,
             $"перигей после импульса {N(peri / 1e3)} км"));
+    }
+    private static void WarmSolves(Run n, List<Action> checks) {
+        Vehicle b = n.B, s = n.S;
+        double deo = double.NaN, dDeo = double.NaN, lift = double.NaN, dLift = double.NaN;
+        int tick = 0;
+        n.Each(() => {
+            if (double.IsNaN(deo) && s.Mode == "deorbit" && s.DeoLeft > 10) {
+                deo = Guidance.DeorbitSolve(n.Sim, s);
+                dDeo = Math.Max(Math.Abs(Guidance.DeorbitSolve(n.Sim, s, deo + 3) - deo),
+                                Math.Abs(Guidance.DeorbitSolve(n.Sim, s, deo - 3) - deo));
+            }
+            if (double.IsNaN(lift) && b.Mode == "coastB" && b.Alt > Const.BOOST_STRAIGHT_H && tick++ % 100 == 0) {
+                double c = Guidance.BoosterLift(n.Sim, b);
+                if (Math.Abs(c) > 0.8) return;
+                lift = c;
+                dLift = Math.Max(Math.Abs(Guidance.BoosterLift(n.Sim, b, Math.Min(c + 0.3, 1)) - c),
+                                 Math.Abs(Guidance.BoosterLift(n.Sim, b, Math.Max(c - 0.3, -1)) - c));
+            }
+        });
+        checks.Add(() => Group("уточнение от прошлого ответа сходится к полному подбору",
+            $"импульс схода {N(deo)} м/с, расхождение {N(dDeo)}; подъёмная сила ускорителя {N(lift)}, расхождение {N(dLift)}",
+            ("импульс схода", dDeo < 0.05), ("подъёмная сила ускорителя", dLift < 0.01)));
     }
     private static void FinsHold(Run n, List<Action> checks) {
         Vehicle b = n.B;

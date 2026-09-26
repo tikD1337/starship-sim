@@ -24,6 +24,7 @@ public static class Atmosphere {
         2.7890e-10, 7.2480e-11, 2.4180e-11, 9.5180e-12, 3.7250e-12, 1.5850e-12,
         6.9670e-13, 1.4540e-13, 3.6140e-14, 1.1700e-14, 5.2450e-15, 3.0190e-15,
     };
+    private static readonly double[] HighLnRho = Array.ConvertAll(HighRho, Math.Log);
     private const double ExoT = 1000, BaseT = 195.08, ThermoScale = 40e3, TopScale = 181045;
     private static int Below(double[] tab, double x, int n) {
         int lo = 0, hi = n - 2;
@@ -51,7 +52,7 @@ public static class Atmosphere {
             return HighRho[n - 1] * Math.Exp(-(h - HighH[n - 1]) / TopScale);
         int i = Below(HighH, h, n);
         double t = (h - HighH[i]) / (HighH[i + 1] - HighH[i]);
-        return Math.Exp(Math.Log(HighRho[i]) + t * (Math.Log(HighRho[i + 1]) - Math.Log(HighRho[i])));
+        return Math.Exp(HighLnRho[i] + t * (HighLnRho[i + 1] - HighLnRho[i]));
     }
     public static Air At(double h, double rhoK = 1.0) {
         if (double.IsNaN(h)) h = 0;

@@ -204,7 +204,7 @@ public static class Guide {
             v.DvBurn += v.F / v.Mass * dt;
             v.DeoLeft -= v.F / v.Mass * dt;
             v.DeoAcc += dt;
-            if (v.DeoAuto && v.DeoAcc > 0.5 && v.DeoLeft > 2) { v.DeoAcc = 0; v.DeoLeft = Guidance.DeorbitSolve(sim, v); }
+            if (v.DeoAuto && v.DeoAcc > 0.5 && v.DeoLeft > 2) { v.DeoAcc = 0; v.DeoLeft = Guidance.DeorbitSolve(sim, v, v.DeoLeft); }
             v.Throttle = v.DeoLeft > 25 ? 0.6 : (v.DeoLeft > 6 ? 0.25 : 0.1);
             if (v.DeoLeft <= 0 || o.Peri < 12e3 || v.Prop < 0.01 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Mode = "coastD"; v.DeoLeft = double.NaN;
@@ -230,6 +230,7 @@ public static class Guide {
             if (h > 60e3) Guidance.VentProp(sim, v, dt);
             v.EntAcc += dt;
             if (v.EntAcc > Const.ENTRY_PRED_DT && v.SeekPad && h > Const.GLIDE_H) {
+                v.EntSensT -= v.EntAcc;
                 v.EntAcc = 0;
                 double qq = 0.5 * Atmosphere.At(h, v.RhoEst).Rho * sp * sp;
                 if (qq > 200) {
@@ -243,10 +244,13 @@ public static class Guide {
                 double aDeg = Math.Abs(v.Alpha * Const.R2D);
                 double a0 = aDeg != 0 ? aDeg : 62;
                 v.EntMiss = Guidance.PredictEntry(sim, v, 0, a0, bk0).Miss;
-                v.EntSA = Math.Abs(Guidance.PredictEntry(sim, v, 0, a0 + 1, bk0).Miss - v.EntMiss);
-                double sB = Math.Abs(Guidance.PredictEntry(sim, v, 0, a0, bk0 + 2).Miss - v.EntMiss) / 2;
-                double kb = Math.Min(Const.ENTRY_KB, Const.ENTRY_GAIN / Math.Max(sB, 1));
-                double bWant = Const.Clamp(bk0 + Em(v) * kb, 0, 120) * Const.D2R;
+                if (v.EntSensT <= 0) {
+                    v.EntSensT = Const.ENTRY_SENS_DT;
+                    v.EntSA = Math.Abs(Guidance.PredictEntry(sim, v, 0, a0 + 1, bk0).Miss - v.EntMiss);
+                    double sB = Math.Abs(Guidance.PredictEntry(sim, v, 0, a0, bk0 + 2).Miss - v.EntMiss) / 2;
+                    v.EntKb = Math.Min(Const.ENTRY_KB, Const.ENTRY_GAIN / Math.Max(sB, 1));
+                }
+                double bWant = Const.Clamp(bk0 + Em(v) * v.EntKb, 0, 120) * Const.D2R;
                 v.BankCmd += Const.BANK_SMOOTH * (bWant - v.BankCmd);
             }
             double trim = Const.Clamp(Em(v) / Math.Max(Const.ENTRY_KT, v.EntSA / Const.ENTRY_GAIN), Const.ENTRY_TRIM_LO, Const.ENTRY_TRIM_HI);
@@ -316,7 +320,7 @@ public static class Guide {
         if (v.Alt > Const.BOOST_STRAIGHT_H) {
             if (v.PredAcc > 0.3 || double.IsNaN(v.MissPred)) {
                 v.PredAcc = 0;
-                v.BankCmd = Math.Acos(Guidance.BoosterLift(sim, v));
+                v.BankCmd = Math.Acos(double.IsNaN(v.MissPred) ? Guidance.BoosterLift(sim, v) : Guidance.BoosterLift(sim, v, Math.Cos(v.BankCmd)));
                 v.MissPred = Guidance.BoosterMiss(sim, v, Math.Cos(v.Bank));
             }
             v.ThCmd = Guidance.AimRetro(v) + Const.BOOST_AOA * Const.D2R;

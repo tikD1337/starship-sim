@@ -19,8 +19,10 @@ public static class Surfaces {
         double s = Math.Sin(alpha);
         return 2 * s * Math.Abs(s);
     }
+    public static double FlapSpan(double fwd, double aft)
+        => 2 * Const.FLAP_S_FWD * Math.Cos(fwd) + 2 * Const.FLAP_S_AFT * Math.Cos(aft);
     public static double FlapCnA(Vehicle v, double alpha, double fwd, double aft)
-        => FlapCn(Math.Abs(alpha)) * (2 * Const.FLAP_S_FWD * Math.Cos(fwd) + 2 * Const.FLAP_S_AFT * Math.Cos(aft)) / v.A;
+        => FlapCn(Math.Abs(alpha)) * FlapSpan(fwd, aft) / v.A;
     public static double FinTrim(double cp, double cm) => 1 - (cp - cm) / (Const.FIN_Y - cm);
     public static (double F, double T) FlapForce(double q, double alpha, double cm, double fwd, double aft) {
         double c = -q * FlapCn(alpha);

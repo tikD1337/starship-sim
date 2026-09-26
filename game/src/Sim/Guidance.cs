@@ -375,14 +375,13 @@ public static class Guidance {
     public static double BoosterMiss(SimState sim, Vehicle v, double lift) {
         double x = v.X, y = v.Y, vx = v.Vx, vy = v.Vy, t = 0, m = v.Mass;
         double A = v.A, LD = v.FullLen * v.Dia / A, a0 = Const.BOOST_AOA * Const.D2R;
-        void Acc(double px, double py, double pvx, double pvy, out double ax, out double ay) {
+        void Acc(double px, double py, double pvx, double pvy, Air at, out double ax, out double ay) {
             double r = Math.Sqrt(px * px + py * py), h = r - Const.RE;
             double ux = px / r, uy = py / r, ex = -uy, ey = ux;
             double g = Const.MU / (r * r);
             ax = -g * ux; ay = -g * uy;
             double rvx = pvx + Const.W * py, rvy = pvy - Const.W * px;
             double sp = Math.Sqrt(rvx * rvx + rvy * rvy);
-            Air at = Atmosphere.At(h, v.RhoEst);
             if (sp < 1 || at.Rho <= 0) return;
             double th = Math.Atan2(-rvx * ex - rvy * ey, -rvx * ux - rvy * uy)
                         + (h > Const.BOOST_STRAIGHT_H ? a0 : 0);
@@ -407,16 +406,22 @@ public static class Guidance {
             if (h <= Const.CATCH_H) break;
             double rvx = vx + Const.W * y, rvy = vy - Const.W * x;
             double sp = Math.Sqrt(rvx * rvx + rvy * rvy);
-            double qq = 0.5 * Atmosphere.At(h, v.RhoEst).Rho * sp * sp;
+            Air at = Atmosphere.At(h, v.RhoEst);
+            double qq = 0.5 * at.Rho * sp * sp;
             double dt = qq < 50 ? 2 : (qq < 5e3 ? 0.5 : 0.2);
-            Acc(x, y, vx, vy, out double ax1, out double ay1);
+            Acc(x, y, vx, vy, at, out double ax1, out double ay1);
             double hd = dt / 2;
-            Acc(x + vx * hd, y + vy * hd, vx + ax1 * hd, vy + ay1 * hd, out double ax2, out double ay2);
+            double xm = x + vx * hd, ym = y + vy * hd;
+            Acc(xm, ym, vx + ax1 * hd, vy + ay1 * hd, Atmosphere.At(Math.Sqrt(xm * xm + ym * ym) - Const.RE, v.RhoEst), out double ax2, out double ay2);
             x += (vx + ax1 * hd) * dt; y += (vy + ay1 * hd) * dt;
             vx += ax2 * dt; vy += ay2 * dt; t += dt;
             if (h > 200e3 && t > 1200) break;
         }
         return (SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE - v.AimDr;
+    }
+    public static double BoosterLift(SimState sim, Vehicle v, double guess) {
+        double x = Secant(l => BoosterMiss(sim, v, l), Const.Clamp(guess, -1, 1), 0.05, -1, 1, 0.002);
+        return double.IsNaN(x) ? BoosterLift(sim, v) : x;
     }
     public static double BoosterLift(SimState sim, Vehicle v) {
         double lo = -1, hi = 1;
@@ -463,24 +468,46 @@ public static class Guidance {
         }
         return (lo + hi) / 2;
     }
+    public static double DeorbitSolve(SimState sim, Vehicle v, double guess) {
+        double wait = Propellant.SettleLeft(v);
+        (Vec2 bp, Vec2 bv) = Coast(v, wait);
+        double lo = DeorbitDv(bp, bv, Const.RE + 60e3), hi = DeorbitDv(bp, bv, Const.RE + 5e3);
+        double F(double dv) => PredictEntry(sim, v, dv, 62, Const.ENTRY_BANK0, wait).Miss - Const.DEO_AIM;
+        double x = Secant(F, guess, 0.2, lo, hi, 0.005);
+        return double.IsNaN(x) ? DeorbitSolve(sim, v) : x;
+    }
+    private static double Secant(Func<double, double> f, double x0, double step, double lo, double hi, double tol) {
+        if (x0 < lo || x0 > hi) return double.NaN;
+        double f0 = f(x0), x1 = x0 + (x0 + step <= hi ? step : -step), f1 = f(x1);
+        for (int i = 0; i < 6; i++) {
+            if (f1 == f0) return double.NaN;
+            double x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
+            if (!double.IsFinite(x2) || x2 < lo || x2 > hi) return double.NaN;
+            x0 = x1; f0 = f1; x1 = x2;
+            if (Math.Abs(x1 - x0) < tol) return x1;
+            f1 = f(x1);
+        }
+        return double.NaN;
+    }
     public static EntryPred PredictEntry(SimState sim, Vehicle v, double dv, double alphaDeg, double bankDeg, double coast = 0)
     {
         (Vec2 cp, Vec2 cv) = Coast(v, coast);
         double x = cp.X, y = cp.Y, vx = cv.X, vy = cv.Y, t = coast, phi = v.Bank;
         double a0 = alphaDeg, bk = bankDeg * Const.D2R;
         double K = v.EntK, m = v.Mass, A = v.A, LD = v.FullLen * v.Dia / A;
+        double span = Surfaces.FlapSpan(40 * Const.D2R, 55 * Const.D2R);
         void Coef(double h, double sp, Air at, out double dOut, out double lOut) {
             double aa = (h > 60e3 ? a0 : (h > Const.GLIDE_H ? 70 : 58)) * Const.D2R;
             double sa = Math.Abs(Math.Sin(aa)), ca = Math.Abs(Math.Cos(aa));
-            double CN = 2 * sa * ca + 1.15 * LD * sa * sa + Surfaces.FlapCnA(v, aa, 40 * Const.D2R, 55 * Const.D2R);
+            double CN = 2 * sa * ca + 1.15 * LD * sa * sa + Surfaces.FlapCn(Math.Abs(aa)) * span / A;
             double CA = Atmosphere.Cd0(sp / at.A) * ca * ca + 0.06;
             double q = 0.5 * at.Rho * sp * sp;
             dOut = q * A * K * (CN * sa + CA * ca) / m;
             lOut = q * A * K * Math.Max(0, CN * ca - CA * sa) / m;
         }
-        void Acc(double px, double py, double pvx, double pvy, double ph, out double ax, out double ay) {
+        Air AirAt(double px, double py) => Atmosphere.At(Math.Sqrt(px * px + py * py) - Const.RE, v.RhoEst);
+        void Acc(double px, double py, double pvx, double pvy, double ph, Air at, out double ax, out double ay) {
             double r = Math.Sqrt(px * px + py * py), h = r - Const.RE;
-            Air at = Atmosphere.At(h, v.RhoEst);
             double g = Const.MU / (r * r);
             ax = -g * px / r; ay = -g * py / r;
             double rvx = pvx + Const.W * py, rvy = pvy - Const.W * px;
@@ -518,9 +545,10 @@ public static class Guidance {
                                    cl, Math.Abs(rx * ex + ry * ey));
             }
             phi += Const.Clamp(phiCmd - phi, -Const.BANK_RATE * Const.D2R * dt, Const.BANK_RATE * Const.D2R * dt);
-            Acc(x, y, vx, vy, phi, out double ax1, out double ay1);
+            Acc(x, y, vx, vy, phi, at, out double ax1, out double ay1);
             double hd = dt / 2;
-            Acc(x + vx * hd, y + vy * hd, vx + ax1 * hd, vy + ay1 * hd, phi, out double ax2, out double ay2);
+            double xm = x + vx * hd, ym = y + vy * hd;
+            Acc(xm, ym, vx + ax1 * hd, vy + ay1 * hd, phi, AirAt(xm, ym), out double ax2, out double ay2);
             x += (vx + ax1 * hd) * dt; y += (vy + ay1 * hd) * dt;
             vx += ax2 * dt; vy += ay2 * dt; t += dt;
         }

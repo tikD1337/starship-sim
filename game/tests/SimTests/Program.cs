@@ -44,7 +44,9 @@ internal static partial class Program {
         var checks = new List<Action>();
         var runs = new List<Run>();
         FlightPlan(runs, checks);
-        Task flights = Task.Run(() => Parallel.ForEach(runs, r => r.Go()));
+        System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.BelowNormal;
+        var par = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1) };
+        Task flights = Task.Run(() => Parallel.ForEach(runs, par, r => r.Go()));
         Atmosphere_();
         Drag();
         AeroForces();
