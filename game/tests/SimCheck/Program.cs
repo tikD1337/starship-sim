@@ -341,6 +341,7 @@ internal static class Program {
                 "sMode", "sAlt", "sDR", "sV", "sProp", "sTh", "sQ", "sTile");
         Vehicle b = sim.Veh[0], s = sim.Veh[1];
         const double dt = 0.01;
+        bool fine = Array.IndexOf(args, "--fine") >= 0;
         double sepV = double.NaN, apoMax = 0, qPeak = 0, aPeak = 0, bkPeak = 0, cmPeak = 0, mPeak = 0;
         double orbPeri = double.NaN, orbApo = double.NaN;
         double burnT = 0, holdT = 0, sBurnT = 0, omMax = 0, omSum = 0, devMax = 0;
@@ -360,33 +361,34 @@ internal static class Program {
         int i = 0;
         for (; i < 1400000; i++) {
             if ((b.Landed || b.Crashed) && (s.Landed || s.Crashed)) break;
-            Physics.Sim.Tick(sim, dt);
+            double h = dt;
+            if (fine) Physics.Sim.Tick(sim, dt); else h = Physics.Sim.Step(sim, dt);
             if (deploy && s.Mode == "orbit" && s.BayS != null && s.BayS.Sats > 0) {
                 if (s.BayS.Want < 0.5) Physics.Sim.BaySet(sim, s, true);
                 else if (s.BayS.Open >= 0.75) Physics.Sim.DeploySat(sim, s, s.BayS.Sats);
             }
             if (double.IsNaN(sepV) && !s.Attached) sepV = b.Speed;
             if (s.Mode == "entryS" && Math.Abs(s.Flap) > flapMax) flapMax = Math.Abs(s.Flap);
-            if (b.Mode == "landB" && b.Ign) burnT += dt;
+            if (b.Mode == "landB" && b.Ign) burnT += h;
             if (b.Mode == "landB" && b.NRun > 0) {
                 if (double.IsNaN(bIgnH)) { bIgnH = b.Alt; bIgnV = b.Speed * 3.6; }
-                if (b.NRun == 13) b13T += dt;
+                if (b.NRun == 13) b13T += h;
                 bBurnG = Math.Max(bBurnG, b.Acc);
             }
             if (b.Mode == "coastB" || b.Mode == "landB") {
                 double om = Math.Abs(b.Om) * Const.R2D;
                 if (om > omMax) omMax = om;
                 if (Math.Abs(b.Fin) > finMax) finMax = Math.Abs(b.Fin);
-                omSum += Math.Abs(b.Om) * dt * Const.R2D;
+                omSum += Math.Abs(b.Om) * h * Const.R2D;
                 double dev = Math.Abs(Vehicle.AngDiff(b.Th, Math.PI)) * Const.R2D;
                 if (dev > devMax) devMax = dev;
                 if (Math.Sign(b.Om) != 0 && Math.Sign(b.Om) != omSign) { omSign = Math.Sign(b.Om); flips++; }
                 double e2 = Math.Abs(Vehicle.AngDiff(b.ThCmd, b.Th)) * Const.R2D;
                 if (e2 > errMax) errMax = e2;
-                errSum += e2 * dt; errT += dt;
+                errSum += e2 * h; errT += h;
             }
-            if (b.Mode == "landB" && b.Alt - Const.CATCH_H < 40 && !b.Landed) holdT += dt;
-            if (s.Mode == "landS" && s.Ign) sBurnT += dt;
+            if (b.Mode == "landB" && b.Alt - Const.CATCH_H < 40 && !b.Landed) holdT += h;
+            if (s.Mode == "landS" && s.Ign) sBurnT += h;
             if (s.Mode == "flipS" && double.IsNaN(sDrFlip)) { sDrFlip = sim.Downrange(s) + Const.FLIP_D - s.AimDr; sVhFlip0 = s.VHor; }
             if (s.Mode == "flipS" || s.Mode == "landS") {
                 double vh = Math.Abs(s.VHor);
@@ -394,7 +396,7 @@ internal static class Program {
                 double tl = Math.Abs(Vehicle.AngDiff(s.Th, 0)) * Const.R2D;
                 if (s.Alt < 400 && tl > sTiltMax) sTiltMax = tl;
             }
-            if (s.Mode == "landS" && s.Alt - Const.CATCH_H < 60 && !s.Landed) sHoverT += dt;
+            if (s.Mode == "landS" && s.Alt - Const.CATCH_H < 60 && !s.Landed) sHoverT += h;
             if (landCsv != null && i % 10 == 0 && !s.Landed && (s.Mode == "flipS" || s.Mode == "landS" || s.Mode == "entryS" && s.Alt < 26000))
                 landCsv.Append(FormattableString.Invariant($"{sim.T:F2},{s.Mode},{s.Alt - Const.CATCH_H:F2},{s.VVert:F2},{s.VHor:F2},{sim.Downrange(s):F2},{Vehicle.AngDiff(s.Th, 0) * Const.R2D:F2},{Vehicle.AngDiff(s.ThCmd, 0) * Const.R2D:F2},{s.Om * Const.R2D:F2},{s.NRun},{s.Throttle:F3},{s.Prop / 1000:F2},{s.Mass / 1000:F2},{(s.ShipHold ? 1 : 0)},{s.WindE:F2},{s.WindEst:F2},{sim.NavDr(s):F2},{s.F / 1000:F0}\n"));
             for (int k = 0; k < 2; k++) {
@@ -404,7 +406,7 @@ internal static class Program {
                 double tl = Vehicle.AngDiff(w.Th, 0) * Const.R2D;
                 if (!double.IsNaN(stTh[k])) {
                     stVar[k] += Math.Abs(tl - stTh[k]);
-                    stSq[k] += tl * tl * dt; stT[k] += dt;
+                    stSq[k] += tl * tl * h; stT[k] += h;
                     double om = w.Om * Const.R2D;
                     int sg = om > 0.5 ? 1 : om < -0.5 ? -1 : 0;
                     if (sg != 0 && stSign[k] != 0 && sg != stSign[k]) stRev[k]++;
@@ -418,7 +420,7 @@ internal static class Program {
                 Vehicle w = sim.Veh[k];
                 if (w.Landed || w.Attached || w.Alt > 1500 || !(w.Mode == "landB" || w.Mode == "landS")) continue;
                 double we = Math.Abs(w.WindEst - w.WindE);
-                wEst[k] += we * dt; wFc[k] += Math.Abs(sim.Wind.Forecast(w.Alt) - w.WindE) * dt; wN[k] += dt;
+                wEst[k] += we * h; wFc[k] += Math.Abs(sim.Wind.Forecast(w.Alt) - w.WindE) * h; wN[k] += h;
                 if (we > wMax[k]) wMax[k] = we;
             }
             if (s.Mode == "landS" && s.Ign && s.NRun != sCut && s.NRun > 0) {

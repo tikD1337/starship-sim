@@ -12,11 +12,12 @@ internal sealed class Run {
     public Run(SimState sim) { Sim = sim; }
     public Vehicle B => Sim.Veh[0];
     public Vehicle S => Sim.Veh[1];
+    public double Dt { get; private set; } = Const.DT;
     public Run Each(Action a) { _each.Add(a); return this; }
     public Run Until(Func<bool> done) { _done = done; return this; }
     public void Go() {
         for (int i = 0; i < 1_800_000 && !_done(); i++) {
-            Physics.Sim.Tick(Sim, Const.DT);
+            Dt = Physics.Sim.Step(Sim, Const.DT);
             foreach (Action a in _each) a();
         }
     }
@@ -64,6 +65,7 @@ internal static partial class Program {
         DeorbitPerigee(nom, "орбитальное", checks);
         DeorbitPerigee(high, "высокая орбита", checks);
         WarmSolves(nom, checks);
+        CoastSteps(nom, checks);
         GasBudget(nom, checks);
         VacTurns(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
@@ -166,6 +168,38 @@ internal static partial class Program {
         checks.Add(() => Group("уточнение от прошлого ответа сходится к полному подбору",
             $"импульс схода {N(deo)} м/с, расхождение {N(dDeo)}; подъёмная сила ускорителя {N(lift)}, расхождение {N(dLift)}",
             ("импульс схода", dDeo < 0.05), ("подъёмная сила ускорителя", dLift < 0.01)));
+    }
+    private static void CoastSteps(Run n, List<Action> checks) {
+        Vehicle s = n.S;
+        int big = 0, parts = 0;
+        double fx = double.NaN, fy = 0, fvx = 0, fvy = 0, ft = 0;
+        double x = double.NaN, y = 0, vx = 0, vy = 0, t0 = 0, err = double.NaN, span = 0, longest = 0;
+        n.Each(() => {
+            bool coast = s.Mode == "orbit" && n.Dt > Const.DT;
+            if (coast) {
+                big++;
+                if (double.IsNaN(x) && !double.IsNaN(fx)) { x = fx; y = fy; vx = fvx; vy = fvy; t0 = ft; parts++; }
+                return;
+            }
+            if (!double.IsNaN(x)) {
+                double len = n.Sim.T - t0;
+                longest = Math.Max(longest, len);
+                if (double.IsNaN(err) && len > 300) {
+                    span = len;
+                    for (double t = 0; t < span - 1e-9; t += Const.DT) {
+                        double r = Math.Sqrt(x * x + y * y), g = Const.MU / (r * r * r);
+                        vx -= g * x * Const.DT; vy -= g * y * Const.DT;
+                        x += vx * Const.DT; y += vy * Const.DT;
+                    }
+                    err = Math.Sqrt((x - s.X) * (x - s.X) + (y - s.Y) * (y - s.Y));
+                }
+                x = double.NaN;
+            }
+            if (s.Mode == "orbit") { fx = s.X; fy = s.Y; fvx = s.Vx; fvy = s.Vy; ft = n.Sim.T; }
+        });
+        checks.Add(() => True("на орбите шаг 0,1 с, путь совпадает с тяготением при шаге 0,01 с",
+            big > 10000 && err < 100,
+            $"крупных шагов {big}, участков {parts}, самый длинный {N(longest)} с; сверка на {N(span)} с — расхождение {N(err)} м"));
     }
     private static void FinsHold(Run n, List<Action> checks) {
         Vehicle b = n.B;
