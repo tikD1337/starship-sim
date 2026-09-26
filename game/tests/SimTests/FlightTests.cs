@@ -225,6 +225,34 @@ internal static partial class Program {
         checks.Add(() => True("вход без рывка: поправка угла атаки от 70 до 50 км гуляет не больше 2°",
             hi - lo <= 2, $"поправка от {N(lo)}° до {N(hi)}°"));
     }
+    private static void LateAbort() {
+        (SimState Sim, Vehicle V) Near(int k, double prop, double dh, double wait) {
+            var sim = new SimState { Mission = "orbital", AnomOn = false };
+            Physics.Sim.Reset(sim, 5);
+            sim.T = 500;
+            Vehicle v = sim.Veh[k];
+            v.Attached = false; v.Stacked = false; v.Launched = true; v.Mode = k == 0 ? "landB" : "landS";
+            v.SeekPad = true; v.Site = "tower"; v.AimDr = 0; v.Prop = prop; v.WaitT = wait; v.IgnBurn = true;
+            v.Ign = true; v.NEng = k == 0 ? 3 : 1; v.Throttle = 0.5; v.Th = 0; v.Om = 0;
+            double a = SimState.PadAngle(sim.T), r = Const.RE + Const.CATCH_H + dh;
+            v.X = r * Math.Sin(a); v.Y = r * Math.Cos(a); v.Vx = -Const.W * v.Y; v.Vy = Const.W * v.X;
+            return (sim, v);
+        }
+        (SimState bs, Vehicle b) = Near(0, 80e3, 0, Const.WAIT_MAX + 1);
+        Guide.Step(bs, b, Const.DT);
+        (SimState ss, Vehicle s) = Near(1, 30e3, -Const.CATCH_WIN - 1, 0);
+        double h0 = s.Alt;
+        for (int i = 0; i < 600; i++) {
+            Guide.Step(ss, s, Const.DT);
+            Flight.StepVehicle(ss, s, Const.DT);
+            ss.T += Const.DT;
+        }
+        Group("поздняя отмена у рук как у SpaceX: в море — только если долетит и сможет снизиться",
+              $"ускоритель с 80 т: {b.Site}; корабль с 30 т ниже рук: {s.Site}, за 6 с {N(s.Alt - h0)} м вверх",
+              ("ускоритель с запасом уходит в море", b.Site == "sea"),
+              ("корабль после переворота не улетает — стал бы легче, чем снижается один двигатель", s.Site == "tower"),
+              ("и поднимается обратно к рукам на повторный заход", s.Alt > h0 + 3 && Logged(ss, "повторный заход")));
+    }
     private static void FinsHold(Run n, List<Action> checks) {
         Vehicle b = n.B;
         double full = 0, fin = 0;
@@ -673,6 +701,12 @@ internal static partial class Program {
         SimState gale = Live(12345, false);
         gale.Wind = Wind.Steady(22);
         Run storm = Add(gale, r => Run.Over(r.S));
+        var outB = new SimState { Mission = "orbital", AnomOn = true, AnomScript = new HashSet<string> { "engOut" }, Disperse = true };
+        Physics.Sim.Reset(outB, 12);
+        Run lameB = Add(outB, r => Run.Over(r.B));
+        var outS = new SimState { Mission = "high", AnomOn = false, Disperse = true, TargetApo = 520e3, TargetPeri = 500e3 };
+        Physics.Sim.Reset(outS, 18);
+        Run lameS = Add(outS, r => Run.Over(r.S));
         checks.Add(() => {
             Head("Запасная посадка: опор нет — только руки или море");
             var land = new SimState { Mission = "orbital", AnomOn = false };
@@ -697,6 +731,10 @@ internal static partial class Program {
                   $"Б {relB.B.Mode} {N(relB.Sim.Downrange(relB.B))} м; К {relS.S.Mode}",
                   ("ускоритель уходит от башни и приводняется", relB.B.Landed && !relB.B.Crashed && relB.B.Splash && !relB.B.Caught && Logged(relB.Sim, "посадочных двигателей: уход в море")),
                   ("корабль не уходит, а садится в руки", relS.S.Caught && relS.S.Site == "tower" && Logged(relS.Sim, "захват на оставшихся")));
+            Group("без двигателя тяга идёт туда, куда просит наведение: ступень садится на оставшихся в руки",
+                  $"ускоритель без двигателя (зерно 12): {lameB.B.Mode}, {N(lameB.Sim.Downrange(lameB.B))} м; корабль на одном (высокая орбита, зерно 18): {lameS.S.Mode}",
+                  ("ускоритель пойман", lameB.B.Caught), ("корабль пойман", lameS.S.Caught));
+            LateAbort();
             Group("естественный отказ на посадку (2 %) ведёт туда же", $"зерно {sb}: Б {natB.B.Mode}; зерно {ss}: К {natS.S.Mode}",
                   ("ускоритель приводняется", natB.B.Splash && natB.B.Landed && !natB.B.Crashed && Logged(natB.Sim, "уход в море")),
                   ("корабль ловится на оставшихся", natS.S.Caught && Logged(natS.Sim, "захват на оставшихся")),

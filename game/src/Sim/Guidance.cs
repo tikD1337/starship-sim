@@ -135,7 +135,7 @@ public static class Guidance {
         double aVert = Math.Max(vv * vv / (2 * dh) + g, 0.5);
         if (!v.SeekPad) {
             double a2 = Const.Clamp(-v.NVh * 0.55, -3, 3);
-            return Steer(v, Const.Clamp(Math.Atan2(a2, aVert), -maxTilt, maxTilt));
+            return Steer(v, Const.Clamp(Math.Atan2(a2, aVert) - GimTrim(v), -maxTilt, maxTilt));
         }
         double dr = sim.NavDr(v), vh = v.NVh;
         double aMax = aMaxIn > 0 ? aMaxIn : aVert * 1.6;
@@ -160,7 +160,21 @@ public static class Guidance {
             aLat -= Const.LAND_WIND_K * 0.5 * rho * u * Math.Abs(u) * v.Dia * v.FullLen / v.Mass;
         }
         aLat = Const.Clamp(aLat, -lat, lat);
-        return Steer(v, Const.Clamp(Math.Atan2(aLat, aVert), -maxTilt, maxTilt));
+        return Steer(v, Const.Clamp(Math.Atan2(aLat, aVert) - GimTrim(v), -maxTilt, maxTilt));
+    }
+    public static bool CanDivert(SimState sim, Vehicle v) {
+        double g = Const.MU / (v.R * v.R);
+        double fOne = Math.Max(1, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(v.Alt).P);
+        double d = Math.Max(Const.COAST_DR + 200 - sim.Downrange(v), 0);
+        double burn = v.Mass * g * Spec.RaptorSL.Mdot / fOne * (d / Const.DIV_V + Const.DIV_T);
+        double light = Const.LAND_THR_MIN * fOne / g * Const.DIV_MARGIN;
+        return burn < v.Prop - Const.DIV_RESERVE && v.Mass - burn > light;
+    }
+    public static double GimTrim(Vehicle v) {
+        if (v.F < 1e3) return 0;
+        double tq = 0;
+        foreach (Engine e in v.Eng) tq -= e.F * e.Arm;
+        return Math.Asin(Const.Clamp(tq / (v.F * v.Cm), -1, 1));
     }
     private static double Steer(Vehicle v, double want) {
         if (v.Kind != Kind.Booster) return want;
@@ -251,6 +265,7 @@ public static class Guidance {
         return want;
     }
     private static double DescentRate(Vehicle v, in Burn e, double dt, double aMaxN) {
+        if (v.Retry && e.DhS < 2) return Math.Min(2, 0.5 * (2 - e.DhS));
         double dr = e.Dr;
         double aLat = Math.Max(0.5, Math.Min(Const.LAND_ALAT,
             aMaxN * Math.Sin(20 * Const.D2R)));
@@ -352,6 +367,7 @@ public static class Guidance {
             bool canHover = Const.LAND_THR_MIN * fn / v.Mass < e.G - 0.3;
             if (canHover && e.DhS > 3 && e.DhS < Const.SHIP_HOLD_H && (Math.Abs(e.Dr) > Const.SHIP_HOLD_DR || Math.Abs(vx) > Const.SHIP_HOLD_VH)
                 && vT < -Const.LAND_VTD) { vT = -Const.LAND_VTD; ff = 0; }
+            if (v.Retry && e.DhS < 2) { vT = Math.Min(2, 0.5 * (2 - e.DhS)); ff = 0; }
             double aCmd = e.G - e.Drag / v.Mass + ff + Const.Clamp((vT - e.Vv) * Const.SHIP_KV, -20, 20);
             v.Throttle = Const.Clamp(aCmd * v.Mass / (fn * Math.Max(Math.Cos(v.Th), 0.3)), Const.LAND_THR_MIN, 1);
             want = Math.Atan2(aX, e.G);
@@ -362,7 +378,7 @@ public static class Guidance {
             want = Math.Atan2(aX, aZ);
         }
         double lim = (e.DhS < Const.LAND_DH_END ? EndTilt(v) : Const.SHIP_TILT) * Const.D2R;
-        v.ThCmd = Const.Clamp(SteerP(v, Const.Clamp(want, -lim, lim), Const.SHIP_POLE), -2 * lim, 2 * lim);
+        v.ThCmd = Const.Clamp(SteerP(v, Const.Clamp(want - GimTrim(v), -lim, lim), Const.SHIP_POLE), -2 * lim, 2 * lim);
     }
     private static int Avail(Vehicle v) {
         int n = 0;

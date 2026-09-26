@@ -37,6 +37,7 @@ public sealed class Vehicle {
     public bool QDown, Splash;
     public string Site = "tower";
     public double AimDr, WaitT;
+    public bool Retry;
     public bool Catch => SeekPad && Site == "tower";
     public bool ShipHold;
     public bool Venting, BurnLogged, IgnBurn;
