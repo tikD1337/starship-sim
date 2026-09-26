@@ -7,7 +7,7 @@ public sealed class LogEntry {
     public int Lv;
 }
 public sealed class SimState {
-    public double T = -10, Dt = Const.DT, RhoK = 1, Payload = 60e3;
+    public double T = -10, Dt = Const.DT, RhoK = 1, Payload = 60e3, LastStep;
     public bool AnomOn = true, Disperse;
     public Dispersion Disp;
     public System.Collections.Generic.HashSet<string> AnomScript;

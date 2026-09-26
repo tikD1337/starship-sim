@@ -29,8 +29,8 @@ public static class Const {
     public const double TILE_CAP = 6000, SKIN_CAP = 15800, BODY_CAP = 160e3, TILE_LIMIT = 1700,
         SKIN_LIMIT = 1100, TILE_EPS = 0.85, SKIN_EPS = 0.45, LEE_SHADE = 0.03, BURN_RATE = 1.2e-6,
         ENTRY_BANK0 = 45;
-    public static double ENTRY_KB = 6e-5, ENTRY_GAIN = 0.5, ENTRY_KT = 5e3, ENTRY_TRIM_LO = -18, ENTRY_TRIM_HI = 8;
-    public const double BANK_RATE = 8, BANK_SMOOTH = 0.35, ALPHA_RATE = 1.5, ENTRY_PRED_DT = 0.5;
+    public static double ENTRY_KB = 6e-5, ENTRY_GAIN = 0.5, ENTRY_TRIM_LO = -18, ENTRY_TRIM_HI = 8, ENTRY_TRIM_STEP = 1, ENTRY_SLOPE_MIN = 50;
+    public const double BANK_RATE = 8, BANK_SMOOTH = 0.35, ALPHA_RATE = 1.5, ENTRY_PRED_DT = 0.5, ENTRY_SENS_DT = 2;
     public static double FLIP_H = 1500, HOLD_MAX = 2, LAND_STOP_S = 500;
     public const double SEP_GAP = 2.35;
     public static double HDR_Z = 0.82, CP_BELLY = 0.059, CP_BELLY_M0 = 0.8, CP_BELLY_M1 = 1.5;
@@ -57,7 +57,7 @@ public static class Const {
     public static double BELLY_TILT = 15, BELLY_VP0 = 140, BELLY_VP1 = 165, BELLY_LEAD = 1600, BELLY_VF = 0, BELLY_TMIN = 3;
     public static double BOOST_AOA = 17, BOOST_STRAIGHT_H = 4000, BOOST_SWITCH_H = 450;
     public static double ASC_KA = 5e-4, ASC_KV = 0.04, ASC_AVMAX = 40, ASC_THMAX = 140, DEO_AIM = 30e3, DEO_TURN = 1500e3;
-    public const double DT = 0.01, GAS_T = 270;
+    public const double DT = 0.01, GAS_T = 270, DT_COAST = 0.1;
     public static double Clamp(double v, double a, double b) => v < a ? a : (v > b ? b : v);
     public static double Lerp(double a, double b, double t) => a + (b - a) * t;
 }

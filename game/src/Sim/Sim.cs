@@ -287,6 +287,29 @@ public static class Sim {
         double k = (v.R - d) / v.R;
         v.X *= k; v.Y *= k;
     }
+    public static bool Coasting(SimState sim) {
+        if (sim.Mode != "auto") return false;
+        foreach (Vehicle v in sim.Veh) {
+            if (!v.Alive || v.Landed && (v.Stowed || !v.Caught)) continue;
+            if (v.Landed || v.Attached || v.Kind != Kind.Ship || v.Mode != "orbit" && v.Mode != "coastD") return false;
+            if (v.Ign || v.NRun > 0 || v.Ullage || v.Q > 1 || v.Alt < 100e3) return false;
+            if (v.BayS != null && (v.BayS.Open > 0 || v.BayS.Want > 0)) return false;
+            if (Math.Abs(v.Om) > 0.2 * Const.D2R || Math.Abs(Vehicle.AngDiff(v.ThCmd, v.Th)) > 2 * Const.D2R) return false;
+        }
+        return true;
+    }
+    public static double Step(SimState sim, double dt) {
+        double h = Coasting(sim) ? Math.Max(dt, Const.DT_COAST) : dt;
+        if (sim.LastStep > 0 && h != sim.LastStep)
+            foreach (Vehicle v in sim.Veh) {
+                if (!v.Alive || v.Landed || v.Attached) continue;
+                double r = v.R, k = Const.MU / (r * r) * (sim.LastStep - h) / 2;
+                v.Vx -= k * v.X / r; v.Vy -= k * v.Y / r;
+            }
+        sim.LastStep = h;
+        Tick(sim, h);
+        return h;
+    }
     public static void Tick(SimState sim, double dt) {
         Vehicle b = sim.Veh[0], s = sim.Veh[1];
         double prev = sim.T;

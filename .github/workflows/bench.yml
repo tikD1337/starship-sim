@@ -1,0 +1,88 @@
+name: bench
+on:
+  workflow_dispatch:
+  push:
+    paths: ['game/src/**', 'game/tests/**', '.github/workflows/bench.yml']
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: python3 -m unittest game/tests/bench/test_bench.py
+      - run: dotnet run --project game/tests/SimTests -c Release | tee simtests.txt
+      - run: tail -1 simtests.txt >> "$GITHUB_STEP_SUMMARY"; grep -q "провалов 0" simtests.txt
+  run:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: 'штатно', missions: 'orbital,high', args: '' }
+          - { name: '--anom', missions: 'orbital,high', args: '--anom' }
+          - { name: '--disp', missions: 'orbital,high', args: '--disp' }
+          - { name: '--disp --wind 15', missions: 'orbital,high', args: '--disp --wind 15' }
+          - { name: '--disp --wind -12', missions: 'orbital,high', args: '--disp --wind -12' }
+          - { name: '--disp --wind 20', missions: 'orbital,high', args: '--disp --wind 20' }
+          - { name: '--disp --wind 22', missions: 'orbital,high', args: '--disp --wind 22' }
+          - { name: '--disp --wind -20', missions: 'orbital,high', args: '--disp --wind -20' }
+          - { name: '--anomkey relightS --disp --wind -15', missions: 'orbital,high', args: '--anomkey relightS --disp --wind -15' }
+          - { name: '--anomkey engOut --disp', missions: 'orbital,high', args: '--anomkey engOut --disp' }
+          - { name: 'трансатмосферное', missions: 'trans', args: '' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet build game/tests/SimCheck -c Release -v q -nologo
+      - run: python3 game/tests/bench/bench.py run --seeds 20 --workers 4 --missions '${{ matrix.missions }}' --name='${{ matrix.name }}' --json out.json -- ${{ matrix.args }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ strategy.job-index }}
+          path: out.json
+  report:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bench-*
+          path: res
+      - id: base
+        run: |
+          id=$(gh run list -R "$REPO" -w bench -b main --status success -L 1 --json databaseId -q '.[0].databaseId')
+          if [ -n "$id" ] && [ "$id" != "${{ github.run_id }}" ] && gh run download "$id" -R "$REPO" -n bench-all -D base; then
+            echo "note=база — [прогон main $id](https://github.com/$REPO/actions/runs/$id)" >> "$GITHUB_OUTPUT"
+          fi
+      - id: rep
+        run: |
+          set +e
+          python3 game/tests/bench/bench.py report res --baseline base/bench.json --write bench.json --out report.md --note "${{ steps.base.outputs.note }}" --gate > /dev/null
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          echo "" >> report.md
+          echo "[Прогон ${{ github.run_id }}](https://github.com/$REPO/actions/runs/${{ github.run_id }}) · ${GITHUB_SHA::7}" >> report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bench-all
+          path: bench.json
+      - run: |
+          pr=$(gh pr list -R "$REPO" --head "${{ github.ref_name }}" --state open --json number -q '.[0].number')
+          if [ -n "$pr" ]; then
+            gh pr comment "$pr" -R "$REPO" --body-file report.md --edit-last --create-if-none || gh pr comment "$pr" -R "$REPO" --body-file report.md
+          fi
+      - run: test "${{ steps.rep.outputs.code }}" = "0"

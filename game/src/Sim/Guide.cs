@@ -204,7 +204,7 @@ public static class Guide {
             v.DvBurn += v.F / v.Mass * dt;
             v.DeoLeft -= v.F / v.Mass * dt;
             v.DeoAcc += dt;
-            if (v.DeoAuto && v.DeoAcc > 0.5 && v.DeoLeft > 2) { v.DeoAcc = 0; v.DeoLeft = Guidance.DeorbitSolve(sim, v); }
+            if (v.DeoAuto && v.DeoAcc > 0.5 && v.DeoLeft > 2) { v.DeoAcc = 0; v.DeoLeft = Guidance.DeorbitSolve(sim, v, v.DeoLeft); }
             v.Throttle = v.DeoLeft > 25 ? 0.6 : (v.DeoLeft > 6 ? 0.25 : 0.1);
             if (v.DeoLeft <= 0 || o.Peri < 12e3 || v.Prop < 0.01 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Mode = "coastD"; v.DeoLeft = double.NaN;
@@ -230,6 +230,7 @@ public static class Guide {
             if (h > 60e3) Guidance.VentProp(sim, v, dt);
             v.EntAcc += dt;
             if (v.EntAcc > Const.ENTRY_PRED_DT && v.SeekPad && h > Const.GLIDE_H) {
+                v.EntSensT -= v.EntAcc;
                 v.EntAcc = 0;
                 double qq = 0.5 * Atmosphere.At(h, v.RhoEst).Rho * sp * sp;
                 if (qq > 200) {
@@ -240,16 +241,20 @@ public static class Guide {
                     v.EntK = Const.Clamp(0.85 * v.EntK + 0.15 * (cdAct / Math.Max(cdMod, 0.1)), 0.4, 2.5);
                 }
                 double bk0 = v.Bank * Const.R2D;
-                double aDeg = Math.Abs(v.Alpha * Const.R2D);
-                double a0 = aDeg != 0 ? aDeg : 62;
-                v.EntMiss = Guidance.PredictEntry(sim, v, 0, a0, bk0).Miss;
-                v.EntSA = Math.Abs(Guidance.PredictEntry(sim, v, 0, a0 + 1, bk0).Miss - v.EntMiss);
-                double sB = Math.Abs(Guidance.PredictEntry(sim, v, 0, a0, bk0 + 2).Miss - v.EntMiss) / 2;
-                double kb = Math.Min(Const.ENTRY_KB, Const.ENTRY_GAIN / Math.Max(sB, 1));
-                double bWant = Const.Clamp(bk0 + Em(v) * kb, 0, 120) * Const.D2R;
+                v.EntMiss = Guidance.PredictFlip(sim, v, v.EntTrim, bk0).Miss;
+                if (v.EntSensT <= 0) {
+                    v.EntSensT = Const.ENTRY_SENS_DT;
+                    v.EntSlope = Guidance.PredictFlip(sim, v, v.EntTrim + 1, bk0).Miss - v.EntMiss;
+                    double sB = Math.Abs(Guidance.PredictFlip(sim, v, v.EntTrim, bk0 + 2).Miss - v.EntMiss) / 2;
+                    v.EntKb = Math.Min(Const.ENTRY_KB, Const.ENTRY_GAIN / Math.Max(sB, 1));
+                }
+                if (Math.Abs(v.EntSlope) > Const.ENTRY_SLOPE_MIN)
+                    v.EntTrim = Const.Clamp(v.EntTrim - Const.Clamp(Const.ENTRY_GAIN * v.EntMiss / v.EntSlope,
+                        -Const.ENTRY_TRIM_STEP, Const.ENTRY_TRIM_STEP), Const.ENTRY_TRIM_LO, Const.ENTRY_TRIM_HI);
+                double bWant = Const.Clamp(bk0 + Em(v) * v.EntKb, 0, 120) * Const.D2R;
                 v.BankCmd += Const.BANK_SMOOTH * (bWant - v.BankCmd);
             }
-            double trim = Const.Clamp(Em(v) / Math.Max(Const.ENTRY_KT, v.EntSA / Const.ENTRY_GAIN), Const.ENTRY_TRIM_LO, Const.ENTRY_TRIM_HI);
+            double trim = v.EntTrim;
             double aPrev = v.AlphaCmd;
             v.AlphaCmd = Const.Clamp(62 + trim, 45, 74);
             LiftRefV rf = Guidance.LiftRef(v);
@@ -262,20 +267,15 @@ public static class Guide {
             else {
                 double miss = sim.Downrange(v) + Const.FLIP_D - v.AimDr;
                 double vp = Guidance.AimPro(v) * Const.R2D;
-                double flat = Const.Clamp((Math.Abs(vp) - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
-                double lead = miss + Const.BELLY_LEAD;
-                double aGlide = Guidance.GlideAlpha(lead);
-                double thBelly = Math.PI / 2 + Guidance.BellyTilt(v, miss, v.VHor, Guidance.FlipTgo(v, FlipStop(v)));
-                double thGlide = Guidance.AimLift(v, aGlide, Guidance.LiftSign(v, "east", rf.East));
-                v.AlphaCmd = aGlide + (Math.Abs(Vehicle.AngDiff(vp * Const.D2R, thBelly)) * Const.R2D - aGlide) * flat;
-                double aa = aGlide * Const.D2R, sa2 = Math.Sin(aa), ca2 = Math.Cos(aa);
-                double cn2 = 2 * sa2 * ca2 + 1.15 * (v.FullLen * v.Dia / v.A) * sa2 * sa2 + Surfaces.FlapCnA(v, aa, v.FlapFwd, v.FlapAft);
-                double ca20 = Atmosphere.Cd0(v.Mach) * ca2 * ca2 + 0.06;
-                double lacc = v.Q * v.A * Math.Max(0, cn2 * ca2 - ca20 * sa2) / v.Mass;
-                v.BankCmd = (1 - flat) * Guidance.GlideBank(lead, v.VHor, h, v.VVert, lacc, Math.Abs(rf.East));
+                GlideCmd gc = Guidance.GlideLaw(miss, v.VHor, v.VVert, h, vp, v.Q, v.Mass, v.R, v.FullLen * v.Dia, v.A,
+                                                v.Alpha, v.FlapFwd, v.FlapAft, v.Mach, FlipStop(v), Math.Abs(rf.East));
+                double thBelly = Math.PI / 2 + gc.Tilt;
+                double thGlide = Guidance.AimLift(v, Guidance.GlideAlpha(miss + Const.BELLY_LEAD), Guidance.LiftSign(v, "east", rf.East));
+                v.AlphaCmd = gc.Alpha;
+                v.BankCmd = gc.Bank;
                 sim.Once("glide" + v.Tag, () =>
                     sim.LogMsg($"{v.Tag}: терминальное наведение — гашение сноса, до {(v.Site == "sea" ? "точки приводнения" : "башни")} {((v.AimDr - sim.Downrange(v)) / 1000):F0} км", 2));
-                v.ThCmd = thGlide + Vehicle.AngDiff(thBelly, thGlide) * flat;
+                v.ThCmd = thGlide + Vehicle.AngDiff(thBelly, thGlide) * gc.Flat;
                 v.AlphaCmd = RateAlpha(aPrev, v.AlphaCmd, dt);
             }
             if (v.Heat > v.MaxHeat) v.MaxHeat = v.Heat;
@@ -316,7 +316,7 @@ public static class Guide {
         if (v.Alt > Const.BOOST_STRAIGHT_H) {
             if (v.PredAcc > 0.3 || double.IsNaN(v.MissPred)) {
                 v.PredAcc = 0;
-                v.BankCmd = Math.Acos(Guidance.BoosterLift(sim, v));
+                v.BankCmd = Math.Acos(double.IsNaN(v.MissPred) ? Guidance.BoosterLift(sim, v) : Guidance.BoosterLift(sim, v, Math.Cos(v.BankCmd)));
                 v.MissPred = Guidance.BoosterMiss(sim, v, Math.Cos(v.Bank));
             }
             v.ThCmd = Guidance.AimRetro(v) + Const.BOOST_AOA * Const.D2R;

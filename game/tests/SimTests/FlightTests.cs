@@ -12,11 +12,12 @@ internal sealed class Run {
     public Run(SimState sim) { Sim = sim; }
     public Vehicle B => Sim.Veh[0];
     public Vehicle S => Sim.Veh[1];
+    public double Dt { get; private set; } = Const.DT;
     public Run Each(Action a) { _each.Add(a); return this; }
     public Run Until(Func<bool> done) { _done = done; return this; }
     public void Go() {
         for (int i = 0; i < 1_800_000 && !_done(); i++) {
-            Physics.Sim.Tick(Sim, Const.DT);
+            Dt = Physics.Sim.Step(Sim, Const.DT);
             foreach (Action a in _each) a();
         }
     }
@@ -59,10 +60,14 @@ internal static partial class Program {
         SloshDescent(nom, checks);
         StackPush(nom, checks);
         EntryCalm(nom, checks);
+        EntryForecast(nom, checks);
+        EntryNoJerk(nom, checks);
         FinsHold(nom, checks);
         CircOrbit(nom, checks);
         DeorbitPerigee(nom, "орбитальное", checks);
         DeorbitPerigee(high, "высокая орбита", checks);
+        WarmSolves(nom, checks);
+        CoastSteps(nom, checks);
         GasBudget(nom, checks);
         VacTurns(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
@@ -144,6 +149,82 @@ internal static partial class Program {
         checks.Add(() => True($"{name}: тормозной импульс в окне — перигей не упёрся в предел 12 км", peri > 15e3,
             $"перигей после импульса {N(peri / 1e3)} км"));
     }
+    private static void WarmSolves(Run n, List<Action> checks) {
+        Vehicle b = n.B, s = n.S;
+        double deo = double.NaN, dDeo = double.NaN, lift = double.NaN, dLift = double.NaN;
+        int tick = 0;
+        n.Each(() => {
+            if (double.IsNaN(deo) && s.Mode == "deorbit" && s.DeoLeft > 10) {
+                deo = Guidance.DeorbitSolve(n.Sim, s);
+                dDeo = Math.Max(Math.Abs(Guidance.DeorbitSolve(n.Sim, s, deo + 3) - deo),
+                                Math.Abs(Guidance.DeorbitSolve(n.Sim, s, deo - 3) - deo));
+            }
+            if (double.IsNaN(lift) && b.Mode == "coastB" && b.Alt > Const.BOOST_STRAIGHT_H && tick++ % 100 == 0) {
+                double c = Guidance.BoosterLift(n.Sim, b);
+                if (Math.Abs(c) > 0.8) return;
+                lift = c;
+                dLift = Math.Max(Math.Abs(Guidance.BoosterLift(n.Sim, b, Math.Min(c + 0.3, 1)) - c),
+                                 Math.Abs(Guidance.BoosterLift(n.Sim, b, Math.Max(c - 0.3, -1)) - c));
+            }
+        });
+        checks.Add(() => Group("уточнение от прошлого ответа сходится к полному подбору",
+            $"импульс схода {N(deo)} м/с, расхождение {N(dDeo)}; подъёмная сила ускорителя {N(lift)}, расхождение {N(dLift)}",
+            ("импульс схода", dDeo < 0.05), ("подъёмная сила ускорителя", dLift < 0.01)));
+    }
+    private static void CoastSteps(Run n, List<Action> checks) {
+        Vehicle s = n.S;
+        int big = 0, parts = 0;
+        double fx = double.NaN, fy = 0, fvx = 0, fvy = 0, ft = 0;
+        double x = double.NaN, y = 0, vx = 0, vy = 0, t0 = 0, err = double.NaN, span = 0, longest = 0;
+        n.Each(() => {
+            bool coast = s.Mode == "orbit" && n.Dt > Const.DT;
+            if (coast) {
+                big++;
+                if (double.IsNaN(x) && !double.IsNaN(fx)) { x = fx; y = fy; vx = fvx; vy = fvy; t0 = ft; parts++; }
+                return;
+            }
+            if (!double.IsNaN(x)) {
+                double len = n.Sim.T - t0;
+                longest = Math.Max(longest, len);
+                if (double.IsNaN(err) && len > 300) {
+                    span = len;
+                    for (double t = 0; t < span - 1e-9; t += Const.DT) {
+                        double r = Math.Sqrt(x * x + y * y), g = Const.MU / (r * r * r);
+                        vx -= g * x * Const.DT; vy -= g * y * Const.DT;
+                        x += vx * Const.DT; y += vy * Const.DT;
+                    }
+                    err = Math.Sqrt((x - s.X) * (x - s.X) + (y - s.Y) * (y - s.Y));
+                }
+                x = double.NaN;
+            }
+            if (s.Mode == "orbit") { fx = s.X; fy = s.Y; fvx = s.Vx; fvy = s.Vy; ft = n.Sim.T; }
+        });
+        checks.Add(() => True("на орбите шаг 0,1 с, путь совпадает с тяготением при шаге 0,01 с",
+            big > 10000 && err < 100,
+            $"крупных шагов {big}, участков {parts}, самый длинный {N(longest)} с; сверка на {N(span)} с — расхождение {N(err)} м"));
+    }
+    private static void EntryForecast(Run n, List<Action> checks) {
+        Vehicle s = n.S;
+        double at60 = double.NaN, flip = double.NaN, at25 = double.NaN;
+        n.Each(() => {
+            if (s.Mode == "entryS" && s.Alt < 60e3 && double.IsNaN(at60)) at60 = s.EntMiss;
+            if (s.Mode == "entryS" && s.Alt < Const.GLIDE_H && double.IsNaN(at25)) at25 = n.Sim.Downrange(s) + Const.FLIP_D - s.AimDr;
+            if (s.Mode == "flipS" && double.IsNaN(flip)) flip = n.Sim.Downrange(s) + Const.FLIP_D - s.AimDr;
+        });
+        checks.Add(() => True("прогноз входа видит точку переворота до 1 км с 60 км и приводит на 25 км в середину коридора посадки",
+            Math.Abs(at60 - flip) < 1000 && at25 > -18e3 && at25 < -8e3,
+            $"прогноз на 60 км {N(at60)} м, на перевороте {N(flip)} м; на 25 км до точки {N(-at25 / 1e3)} км (коридор 6–20)"));
+    }
+    private static void EntryNoJerk(Run n, List<Action> checks) {
+        Vehicle s = n.S;
+        double lo = double.MaxValue, hi = double.MinValue;
+        n.Each(() => {
+            if (s.Mode != "entryS" || s.Alt > 70e3 || s.Alt < 50e3) return;
+            lo = Math.Min(lo, s.EntTrim); hi = Math.Max(hi, s.EntTrim);
+        });
+        checks.Add(() => True("вход без рывка: поправка угла атаки от 70 до 50 км гуляет не больше 2°",
+            hi - lo <= 2, $"поправка от {N(lo)}° до {N(hi)}°"));
+    }
     private static void FinsHold(Run n, List<Action> checks) {
         Vehicle b = n.B;
         double full = 0, fin = 0;
@@ -202,7 +283,8 @@ internal static partial class Program {
             $"корабль {N(s.RcsGas)} кг, ускоритель {N(b.RcsGas)} кг; запусков {starts}, запас по давлению на входе насосов до {N(cav)}; власть ДМТ в пустоте до {N(auth * 100)} %, давление до {N(pf / 1e3)}/{N(po / 1e3)} кПа",
             ("корабль тратил газ", s.RcsGas > 50), ("ускоритель тратил газ", b.RcsGas > 50),
             ("запуски корабля без кавитации от давления", starts >= 3 && cav > 0.99),
-            ("власть ДМТ в пустоте не ниже половины", auth >= 0.5)));
+            ("власть ДМТ в пустоте не ниже половины", auth >= 0.5),
+            ("давление газа к концу не ниже 280/300 кПа", pf >= 280e3 && po >= 300e3)));
     }
     private static void SloshDescent(Run n, List<Action> checks) {
         Vehicle b = n.B;
