@@ -52,7 +52,10 @@ def fmt(c):
 
 
 def report(a):
-    sets = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(pathlib.Path(a.dir).rglob("*.json"))]
+    sets = []
+    for p in sorted(pathlib.Path(a.dir).rglob("*.json")):
+        d = json.loads(p.read_text(encoding="utf-8"))
+        sets.extend(d if isinstance(d, list) else [d])
     base = {}
     if a.baseline and pathlib.Path(a.baseline).exists():
         base = {s["set"]: s for s in json.loads(pathlib.Path(a.baseline).read_text(encoding="utf-8"))}
