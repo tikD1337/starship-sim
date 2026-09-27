@@ -63,7 +63,7 @@ internal static partial class Program {
         EntryForecast(nom, checks);
         EntryNoJerk(nom, checks);
         FinsHold(nom, checks);
-        CircOrbit(nom, checks);
+        CircOrbit(new[] { ("орбитальное", nom), ("высокая орбита", high), ("трансатмосферное", trans) }, checks);
         DeorbitPerigee(nom, "орбитальное", checks);
         DeorbitPerigee(high, "высокая орбита", checks);
         WarmSolves(nom, checks);
@@ -128,17 +128,26 @@ internal static partial class Program {
             $"сверх тяги ускорителя {N(extra / 1e6)} МН при тяге корабля {N(ship / 1e6)} МН",
             ("корабль уже тянет", ship > 1e6), ("его тяга действует на связку", extra > 0.8 * ship)));
     }
-    private static void CircOrbit(Run n, List<Action> checks) {
-        Vehicle s = n.S;
-        double apo = double.NaN, peri = double.NaN;
-        string was = "";
-        n.Each(() => {
-            if (was != "orbit" && s.Mode == "orbit" && double.IsNaN(apo)) { Orbit o = Guidance.Orb(s); apo = o.Apo; peri = o.Peri; }
-            was = s.Mode;
-        });
-        checks.Add(() => Group("довыведение у апогея: орбита круглая, а не вытянутая",
-            $"{N(peri / 1e3)} × {N(apo / 1e3)} км",
-            ("перигей у цели", peri >= n.Sim.TargetPeri - 8e3), ("апогей не выше 400 км", apo <= 400e3)));
+    private static void CircOrbit((string Name, Run R)[] runs, List<Action> checks) {
+        var got = runs.Select(x => {
+            Vehicle s = x.R.S;
+            double seco = double.NaN, apo = double.NaN, peri = double.NaN;
+            string was = "";
+            x.R.Each(() => {
+                if (was == "ascent2" && s.Mode != "ascent2") seco = Guidance.Orb(s).Apo;
+                if (was != "orbit" && s.Mode == "orbit" && double.IsNaN(apo)) { Orbit o = Guidance.Orb(s); apo = o.Apo; peri = o.Peri; }
+                was = s.Mode;
+            });
+            bool circ = x.R.Sim.Mission != "trans";
+            var aim = Physics.Sim.Targets(x.R.Sim.Mission);
+            return (Res: new Func<(string, bool)[]>(() => new[] {
+                ($"{x.Name}: апогей у цели", Math.Abs(seco - aim.Apo) <= 15e3),
+                ($"{x.Name}: перигей у цели", !circ || peri >= aim.Peri - 8e3),
+                ($"{x.Name}: апогей не выше цели на 50 км", !circ || apo <= aim.Apo + 50e3) }),
+                Text: new Func<string>(() => circ ? $"{x.Name} {N(peri / 1e3)} × {N(apo / 1e3)} км" : $"{x.Name} апогей {N(seco / 1e3)} км"));
+        }).ToArray();
+        checks.Add(() => Group("выведение на цель задания; довыведение у апогея: орбита круглая, а не вытянутая",
+            string.Join(", ", got.Select(g => g.Text())), got.SelectMany(g => g.Res()).ToArray()));
     }
     private static void DeorbitPerigee(Run n, string name, List<Action> checks) {
         Vehicle s = n.S;
@@ -712,7 +721,7 @@ internal static partial class Program {
         var outB = new SimState { Mission = "orbital", AnomOn = true, AnomScript = new HashSet<string> { "engOut" }, Disperse = true };
         Physics.Sim.Reset(outB, 12);
         Run lameB = Add(outB, r => Run.Over(r.B));
-        var outS = new SimState { Mission = "high", AnomOn = false, Disperse = true, TargetApo = 520e3, TargetPeri = 500e3 };
+        var outS = new SimState { Mission = "high", AnomOn = false, Disperse = true };
         Physics.Sim.Reset(outS, 18);
         Run lameS = Add(outS, r => Run.Over(r.S));
         Run flapT = Add(Scripted("flapTile"), r => Run.Over(r.S));

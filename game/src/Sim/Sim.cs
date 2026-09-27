@@ -172,8 +172,14 @@ public static class Sim {
         }
         sim.Veh = new List<Vehicle> { b, s };
     }
+    public static (double Apo, double Peri) Targets(string mission) => mission switch {
+        "high" => (520e3, 500e3),
+        "trans" => (180e3, 160e3),
+        _ => (220e3, 200e3),
+    };
     public static void Reset(SimState sim, uint seed) {
         sim.Payload = sim.Mission == "high" ? 20e3 : (sim.Mission == "trans" ? 0 : 67e3);
+        (sim.TargetApo, sim.TargetPeri) = Targets(sim.Mission);
         sim.MecoFill = 0.125;
         sim.MecoV = 1800;
         sim.SecoPeri = sim.Mission == "trans" ? -150e3 : Const.SECO_PERI;
