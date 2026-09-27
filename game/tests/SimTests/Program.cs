@@ -61,6 +61,7 @@ internal static partial class Program {
         RcsGas();
         SocpChecks();
         GfoldChecks();
+        GfoldOpenLoop();
         HotStaging();
         Fins();
         Flaps();

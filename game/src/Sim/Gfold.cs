@@ -2,7 +2,11 @@ using System;
 using System.Collections.Generic;
 namespace Starship.Physics;
 public sealed class GfoldSetup {
-    public double X0, Y0, Vx0, Vy0, Mass0, MassMin, Alpha, Rho1, Rho2, G, Tvx, Tvy;
+    public double X0, Y0, Vx0, Vy0, Mass0, MassMin, Alpha, Rho1, Rho2, G, Tvx, Tvy, Rate;
+    public double Switch = double.NaN, Rho1B, Rho2B, RateB, AccMax = double.PositiveInfinity;
+    public bool After(int k) => k * Step >= Switch;
+    public double R1(int k) => After(k) ? Rho1B : Rho1;
+    public double R2(int k) => After(k) ? Rho2B : Rho2;
     public double ThetaMax = 20 * Const.D2R, Glide = 45 * Const.D2R, GlideDepth = 5, Step = 0.5;
     public Func<double, (double X, double Y)> Bias;
     public int Nodes = 20;
@@ -18,6 +22,11 @@ public sealed class GfoldPlan {
     public double Step, Fuel = double.NaN, Miss = double.PositiveInfinity, Slack;
     public double[] Ux, Uy, Sigma, X, Y, Vx, Vy, Mass;
     public double Time => Nodes * Step;
+    public double MassAt(double t) {
+        double f = Math.Clamp(t / Step, 0, Nodes);
+        int k = Math.Min((int)Math.Floor(f), Nodes - 1);
+        return Mass[k] + (Mass[k + 1] - Mass[k]) * (f - k);
+    }
     public (double Ux, double Uy, double X, double Y, double Vx, double Vy) At(double t) {
         double f = Math.Clamp(t / Step, 0, Nodes);
         int k = Math.Min((int)Math.Floor(f), Nodes - 1);
@@ -49,13 +58,17 @@ public static class Gfold {
         var z0 = new double[n + 1];
         var mu1 = new double[n + 1];
         var mu2 = new double[n + 1];
+        var cap = new double[n + 1];
+        double mmin = s.Mass0;
         for (int k = 0; k <= n; k++) {
             (double bx, double by) = s.Bias != null ? s.Bias(k * s.Step) : (0, 0);
             ax[k] = bx / acs; ay[k] = (by - s.G) / acs;
-            double mmin = Math.Max(s.Mass0 - s.Alpha * s.Rho2 * k * s.Step, 0.5 * s.MassMin);
-            z0[k] = Math.Log(mmin / ms);
+            if (k > 0) mmin -= s.Alpha * Math.Max(s.R2(k - 1), s.R2(k)) * s.Step;
+            double mk = Math.Max(mmin, 0.5 * s.MassMin);
+            z0[k] = Math.Log(mk / ms);
             double e = Math.Exp(-z0[k]) / (ms * acs);
-            mu1[k] = s.Rho1 * e; mu2[k] = s.Rho2 * e;
+            mu1[k] = s.R1(k) * e; mu2[k] = s.R2(k) * e;
+            cap[k] = Math.Max(s.AccMax - Math.Sqrt(bx * bx + by * by), s.R1(k) / mk * 1.001) / acs;
         }
         var rox = new double[n + 1];
         var roy = new double[n + 1];
@@ -83,6 +96,7 @@ public static class Gfold {
             var up = new Dictionary<int, double> { [SG(k)] = 1 };
             for (int i = 0; i <= k; i++) Acc(up, SG(i), -mu2[k] * alpha * dt * wv[k, i]);
             lin.Add((up, mu2[k] * (1 + z0[k])));
+            if (double.IsFinite(cap[k])) lin.Add((new Dictionary<int, double> { [SG(k)] = 1 }, cap[k]));
             if (point) lin.Add((new Dictionary<int, double> { [UY(k)] = -1, [SG(k)] = cth }, 0));
             if (glide && k >= 1) {
                 var a = new Dictionary<int, double>();
@@ -96,6 +110,14 @@ public static class Gfold {
                 lin.Add((a, depth - tg * rox[k] + roy[k]));
                 lin.Add((b, depth + tg * rox[k] + roy[k]));
             }
+        }
+        for (int k = 0; k < n; k++) {
+            if (s.After(k) != s.After(k + 1)) continue;
+            double rate = s.After(k) ? s.RateB : s.Rate;
+            if (!(rate > 0)) continue;
+            double r = rate * s.Step / (s.Mass0 * acs);
+            lin.Add((new Dictionary<int, double> { [SG(k + 1)] = 1, [SG(k)] = -1 }, r));
+            lin.Add((new Dictionary<int, double> { [SG(k + 1)] = -1, [SG(k)] = 1 }, r));
         }
         var fin = new Dictionary<int, double>();
         for (int i = 0; i <= n; i++) Acc(fin, SG(i), alpha * dt * wv[n, i]);
@@ -160,7 +182,7 @@ public static class Gfold {
         for (int k = 0; k <= n; k++) {
             double norm = Math.Sqrt(p.Ux[k] * p.Ux[k] + p.Uy[k] * p.Uy[k]);
             p.Slack = Math.Max(p.Slack, (p.Sigma[k] - norm) / Math.Max(p.Sigma[k], 1e-9));
-            double lo = s.Rho1 / p.Mass[k], hi = s.Rho2 / p.Mass[k], f = 1;
+            double lo = s.R1(k) / p.Mass[k], hi = s.R2(k) / p.Mass[k], f = 1;
             if (norm < 1e-9) { p.Ux[k] = 0; p.Uy[k] = lo; norm = lo; }
             else if (norm < lo) f = lo / norm;
             else if (norm > hi) f = hi / norm;
@@ -203,8 +225,16 @@ public static class Gfold {
             GfoldPlan p = Eval(nodes);
             if (Better(best, p)) { best = p; bestN = nodes; }
         }
-        if (bestN < 0) return Eval(maxNodes);
         int step = Math.Max(1, (maxNodes - minNodes) / (coarse - 1));
+        if (bestN < 0) {
+            int fine = Math.Max(1, (maxNodes - minNodes) / 12);
+            for (int nodes = minNodes; nodes <= maxNodes && bestN < 0; nodes += fine) {
+                GfoldPlan p = Eval(nodes);
+                if (Better(best, p)) { best = p; bestN = nodes; }
+            }
+            if (bestN < 0) return Eval(maxNodes);
+            step = fine;
+        }
         int lo = Math.Max(minNodes, bestN - step), hi = Math.Min(maxNodes, bestN + step);
         const double phi = 0.6180339887498949;
         for (int i = 0; i < 6 && hi - lo > 2; i++) {

@@ -38,6 +38,9 @@ public sealed class Vehicle {
     public string Site = "tower";
     public double AimDr, WaitT;
     public bool Retry;
+    public GfoldPlan Gf;
+    public double GfT0, GfNext, GfIgn = double.NaN, GfSwitch = double.NaN;
+    public int GfN, GfFail, GfUsed, GfAll, GfBad;
     public bool Catch => SeekPad && Site == "tower";
     public bool ShipHold;
     public bool Venting, BurnLogged, IgnBurn;

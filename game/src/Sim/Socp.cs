@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 namespace Starship.Physics;
 public enum SocpStatus { Optimal, Infeasible, Unbounded, MaxIterations, Numerical }
 public sealed class SocpProblem {
@@ -37,9 +38,9 @@ public static class Socp {
         SocpResult Fail(int it) => loose != null ? new SocpResult(SocpStatus.Optimal, loose, looseObj, it) : new SocpResult(SocpStatus.Numerical, null, double.NaN, it);
         double nb = Math.Max(1, Norm(p.B) + Norm(p.H)), nc = Math.Max(1, Norm(p.C));
         for (int it = 0; it < maxIter; it++) {
-            double[] rx = Add(Add(Mt(p.A, y), Mt(p.G, z)), Scal(p.C, tau));
+            double[] rx = Add(Add(Mt(p.A, y), kkt.Gt(z)), Scal(p.C, tau));
             double[] ry = Add(Neg(Mv(p.A, x)), Scal(p.B, tau));
-            double[] rz = Sub(Add(Neg(Mv(p.G, x)), Scal(p.H, tau)), s);
+            double[] rz = Sub(Add(Neg(kkt.G(x)), Scal(p.H, tau)), s);
             double cx = Dot(p.C, x), by = Dot(p.B, y), hz = Dot(p.H, z);
             double rt = -cx - by - hz - kap;
             double sz = Dot(s, z), mu = (sz + tau * kap) / (k.Degree + 1);
@@ -49,9 +50,9 @@ public static class Socp {
             if (pres < TOL && dres < TOL && (gap < TOL || rel < TOL))
                 return new SocpResult(SocpStatus.Optimal, Scal(x, 1 / tau), pc, it);
             if (pres < TOL_LOOSE && dres < TOL_LOOSE && (gap < TOL_LOOSE || rel < TOL_LOOSE)) { loose = Scal(x, 1 / tau); looseObj = pc; }
-            if (by + hz < 0 && Norm(Add(Mt(p.A, y), Mt(p.G, z))) / -(by + hz) < TOL)
+            if (by + hz < 0 && Norm(Add(Mt(p.A, y), kkt.Gt(z))) / -(by + hz) < TOL)
                 return new SocpResult(SocpStatus.Infeasible, null, double.NaN, it);
-            if (cx < 0 && Math.Max(Norm(Mv(p.A, x)), Norm(Add(Mv(p.G, x), s))) / -cx < TOL)
+            if (cx < 0 && Math.Max(Norm(Mv(p.A, x)), Norm(Add(kkt.G(x), s))) / -cx < TOL)
                 return new SocpResult(SocpStatus.Unbounded, null, double.NaN, it);
             var w = new Nt(k, s, z);
             if (!w.Ok) return Fail(it);
@@ -202,36 +203,104 @@ public static class Socp {
         }
         public double[] Mul(double[] v) => Apply(v, false);
         public double[] InvMul(double[] v) => Apply(v, true);
+        public double InvLin(int i, double v) => v / lw[i];
+        public void InvCone(int c, double[] v, double[] r) {
+            int q = k.Soc[c];
+            double[] w = wb[c];
+            double e = 1 / eta[c], qv = 0;
+            for (int j = 1; j < q; j++) qv += w[j] * v[j];
+            r[0] = e * (w[0] * v[0] - qv);
+            double f = -v[0] + qv / (1 + w[0]);
+            for (int j = 1; j < q; j++) r[j] = e * (v[j] + f * w[j]);
+        }
     }
     private sealed class Kkt {
         private readonly SocpProblem p;
         private readonly Cones k;
-        private readonly int n, pr;
+        private readonly int n, pr, m;
         private readonly double[,] hm, sm;
+        private readonly int[] rs, ci;
+        private readonly double[] cv;
+        private readonly int[][] sup;
+        private readonly double[][] gb;
         private Nt w;
         public Kkt(SocpProblem p, Cones k) {
             this.p = p; this.k = k;
-            n = p.C.Length; pr = p.B.Length;
+            n = p.C.Length; pr = p.B.Length; m = k.Dim;
             hm = new double[n, n]; sm = new double[pr, pr];
+            rs = new int[m + 1];
+            var cols = new List<int>();
+            var vals = new List<double>();
+            for (int i = 0; i < m; i++) {
+                for (int a = 0; a < n; a++)
+                    if (p.G[i, a] != 0) { cols.Add(a); vals.Add(p.G[i, a]); }
+                rs[i + 1] = cols.Count;
+            }
+            ci = cols.ToArray(); cv = vals.ToArray();
+            int nb = k.Linear + k.Soc.Length;
+            sup = new int[nb][]; gb = new double[nb][];
+            for (int b = 0; b < nb; b++) {
+                int st = b < k.Linear ? b : k.Start[b - k.Linear], q = b < k.Linear ? 1 : k.Soc[b - k.Linear];
+                var set = new SortedSet<int>();
+                for (int i = st; i < st + q; i++) for (int t = rs[i]; t < rs[i + 1]; t++) set.Add(ci[t]);
+                int[] sc = new int[set.Count];
+                set.CopyTo(sc);
+                var at = new Dictionary<int, int>();
+                for (int c = 0; c < sc.Length; c++) at[sc[c]] = c;
+                var g = new double[q * sc.Length];
+                for (int r = 0; r < q; r++) for (int t = rs[st + r]; t < rs[st + r + 1]; t++) g[r * sc.Length + at[ci[t]]] = cv[t];
+                sup[b] = sc; gb[b] = g;
+            }
+        }
+        public double[] G(double[] x) {
+            var y = new double[m];
+            for (int i = 0; i < m; i++) {
+                double t = 0;
+                for (int j = rs[i]; j < rs[i + 1]; j++) t += cv[j] * x[ci[j]];
+                y[i] = t;
+            }
+            return y;
+        }
+        public double[] Gt(double[] z) {
+            var y = new double[n];
+            for (int i = 0; i < m; i++) {
+                double zi = z[i];
+                if (zi == 0) continue;
+                for (int j = rs[i]; j < rs[i + 1]; j++) y[ci[j]] += cv[j] * zi;
+            }
+            return y;
         }
         private double[] WInvSq(double[] v) => w == null ? v : w.InvMul(w.InvMul(v));
         public bool Factor(Nt nt) {
             w = nt;
             Array.Clear(hm);
-            int m = k.Dim;
-            var gt = new double[n][];
-            var col = new double[m];
-            for (int a = 0; a < n; a++) {
-                for (int i = 0; i < m; i++) col[i] = p.G[i, a];
-                gt[a] = w == null ? (double[])col.Clone() : w.InvMul(col);
-            }
-            for (int a = 0; a < n; a++)
-                for (int b = 0; b <= a; b++) {
-                    double t = 0;
-                    double[] ga = gt[a], gb = gt[b];
-                    for (int i = 0; i < m; i++) t += ga[i] * gb[i];
-                    hm[a, b] = t;
+            var vin = new double[8];
+            var vout = new double[8];
+            for (int b = 0; b < sup.Length; b++) {
+                int[] sc = sup[b];
+                int ns = sc.Length;
+                if (ns == 0) continue;
+                bool lin = b < k.Linear;
+                int q = lin ? 1 : k.Soc[b - k.Linear];
+                double[] g = gb[b];
+                var bm = new double[q * ns];
+                if (w == null) Array.Copy(g, bm, g.Length);
+                else if (lin) for (int c = 0; c < ns; c++) bm[c] = w.InvLin(b, g[c]);
+                else {
+                    if (vin.Length < q) { vin = new double[q]; vout = new double[q]; }
+                    for (int c = 0; c < ns; c++) {
+                        for (int r = 0; r < q; r++) vin[r] = g[r * ns + c];
+                        w.InvCone(b - k.Linear, vin, vout);
+                        for (int r = 0; r < q; r++) bm[r * ns + c] = vout[r];
+                    }
                 }
+                for (int a = 0; a < ns; a++)
+                    for (int c = 0; c <= a; c++) {
+                        double t = 0;
+                        for (int r = 0; r < q; r++) t += bm[r * ns + a] * bm[r * ns + c];
+                        hm[sc[a], sc[c]] += t;
+                    }
+            }
             for (int a = 0; a < n; a++) hm[a, a] += 1e-12 * (1 + hm[a, a]);
             if (!Chol(hm, n)) return false;
             if (pr == 0) return true;
@@ -253,22 +322,22 @@ public static class Socp {
             return Chol(sm, pr);
         }
         private (double[], double[], double[]) Raw(double[] r1, double[] r2, double[] r3) {
-            double[] f = Add(r1, Mt(p.G, WInvSq(r3)));
+            double[] f = Add(r1, Gt(WInvSq(r3)));
             double[] dy = new double[pr];
             if (pr > 0) {
                 double[] hf = ChSolve(hm, n, f);
                 dy = ChSolve(sm, pr, Sub(Mv(p.A, hf), r2));
             }
             double[] dx = ChSolve(hm, n, Sub(f, Mt(p.A, dy)));
-            double[] dz = WInvSq(Sub(Mv(p.G, dx), r3));
+            double[] dz = WInvSq(Sub(G(dx), r3));
             return (dx, dy, dz);
         }
         public (double[] dx, double[] dy, double[] dz) Solve(double[] r1, double[] r2, double[] r3) {
             var (dx, dy, dz) = Raw(r1, r2, r3);
             for (int i = 0; i < 3; i++) {
-                double[] e1 = Sub(r1, Add(Mt(p.A, dy), Mt(p.G, dz)));
+                double[] e1 = Sub(r1, Add(Mt(p.A, dy), Gt(dz)));
                 double[] e2 = Sub(r2, Mv(p.A, dx));
-                double[] e3 = Sub(r3, Sub(Mv(p.G, dx), WSq(dz)));
+                double[] e3 = Sub(r3, Sub(G(dx), WSq(dz)));
                 var (cx, cy, cz) = Raw(e1, e2, e3);
                 dx = Add(dx, cx); dy = Add(dy, cy); dz = Add(dz, cz);
             }

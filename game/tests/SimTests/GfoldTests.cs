@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Starship.Physics;
 namespace Starship.Tests;
 internal static partial class Program {
@@ -70,5 +72,47 @@ internal static partial class Program {
               ("тяга в паспорте, масса не ниже минимальной", inBounds && v.Mass[n] >= 250e3 && v.Fuel > 0),
               ("релаксация без потерь: ‖u‖ = σ", l.Status == SocpStatus.Optimal && gap < 1e-4),
               ("недостижимая цель — не Optimal", far.Status != SocpStatus.Optimal));
+    }
+    private static void GfoldOpenLoop() {
+        SimState sim = Live(12345, false);
+        Vehicle b = sim.Veh[0];
+        double tIgn = double.NaN;
+        for (int i = 0; i < 100000 && !(sim.T > tIgn + 1); i++) {
+            Physics.Sim.Tick(sim, Const.DT);
+            if (double.IsNaN(tIgn) && b.Mode == "landB" && b.NRun > 0) tIgn = sim.T;
+        }
+        double fOne = Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(b.Alt).P;
+        sim.Wind = Wind.Calm();
+        b.Mode = "man"; b.WindEst = 0;
+        int ne = b.NRun;
+        double gateH = Guidance.CatchHT(b) + 40, g = Const.MU / (b.R * b.R) - Const.W * Const.W * b.R;
+        GfoldSetup set = Guidance.GfoldBase(b, sim.Downrange(b), b.Alt - gateH, b.VHor, b.VVert, ne, fOne, g, 13.6);
+        set.Step = 0.25;
+        GfoldPlan p = Gfold.Plan(set, 6, 80), dry = p;
+        for (int pass = 0; pass < 2 && p.Status == SocpStatus.Optimal; pass++) {
+            set.Bias = Guidance.GfoldDrag(b, p, gateH);
+            p = Gfold.Replan(set, p.Nodes, 6, 80);
+        }
+        double t0 = sim.T, h0 = b.Alt, v0 = b.VVert, servo = 0;
+        while (p.Status == SocpStatus.Optimal && sim.T - t0 < p.Time) {
+            var c = p.At(sim.T - t0 + Const.GF_LEAD);
+            double f1 = Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(b.Alt).P;
+            b.NEng = ne;
+            b.Throttle = Math.Clamp(Math.Sqrt(c.Ux * c.Ux + c.Uy * c.Uy) * b.Mass / (ne * f1), Const.LAND_THR_MIN, 1);
+            double dir = Math.Atan2(c.Ux, c.Uy);
+            servo += 0.5 * (dir - Vehicle.AngDiff(b.Th, 0) - b.Gimbal) * Const.DT;
+            b.ThCmd = dir - Guidance.GimTrim(b) + servo;
+            Flight.StepVehicle(sim, b, Const.DT);
+            sim.T += Const.DT;
+        }
+        double ex = sim.Downrange(b), ey = b.Alt - gateH, dv = Math.Sqrt(b.VHor * b.VHor + (b.VVert + 13.6) * (b.VVert + 13.6));
+        True("план G-FOLD, исполненный без обратной связи, приводит ускоритель к воротам",
+             p.Status == SocpStatus.Optimal && Math.Sqrt(ex * ex + ey * ey) < 30 && dv < 5,
+             $"с {N(h0)} м, {N(v0)} м/с, {ne} двигателей: {p.Status}, {p.Nodes} узлов по {N(p.Step)} с, топливо {N(p.Fuel)} кг (без сопротивления {N(dry.Fuel)}); у ворот {N(ex)}/{N(ey)} м, {N(b.VHor)}/{N(b.VVert)} м/с (цель 0/−13,6)");
+    }
+    private static void GfoldLanding((string Name, Run R)[] runs, List<Action> checks) {
+        checks.Add(() => Group("посадочный прожиг ускорителя до перехода 13→3 ведёт G-FOLD без отказов",
+            string.Join(", ", runs.Select(x => $"{x.Name}: планов {x.R.B.GfUsed}, отказов {x.R.B.GfBad}, остаток {N(x.R.B.Prop / 1e3)} т")),
+            runs.Select(x => (x.Name, x.R.B.GfUsed > 3 && x.R.B.GfBad == 0 && x.R.B.Caught)).ToArray()));
     }
 }

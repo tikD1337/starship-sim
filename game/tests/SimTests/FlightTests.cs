@@ -68,6 +68,7 @@ internal static partial class Program {
         DeorbitPerigee(high, "высокая орбита", checks);
         WarmSolves(nom, checks);
         CoastSteps(nom, checks);
+        GfoldLanding(new[] { ("орбитальное", nom), ("высокая орбита", high), ("трансатмосферное", trans) }, checks);
         GasBudget(nom, checks);
         VacTurns(nom, checks);
         ShipDescent(nom, "орбитальное", checks);

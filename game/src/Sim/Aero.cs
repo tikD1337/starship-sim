@@ -17,13 +17,16 @@ public static class Aero {
             vs = (vr.X * sd.X + vr.Y * sd.Y) / sp;
             alpha = Math.Atan2(vs, va);
         }
-        double l = v.FullLen, a = v.A;
+        (double CA, double CN) = Coeffs(v, alpha, va, mach);
+        double fax = -q * v.A * CA * Math.Sign(va != 0 ? va : 1);
+        double fsd = -q * v.A * CN;
+        return new AeroForce(alpha, CA, CN, fax, fsd, Math.Sqrt(fax * fax + fsd * fsd));
+    }
+    public static (double CA, double CN) Coeffs(Vehicle v, double alpha, double va, double mach) {
         double sa = Math.Sin(alpha), ca = Math.Cos(alpha);
         double CA = Atmosphere.CdAxial(mach, va) * ca * ca + 0.06;
-        double CN = 2 * sa * Math.Abs(ca) + 1.15 * (l * v.Dia / a) * sa * Math.Abs(sa);
-        double fax = -q * a * CA * Math.Sign(va != 0 ? va : 1);
-        double fsd = -q * a * CN;
-        return new AeroForce(alpha, CA, CN, fax, fsd, Math.Sqrt(fax * fax + fsd * fsd));
+        double CN = 2 * sa * Math.Abs(ca) + 1.15 * (v.FullLen * v.Dia / v.A) * sa * Math.Abs(sa);
+        return (CA, CN);
     }
     public static double PitchDamping(Vehicle v, double rho, double sp, double alpha, double cm) {
         if (sp < 1 || rho <= 0) return 0;
