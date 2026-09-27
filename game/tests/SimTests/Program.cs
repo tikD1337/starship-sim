@@ -79,6 +79,7 @@ internal static partial class Program {
         EngineOut();
         BadNumbers();
         UiNumbers();
+        UiFlaps();
         UiThemes();
         UiEngineLayout();
         UiParams();

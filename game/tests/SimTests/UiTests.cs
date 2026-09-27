@@ -9,6 +9,27 @@ internal static partial class Program {
         var bad = rows.Where(r => r.Got != r.Want).Select(r => $"{r.What}: «{r.Got}» вместо «{r.Want}»").ToArray();
         True(name, bad.Length == 0, bad.Length == 0 ? $"{rows.Length} случаев" : string.Join("; ", bad));
     }
+    private static void UiFlaps() {
+        Head("Интерфейс: закрылки");
+        FlapState[] F(Action<FlapState[]> set) {
+            var f = new FlapState[] {
+                new() { TEdge = 1612, THinge = 640, MaxEdge = 1612 }, new() { TEdge = 1598, THinge = 655, MaxEdge = 1598 },
+                new() { TEdge = 1540, THinge = 612, MaxEdge = 1540 }, new() { TEdge = 1551, THinge = 620, MaxEdge = 1551 },
+            };
+            set(f);
+            return f;
+        }
+        FlapState[] ok = F(_ => { }), hot = F(f => f[0].TEdge = 1650), burn = F(f => f[0].Burn = 0.2), jam = F(f => f[3].Jammed = true);
+        string t = NumFmt.Thin.ToString();
+        Cases("закрылки на пульте и в разборе полёта",
+              ("целые", FlapText.Row(ok).Text, $"1{t}612/640 · 1{t}598/655 · 1{t}540/612 · 1{t}551/620"),
+              ("прогар", FlapText.Row(burn).Text, $"1{t}612/640 прогар 20 % · 1{t}598/655 · 1{t}540/612 · 1{t}551/620"),
+              ("заклинен", FlapText.Row(jam).Text, $"1{t}612/640 · 1{t}598/655 · 1{t}540/612 · 1{t}551/620 заклинен"),
+              ("цвет: норма, у предела, повреждение", string.Join(" ", new[] { ok, hot, burn, jam }.Select(f => FlapText.Row(f).Level)), "0 1 2 2"),
+              ("разбор целых", FlapText.Tape(ok), $"кромки до 1{t}612 K"),
+              ("разбор с прогаром", FlapText.Tape(burn), $"кромки до 1{t}612 K, прогар переднего закрылка A 20 %"),
+              ("разбор с заклиниванием", FlapText.Tape(jam), $"кромки до 1{t}612 K, заклинен привод заднего закрылка B"));
+    }
     private static void UiNumbers() {
         Head("Интерфейс: числа");
         string t = NumFmt.Thin.ToString(), m = NumFmt.Minus.ToString();

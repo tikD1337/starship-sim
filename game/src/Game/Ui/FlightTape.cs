@@ -47,6 +47,7 @@ public sealed class FlightTape {
         Line("Наибольший напор", $"{NumFmt.F(b.MaxQ / 1000, 0)} кПа у ускорителя, {NumFmt.F(s.MaxQ / 1000, 0)} кПа у корабля");
         Line("Наибольшая перегрузка", $"{NumFmt.F(b.MaxG, 1)} g у ускорителя, {NumFmt.F(s.MaxG, 1)} g у корабля");
         Line("Плитка нагрелась до", $"{NumFmt.F(s.MaxTile, 0)} K");
+        Line("Закрылки", FlapText.Tape(s.Flaps));
         Line("Топливо в баках", $"{NumFmt.F(b.Prop / 1000, 1)} т у ускорителя, {NumFmt.F(s.Prop / 1000, 1)} т у корабля");
         Line("Ускоритель", Where(b));
         Line("Корабль", Where(s));

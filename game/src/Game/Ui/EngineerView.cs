@@ -103,6 +103,7 @@ public sealed class EngineerView {
         Row(f, "g", "Перегрузка");
         Row(f, "heat", "Тепловой поток");
         Row(f, "tile", "Обшивка, наветр. и подветр.");
+        Row(f, "flaps", "Закрылки, кромка/шарнир");
         (_, VBoxContainer g, Label gs) = Widgets.Section(col, "Наведение", "уставку держит автомат");
         _guide = gs;
         Row(g, "th", "Тангаж и команда");
@@ -281,6 +282,9 @@ public sealed class EngineerView {
         _rows["tile"].Set($"{NumFmt.F(v.TTile, 0)} / {NumFmt.F(v.TLee, 0)}"
                           + (v.Dmg > 0 ? $", прогар {NumFmt.F(100 * v.Dmg, 0)} %" : ""), "K",
                           hot ? Look.Crit : v.TTile > 800 || v.TLee > 700 ? Look.Warn : null);
+        (string flaps, int fl) = FlapText.Row(v.Flaps);
+        bool ship = v.Kind == Kind.Ship;
+        _rows["flaps"].Set(ship ? flaps : "—", ship ? "K" : "", !ship ? null : fl == 2 ? Look.Crit : fl == 1 ? Look.Warn : null);
         bool man = sim.Mode == "man";
         Look.Set(_guide, man ? "ручной режим" : "уставку держит автомат");
         Look.Tint(_guide, man ? Look.Warn : Look.Lab);

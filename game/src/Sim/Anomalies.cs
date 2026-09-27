@@ -23,12 +23,13 @@ public sealed class AnomalySpec {
     public string Stage;
     public Func<SimState, Anomalies, bool> When;
     public Action<SimState, Anomalies> Fire;
+    public bool Late;
 }
 public sealed class Anomalies {
     public List<string> List = new();
     public HashSet<string> Flags = new(), Done = new();
-    public int IgnIdx, OutIdx, PumpIdx, RelB, RelS;
-    public double OutT, PumpK, CopvK, JamK, TileK;
+    public int IgnIdx, OutIdx, PumpIdx, RelB, RelS, FlapIdx;
+    public double OutT, PumpK, CopvK, JamK, TileK, FlapGap, FlapEdge;
     public bool JamShip;
     public bool Has(string k) => Flags.Contains(k);
     public static readonly AnomalySpec[] Table = {
@@ -76,6 +77,17 @@ public sealed class Anomalies {
             Fire = (sim, a) => sim.LogMsg("К: потеря части плиток — местный нагрев выше расчётного", 2),
         },
         new() {
+            Key = "flapTile", P = 0.08, Name = "потеря плиток у шарнира закрылка", Late = true,
+            Apply = (sim, a) => {
+                FlapState f = sim.Veh[1].Flaps[a.FlapIdx];
+                f.GapK = a.FlapGap;
+                f.EdgeK = a.FlapEdge;
+            },
+            Stage = "flapTile",
+            When = (sim, a) => sim.Veh[1].Heat > 60,
+            Fire = (sim, a) => sim.LogMsg($"К: потеря плиток у шарнира {FlapHeat.Names[a.FlapIdx]} — плазма в щели", 2),
+        },
+        new() {
             Key = "relightB", P = 0.08, Name = "двигатели ускорителя не зажглись на посадку",
             Stage = "relightB",
             When = (sim, a) => sim.Veh[0].Mode == "landB" && sim.Veh[0].IgnBurn,
@@ -98,11 +110,8 @@ public sealed class Anomalies {
     public static Anomalies Roll(SimState sim, Rng rng) {
         var a = new Anomalies();
         if (!sim.AnomOn) return a;
-        foreach (AnomalySpec s in Table) {
-            bool hit = rng.Next() < s.P;
-            if (sim.AnomScript != null) hit = sim.AnomScript.Contains(s.Key);
-            if (hit) { a.Flags.Add(s.Key); a.List.Add(s.Name); }
-        }
+        foreach (AnomalySpec s in Table)
+            if (!s.Late) Draw(sim, rng, a, s);
         a.IgnIdx = (int)Math.Floor(rng.Next() * 33);
         a.OutIdx = (int)Math.Floor(rng.Next() * 33);
         a.OutT = 25 + rng.Next() * 95;
@@ -114,7 +123,17 @@ public sealed class Anomalies {
         a.TileK = 1.25 + rng.Next() * 0.35;
         a.RelB = (int)Math.Floor(rng.Next() * 10);
         a.RelS = (int)Math.Floor(rng.Next() * 3);
+        foreach (AnomalySpec s in Table)
+            if (s.Late) Draw(sim, rng, a, s);
+        a.FlapIdx = (int)Math.Floor(rng.Next() * 4);
+        a.FlapGap = 0.3 + rng.Next() * 0.3;
+        a.FlapEdge = 1.3 + rng.Next() * 0.3;
         return a;
+    }
+    private static void Draw(SimState sim, Rng rng, Anomalies a, AnomalySpec s) {
+        bool hit = rng.Next() < s.P;
+        if (sim.AnomScript != null) hit = sim.AnomScript.Contains(s.Key);
+        if (hit) { a.Flags.Add(s.Key); a.List.Add(s.Name); }
     }
     public static void Apply(SimState sim) {
         Anomalies A = sim.Anom;

@@ -362,10 +362,18 @@ public static class Guide {
         if (why == null) sim.LogMsg("Б: опрос перед тормозным импульсом — GO на захват башней", 1);
         else Divert(sim, v, Const.SEA_DR, why);
     }
+    private static string FlapWhy(Vehicle v) {
+        for (int i = 0; i < v.Flaps.Length; i++) {
+            if (v.Flaps[i].Jammed) return $"заклинивание {FlapHeat.Names[i]}";
+            if (v.Flaps[i].Burn > Const.GO_FLAP) return $"прогар {FlapHeat.Names[i]} {v.Flaps[i].Burn * 100:F0} %";
+        }
+        return null;
+    }
     private static void PollShip(SimState sim, Vehicle v, string at) {
         if (!v.Catch) return;
         double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBiasAvg);
         string why = v.Dmg > Const.GO_DMG_S ? $"повреждение теплозащиты {v.Dmg * 100:F0} %"
+            : FlapWhy(v) is string fw ? fw
             : v.CtrlK < 1 ? "заедание привода закрылка"
             : v.Prop < Const.GO_PROP_S ? $"топлива на посадку {v.Prop / 1000:F0} т"
             : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"

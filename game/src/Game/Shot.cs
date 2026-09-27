@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 using Starship.Physics;
 namespace Starship.Game;
@@ -37,7 +38,8 @@ public sealed class Shot {
         GD.Print($"SHOT_INFO focus={fv.Name} alt={fv.Alt:F0} camY={cam.Position.Y:F0} " +
                  $"sunY={SkyEarth.SunScene(fv.Up, fv.East).Y:F3} dr={sim.Downrange(fv) / 1000:F0}km " +
                  $"q={fv.Q:F0} heat={fv.Heat:F1} tile={fv.TTile:F0} bank={fv.Bank * Const.R2D:F1} mode={fv.Mode} " +
-                 $"flaps={stack.FlapAngles.Fwd:F1}/{stack.FlapAngles.Aft:F1}");
+                 $"flaps={stack.FlapAngles.Fwd:F1}/{stack.FlapAngles.Aft:F1} edge={s.Flaps.Max(f => f.TEdge):F0} " +
+                 $"burn={s.Flaps.Max(f => f.Burn):F2} jam={s.Flaps.Count(f => f.Jammed)}");
         GD.Print($"SHOT_STATE t={sim.T:F2} bMode={sim.Veh[0].Mode} bAlt={sim.Veh[0].Alt:F1} " +
                  $"bDR={sim.Downrange(sim.Veh[0]):F1} sMode={s.Mode} sAlt={s.Alt:F1} " +
                  $"sDR={sim.Downrange(s):F1} sProp={s.Prop / 1000:F1}t");

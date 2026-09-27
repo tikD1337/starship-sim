@@ -715,6 +715,22 @@ internal static partial class Program {
         var outS = new SimState { Mission = "high", AnomOn = false, Disperse = true, TargetApo = 520e3, TargetPeri = 500e3 };
         Physics.Sim.Reset(outS, 18);
         Run lameS = Add(outS, r => Run.Over(r.S));
+        Run flapT = Add(Scripted("flapTile"), r => Run.Over(r.S));
+        checks.Add(() => {
+            Head("Потеря плиток у шарнира закрылка");
+            SimState fs = flapT.Sim;
+            Vehicle fv = flapT.S;
+            int k = fs.Anom.FlapIdx;
+            FlapState hit = fv.Flaps[k];
+            Group("шарнир без плиток перегревается, закрылок горит или заклинивает, опрос уводит в море",
+                  $"{FlapHeat.Names[k]}: шарнир до {N(hit.MaxHinge)} К, кромка до {N(hit.MaxEdge)} К, прогар {N(hit.Burn)}, заклинен {hit.Jammed}; корабль {fv.Mode}",
+                  ("шарнир выше предела стали", hit.MaxHinge > Const.SKIN_LIMIT),
+                  ("закрылок повреждён", hit.Jammed || hit.Burn > 0),
+                  ("остальные три целы", fv.Flaps.Where((f, i) => i != k).All(f => f.Burn == 0 && !f.Jammed)),
+                  ("в журнале отказ и повреждение", Logged(fs, "у шарнира") && (Logged(fs, "заклинивание привода") || Logged(fs, "прогар"))),
+                  ("опрос отменил захват", Logged(fs, "закрылка") && Logged(fs, "уход в море")),
+                  ("корабль в море, не разбит", fv.Landed && !fv.Crashed && !fv.Caught));
+        });
         checks.Add(() => {
             Head("Запасная посадка: опор нет — только руки или море");
             var land = new SimState { Mission = "orbital", AnomOn = false };

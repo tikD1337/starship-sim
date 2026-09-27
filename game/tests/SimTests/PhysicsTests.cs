@@ -381,7 +381,7 @@ internal static partial class Program {
         Group("шарнир в тени холодный, через щель без плиток — перегрев и заклинивание",
               $"в тени {N(v.Flaps[0].THinge)} К",
               ("в тени ниже предела стали", v.Flaps[0].THinge < Const.SKIN_LIMIT && !v.Flaps[0].Jammed),
-              ("щель 0,5 — заклинен", Hot(0.5).Jammed));
+              ("щель 0,5 — заклинен, корень прогорел частично", Hot(0.5) is { Jammed: true, Burn: > 0.2 and < 0.9 }));
     }
     private static void FlapDamage() {
         Head("Закрылки: прогар и заклинивание");

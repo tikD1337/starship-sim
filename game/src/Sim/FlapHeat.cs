@@ -36,7 +36,10 @@ public static class FlapHeat {
         double over = f.TEdge - Const.TILE_LIMIT;
         if (over <= 0 || f.Burn >= 1) return;
         sim.Once($"edge{v.Tag}{i}", () => sim.LogMsg($"{v.Tag}: перегрев кромки {Names[i]} — {f.TEdge:F0} К", 2));
-        f.Burn = Math.Min(1, f.Burn + Const.BURN_EDGE * over * over * dt);
+        Burn(sim, v, i, f, Const.BURN_EDGE * over * over * dt);
+    }
+    private static void Burn(SimState sim, Vehicle v, int i, FlapState f, double add) {
+        f.Burn = Math.Min(1, f.Burn + add);
         while (f.BurnStep < Steps.Length && f.Burn >= Steps[f.BurnStep]) {
             sim.LogMsg($"{v.Tag}: прогар {Names[i]} — {Steps[f.BurnStep] * 100:F0} % площади", f.BurnStep >= 2 ? 3 : 2);
             f.BurnStep++;
@@ -44,7 +47,9 @@ public static class FlapHeat {
     }
     private static void Hinge(SimState sim, Vehicle v, int i, FlapState f, double dt) {
         double over = f.THinge - Const.SKIN_LIMIT;
-        if (over <= 0 || f.Jammed) return;
+        if (over <= 0) return;
+        Burn(sim, v, i, f, Const.BURN_ROOT * over * over * dt);
+        if (f.Jammed) return;
         f.HingeDmg += Const.BURN_HINGE * over * over * dt;
         if (f.HingeDmg < 1) return;
         f.Jammed = true;
