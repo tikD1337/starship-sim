@@ -114,5 +114,9 @@ internal static partial class Program {
         checks.Add(() => Group("посадочный прожиг ускорителя до перехода 13→3 ведёт G-FOLD без отказов",
             string.Join(", ", runs.Select(x => $"{x.Name}: планов {x.R.B.GfUsed}, отказов {x.R.B.GfBad}, остаток {N(x.R.B.Prop / 1e3)} т")),
             runs.Select(x => (x.Name, x.R.B.GfUsed > 3 && x.R.B.GfBad == 0 && x.R.B.Caught)).ToArray()));
+        var ships = runs.Where(x => x.R.Sim.Mission != "trans").ToArray();
+        checks.Add(() => Group("заход корабля к воротам над руками ведёт G-FOLD без отказов",
+            string.Join(", ", ships.Select(x => $"{x.Name}: планов {x.R.S.GfUsed}, отказов {x.R.S.GfBad}, остаток {N(x.R.S.Prop / 1e3)} т")),
+            ships.Select(x => (x.Name, x.R.S.GfUsed > 3 && x.R.S.GfBad == 0 && x.R.S.Caught)).ToArray()));
     }
 }

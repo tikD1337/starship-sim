@@ -22,7 +22,7 @@ public static class Const {
     public static double GO_MISS_B = 1500, GO_PROP_B = 75e3, GO_PROP_S = 25e3, GO_DMG_S = 0.15, GO_WIND = 20,
         GO_POLL_H = 3000, WAIT_MAX = 12, TIP_K = 0.4, REACH_S = 500, REACH_B = 700, RELIGHT_P = 0.02;
     public static double DIV_V = 20, DIV_T = 10, DIV_MARGIN = 1.05, DIV_RESERVE = 2e3;
-    public static double GF_RATE = 0.5, GF_LEAD = 0.4, GF_GATE_B = 40, GF_VGATE_B = 13.6, GF_TILT = 20, GF_GLIDE = 75,
+    public static double GF_RATE = 0.5, GF_LEAD = 0.4, GF_GATE_B = 40, GF_VGATE_B = 13.6, GF_TILT = 20, GF_GLIDE = 45,
         GF_MIN_TTG = 2, GF_PERIOD = 1, GF_KP = 0.36, GF_KD = 0.96, GF_RESERVE = 3e3, GF_MARGIN = 0.9, GF_GSPARE = 0.5;
     public static readonly double[] GF_SWITCH = { 4, 5, 6, 7, 8 };
     public static double ASC_CLEAR_H = 87, ASC_Q_IN = 25.5e3, ASC_Q_OUT = 24.5e3,
