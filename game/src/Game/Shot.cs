@@ -25,7 +25,12 @@ public sealed class Shot {
         if (_at <= 0 || frame < _at) return;
         _at = -1;
         Image img = _host.GetViewport().GetTexture().GetImage();
-        img.SavePng(_path);
+        Error err = img.SavePng(_path);
+        if (err != Error.Ok) {
+            GD.Print($"SHOT_FAIL {err} {_path}");
+            _host.GetTree().Quit(1);
+            return;
+        }
         Vehicle fv = sim.FocusVeh();
         Vehicle s = sim.Veh[1];
         GD.Print("SHOT_OK " + _path);

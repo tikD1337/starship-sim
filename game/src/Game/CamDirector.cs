@@ -50,6 +50,11 @@ public sealed class CamDirector {
                      + $" · {Phases.Air(v.Mode, ship)} · {(ship ? "корабль" : "ускоритель")}");
     }
     private static int Slot(int cam) => cam < 0 ? CamRig.Total : cam;
+    private static double Glare(Vehicle v, double look) {
+        if (v.NRun <= 0) return 0;
+        double vac = 1 - Math.Clamp(Atmosphere.At(Math.Max(0, v.Alt)).P / 101325.0, 0, 1);
+        return look * vac * Math.Sqrt((double)v.NRun / Math.Max(1, v.Eng.Count));
+    }
     private void Apply(SimState sim, bool ship, int cam) {
         if (!sim.Veh[1].Attached) sim.Focus = ship ? "ship" : "stack";
         if (cam < 0) {
@@ -80,14 +85,18 @@ public sealed class CamDirector {
         double earth = Math.Clamp((down + depress + fov * 0.5) / fov, 0, 1);
         double at = Math.Clamp(-local.Y, 0, 1);
         double flame = v.NRun > 0 ? Math.Max(0.25, at) : 0;
+        Vehicle o = ship ? sim.Veh[0] : sim.Veh[1];
+        Node3D oBody = ship ? stack.BoosterRoot : stack.ShipRoot;
+        double near = sim.Veh[1].Attached ? 0 : Math.Clamp(1 - (oBody.GlobalPosition - body.GlobalPosition).Length() / 600, 0, 1);
+        double facing = near > 0 ? Math.Clamp(f.Dot((oBody.GlobalPosition - body.GlobalPosition).Normalized()), 0, 1) : 0;
+        double glare = Math.Max(Glare(v, at), Glare(o, facing) * near);
         double plasma = Math.Clamp(v.Heat / 400, 0, 1) * (at > 0.2 ? 1 : 0.4);
         bool night = sun.Y < -0.15f && flame < 0.05 && plasma < 0.05;
         double lit = sun.Y > 0 ? 1 : 0.15;
         double other = 0;
-        Vehicle o = ship ? sim.Veh[0] : sim.Veh[1];
         if (!sim.Veh[1].Attached
             && Math.Abs(v.Alt - o.Alt) + Math.Abs(sim.Downrange(v) - sim.Downrange(o)) < 4000) other = 0.6;
         if (v.Alt < 3000 && Math.Abs(sim.Downrange(v)) < 3000) other = Math.Max(other, 0.7);
-        return new Director.Shot(cam, earth, flame, plasma, sunAng, skin * lit, night, other, _seen[Slot(cam)]);
+        return new Director.Shot(cam, earth, flame, plasma, sunAng, skin * lit, night, other, _seen[Slot(cam)], glare);
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using Godot;
 using Starship.Physics;
 using PEngine = Starship.Physics.Engine;
@@ -241,7 +240,7 @@ public sealed class EngineerView {
         if (_sim.Veh[1].Attached) _pin = i;
         else { _pin = -1; Focus?.Invoke(i == 1); }
     }
-    public void Update(SimState sim, double speed, bool paused) {
+    public void Update(SimState sim, double speed, double actual, bool paused) {
         _sim = sim;
         _tele.Push(sim, sim.Veh[0], sim.Veh[1]);
         if (!_root.Visible) return;
@@ -250,7 +249,7 @@ public sealed class EngineerView {
         _stage = _pin >= 0 ? _pin : v.Kind == Kind.Ship ? 1 : 0;
         double now = Time.GetTicksMsec() / 1000.0;
         _plot.Feed(sim, _tele, now);
-        Head(sim, v, speed, paused);
+        Head(sim, v, speed, actual, paused);
         Flight(sim, v);
         Engines(sim, now);
         _params.Update(sim, sim.Veh[_stage], Pick(sim.Veh[_stage]), Group);
@@ -258,12 +257,11 @@ public sealed class EngineerView {
         Legend();
         Journal(sim);
     }
-    private void Head(SimState sim, Vehicle v, double speed, bool paused) {
+    private void Head(SimState sim, Vehicle v, double speed, double actual, bool paused) {
         Look.Set(_clock, NumFmt.Clock(sim.T));
         Look.Set(_phase, Phases.Console(v.Mode));
         if (_stageSeg.Selected != _stage) _stageSeg.Select(_stage);
-        Look.Set(_speed, paused ? "пауза"
-            : "скорость ×" + speed.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ','));
+        Look.Set(_speed, paused ? "пауза" : "скорость " + NumFmt.Rate(speed, actual));
         Look.Tint(_speed, paused || speed != 1 ? Look.Warn : Look.Ink2);
         Look.Set(_anom, sim.AnomOn ? "отказы включены" : "отказы выключены");
         Look.Tint(_anom, sim.AnomOn ? Look.Warn : Look.Ink2);

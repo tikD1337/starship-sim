@@ -1,4 +1,4 @@
-import pathlib, sys, unittest
+import argparse, contextlib, io, json, pathlib, sys, tempfile, unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import bench
@@ -41,6 +41,20 @@ class Bench(unittest.TestCase):
         self.assertEqual(len(bench.compare(sea4, base)), 1)
         self.assertEqual(len(bench.compare(miss, base)), 1)
         self.assertEqual(len(bench.compare(gas, base)), 1)
+
+    def test_crashed_process_is_a_bad_flight(self):
+        res, _ = bench.outcome(LOG.encode("utf-8"), 1)
+        self.assertEqual(res, {"Б": "сбой", "К": "сбой"})
+        self.assertEqual(len(bench.bad([{"mission": "orbital", "seed": 1, "res": res, "m": {}}])), 1)
+
+    def test_report_without_base_gates_on_bad_flights(self):
+        with tempfile.TemporaryDirectory() as d:
+            (pathlib.Path(d) / "set.json").write_text(json.dumps(one_set([flight(1), flight(2, ship="разбит")]), ensure_ascii=False), encoding="utf-8")
+            a = argparse.Namespace(dir=d, baseline=None, write=None, out=None, note=None, gate=True)
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                code = bench.report(a)
+        self.assertEqual(code, 1)
+        self.assertIn("❌", out.getvalue())
 
 
 if __name__ == "__main__":

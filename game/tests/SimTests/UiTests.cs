@@ -22,6 +22,13 @@ internal static partial class Program {
               ("часы борта", NumFmt.Hms(270), "T+00:04:30"), ("часы борта до старта", NumFmt.Hms(-10), "T" + m + "00:00:10"),
               ("метры", NumFmt.Dist(850, out string u1) + " " + u1, "850 м"), ("километры с десятыми", NumFmt.Dist(30912, out string u2) + " " + u2, "30,9 км"),
               ("далеко — целые км", NumFmt.Dist(212400, out string u3) + " " + u3, "212 км"));
+        Group("ключи командной строки", "",
+              ("зерно выше int.MaxValue — как есть", Starship.Game.CliArgs.Parse(new[] { "--seed", "4294967295" }).UInt("--seed", 1) == 4294967295u),
+              ("зерно в шестнадцатеричном виде, как на пульте", Starship.Game.CliArgs.Parse(new[] { "--seed", "0x00003039" }).UInt("--seed", 1) == 12345u),
+              ("ключ без значения — null, а не падение", Starship.Game.CliArgs.Parse(new[] { "--pset" }).Str("--pset") == null));
+        Cases("множитель времени честный",
+              ("успевает", NumFmt.Rate(64, 62), "×64"), ("дробный", NumFmt.Rate(0.5, 0.5), "×0,5"),
+              ("не успевает — фактический рядом", NumFmt.Rate(64, 36.4), "×64 (≈36)"), ("медленно — с десятыми", NumFmt.Rate(16, 7.26), "×16 (≈7,3)"));
         Group("разбор введённого числа", "",
               ("узкий пробел и запятая", NumFmt.TryParse("32" + NumFmt.Thin + "394,5", out double a) && a == 32394.5),
               ("обычный пробел", NumFmt.TryParse("1 000", out double b) && b == 1000),
@@ -177,6 +184,8 @@ internal static partial class Program {
               ("на старте — стол, при отрыве — башня сверху", Array.IndexOf(CamPlan.For("idle"), 7) >= 0 && CamPlan.For("ascent")[0] == 8),
               ("на выведении есть «Факел», на разделении — петля заднего закрылка", Array.IndexOf(CamPlan.For("ascent"), 6) >= 0 && Array.IndexOf(CamPlan.For("meco"), 2) >= 0),
               ("на входе корабля первая — петля переднего закрылка", CamPlan.For("entryS")[0] == 1),
+              ("когда факел может залить кадр, есть облёт", Array.IndexOf(CamPlan.For("ascent"), -1) >= 0
+               && Array.IndexOf(CamPlan.For("meco"), -1) >= 0 && Array.IndexOf(CamPlan.For("boostback"), -1) >= 0),
               ("на захвате и посадке корабля — ловильные руки", CamPlan.For("caught")[0] == 10 && Array.IndexOf(CamPlan.For("landS"), 10) >= 0),
               ("на жиге ускорителя ведём его, пока корабль разгоняется — корабль", !CamPlan.Ship("landB", "orbit") && CamPlan.Ship("coastB", "ascent2")),
               ("после захвата ускорителя 12 с показываем захват, потом корабль", !CamPlan.Ship("caught", "coastS", 3) && CamPlan.Ship("caught", "coastS", 13)
@@ -188,11 +197,13 @@ internal static partial class Program {
               ("красивый выше пустого", Director.Score(nice) > Director.Score(dull)),
               ("солнце в центре портит", Director.Score(nice with { Sun = 5 }) < Director.Score(nice)),
               ("плазма поднимает", Director.Score(dull with { Plasma = 0.9 }) > Director.Score(dull)),
-              ("ночь без огня — плохо", Director.Score(nice with { Night = true, Flame = 0 }) < Director.Score(dull)));
+              ("ночь без огня — плохо", Director.Score(nice with { Night = true, Flame = 0 }) < Director.Score(dull)),
+              ("факел во весь кадр портит — хуже пустого", Director.Score(nice with { Glare = 1 }) < Director.Score(dull)));
         Group("правила монтажа", "",
               ("план не выдержан — не режем", Director.Pick(set, 3, 2, false) == 3),
               ("на событии режем сразу", Director.Pick(set, 3, 2, true) == 4),
               ("через 15 с меняем и без события", Director.Pick(set, 3, 16, false) == 4),
+              ("через 15 с не меняем на засвеченный факелом", Director.Pick(new[] { nice, nice with { Cam = 5, Glare = 1 } }, 4, 16, false) == 4),
               ("одну камеру дважды подряд не берём", Director.Pick(set, 4, 16, true) == 3),
               ("нет выбора — остаёмся", Director.Pick(new[] { nice }, 4, 16, true) == 4),
               ("без заметного перевеса остаёмся", Director.Pick(new[] { dull, dull with { Cam = 4, Earth = 0.13 } }, 3, 8, false) == 3),
