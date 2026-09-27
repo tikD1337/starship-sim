@@ -361,6 +361,68 @@ internal static partial class Program {
               ("орбитальный поток прожёг бы", boost.Crashed),
               ("на своём входе не прогорает", !real.Crashed && real.TTile < Const.SKIN_LIMIT));
     }
+    private static void FlapEdgeHeat() {
+        Head("Закрылки: нагрев кромки и шарнира");
+        var v = new Vehicle(Kind.Ship, 0) { Heat = 200, Alpha = 62 * Const.D2R, TSkin = 400 };
+        v.Flaps[0].Ang = 40 * Const.D2R;
+        v.Flaps[2].Ang = 85 * Const.D2R;
+        double want = 200e3 * Math.Sqrt(4.5 / Const.FLAP_RE) * Math.Pow(Math.Cos(28 * Const.D2R), 1.5)
+                      * Math.Cos(40 * Const.D2R) * Const.FLAP_SHOCK;
+        Near("поток на кромке — Саттон—Грейвс по радиусу кромки", FlapHeat.EdgeFlux(v, 0), want, 1e-9);
+        True("сложенный на 85° закрылок греется в разы слабее", FlapHeat.EdgeFlux(v, 2) < 0.15 * FlapHeat.EdgeFlux(v, 0));
+        var sim = new SimState();
+        for (int k = 0; k < 20000; k++) FlapHeat.Step(sim, v, 0.01);
+        double q = FlapHeat.EdgeFlux(v, 0), lo = 300, hi = 3000;
+        for (int k = 0; k < 60; k++) {
+            double m = (lo + hi) / 2;
+            if (Const.TILE_EPS * 5.67e-8 * Math.Pow(m, 4) + 26 * (m - v.TSkin) < q) lo = m; else hi = m;
+        }
+        Near("без автомата кромка приходит к равновесию излучения и теплоотвода", v.Flaps[0].TEdge, lo, 0.002);
+        Group("шарнир в тени холодный, через щель без плиток — перегрев и заклинивание",
+              $"в тени {N(v.Flaps[0].THinge)} К",
+              ("в тени ниже предела стали", v.Flaps[0].THinge < Const.SKIN_LIMIT && !v.Flaps[0].Jammed),
+              ("щель 0,5 — заклинен", Hot(0.5).Jammed));
+    }
+    private static void FlapDamage() {
+        Head("Закрылки: прогар и заклинивание");
+        var v = new Vehicle(Kind.Ship, 0);
+        double f0 = Surfaces.FlapForce(v, 5e3, 1.1, 20, 0.7, 0.9).F;
+        v.Flaps[0].Burn = 1;
+        v.Flaps[1].Burn = 1;
+        double lost = 5e3 * Surfaces.FlapCn(1.1) * 2 * Const.FLAP_S_FWD * Math.Cos(0.7);
+        Near("выгоревшая пара передних закрылков теряет ровно свою силу", Surfaces.FlapForce(v, 5e3, 1.1, 20, 0.7, 0.9).F, f0 + lost, 1e-9);
+        Vehicle ok = Jam(false), jam = Jam(true);
+        Group("заклиненный закрылок стоит, второй в паре работает, крен медленнее",
+              $"задние {N(jam.Flaps[2].Ang * Const.R2D)}°/{N(jam.Flaps[3].Ang * Const.R2D)}°, крен {N(jam.Bank * Const.R2D)}° против {N(ok.Bank * Const.R2D)}°",
+              ("заклиненный на 10°", Math.Abs(jam.Flaps[2].Ang * Const.R2D - 10) < 1e-9),
+              ("второй дошёл до команды 60°", Math.Abs(jam.Flaps[3].Ang * Const.R2D - 60) < 0.5),
+              ("крен медленнее", jam.Bank < 0.9 * ok.Bank));
+    }
+    private static Vehicle Jam(bool jammed) {
+        var sim = new SimState { T = 0, RhoK = 1, Wind = Wind.Calm() };
+        var v = new Vehicle(Kind.Ship, 0) {
+            Mode = "man", Direct = true, Launched = true, Prop = 45e3, Th = 110 * Const.D2R, BankCmd = 60 * Const.D2R,
+            FlapFwdCmd = 40 * Const.D2R, FlapAftCmd = 60 * Const.D2R, FlapFwd = 40 * Const.D2R, FlapAft = 20 * Const.D2R,
+        };
+        for (int i = 0; i < 4; i++) v.Flaps[i].Ang = i < 2 ? v.FlapFwd : v.FlapAft;
+        if (jammed) { v.Flaps[2].Jammed = true; v.Flaps[2].Ang = 10 * Const.D2R; }
+        v.Y = Const.RE + 15e3;
+        v.Vx = -Const.W * v.Y;
+        v.Vy = -250;
+        sim.Veh.Add(v);
+        for (int i = 0; i < 300; i++) {
+            Flight.StepVehicle(sim, v, Const.DT);
+            sim.T += Const.DT;
+        }
+        return v;
+    }
+    private static FlapState Hot(double gap) {
+        var v = new Vehicle(Kind.Ship, 0) { Heat = 200, Alpha = 62 * Const.D2R, TSkin = 400 };
+        v.Flaps[1].GapK = gap;
+        var sim = new SimState();
+        for (int k = 0; k < 60000; k++) FlapHeat.Step(sim, v, 0.01);
+        return v.Flaps[1];
+    }
     private static double AscentAoA(Wind wind) {
         var sim = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(sim, 12345);
@@ -783,7 +845,7 @@ internal static partial class Program {
             belly.Alpha = a;
             double body = -q * belly.A * (2 * sa * Math.Abs(ca) + 1.15 * (belly.FullLen * belly.Dia / belly.A) * sa * sa) * (belly.Cp - cm);
             (double bf, double ba) = Surfaces.FlapFor(belly, q, a, cm, -body);
-            double rest = Math.Abs(body + Surfaces.FlapForce(q, a, cm, bf, ba).T) / Math.Abs(body);
+            double rest = Math.Abs(body + Surfaces.FlapForce(belly, q, a, cm, bf, ba).T) / Math.Abs(body);
             double edge = Math.Min(Math.Min(bf, top - bf), Math.Min(ba, top - ba)) / top;
             worst = Math.Max(worst, rest > 0.01 ? 1 : 0.05 - Math.Min(edge, 0.05));
             at.Add($"{N(deg)}°: {N(bf * Const.R2D)}/{N(ba * Const.R2D)}");

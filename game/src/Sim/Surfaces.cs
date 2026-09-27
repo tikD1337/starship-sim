@@ -19,15 +19,34 @@ public static class Surfaces {
         double s = Math.Sin(alpha);
         return 2 * s * Math.Abs(s);
     }
-    public static double FlapSpan(double fwd, double aft)
-        => 2 * Const.FLAP_S_FWD * Math.Cos(fwd) + 2 * Const.FLAP_S_AFT * Math.Cos(aft);
+    public static double FlapSpan(Vehicle v, double fwd, double aft) {
+        double s = 0;
+        for (int i = 0; i < 4; i++) s += Area(v, i, Ang(v, i, fwd, aft));
+        return s;
+    }
+    private static double Ang(Vehicle v, int i, double fwd, double aft)
+        => v.Flaps[i].Jammed ? v.Flaps[i].Ang : i < 2 ? fwd : aft;
+    private static double Area(Vehicle v, int i, double ang)
+        => (i < 2 ? Const.FLAP_S_FWD : Const.FLAP_S_AFT) * (1 - v.Flaps[i].Burn) * Math.Cos(ang);
+    public static double BankRateK(Vehicle v) {
+        double worst = 0;
+        for (int p = 0; p < 4; p += 2) {
+            double a = Math.Max(0, Area(v, p, v.Flaps[p].Ang)), b = Math.Max(0, Area(v, p + 1, v.Flaps[p + 1].Ang));
+            if (a + b > 1e-9) worst = Math.Max(worst, Math.Abs(a - b) / (a + b));
+        }
+        return 1 - worst;
+    }
     public static double FlapCnA(Vehicle v, double alpha, double fwd, double aft)
-        => FlapCn(Math.Abs(alpha)) * FlapSpan(fwd, aft) / v.A;
+        => FlapCn(Math.Abs(alpha)) * FlapSpan(v, fwd, aft) / v.A;
     public static double FinTrim(double cp, double cm) => 1 - (cp - cm) / (Const.FIN_Y - cm);
-    public static (double F, double T) FlapForce(double q, double alpha, double cm, double fwd, double aft) {
-        double c = -q * FlapCn(alpha);
-        double ff = c * 2 * Const.FLAP_S_FWD * Math.Cos(fwd), fa = c * 2 * Const.FLAP_S_AFT * Math.Cos(aft);
-        return (ff + fa, ff * (Const.FLAP_Y_FWD - cm) + fa * (Const.FLAP_Y_AFT - cm));
+    public static (double F, double T) FlapForce(Vehicle v, double q, double alpha, double cm, double fwd, double aft) {
+        double c = -q * FlapCn(alpha), f = 0, t = 0;
+        for (int i = 0; i < 4; i++) {
+            double fi = c * Area(v, i, Ang(v, i, fwd, aft));
+            f += fi;
+            t += fi * ((i < 2 ? Const.FLAP_Y_FWD : Const.FLAP_Y_AFT) - cm);
+        }
+        return (f, t);
     }
     public static (double Fwd, double Aft) FlapBase(Vehicle v) => v.Mode switch {
         "entryS" => (40 * Const.D2R, 55 * Const.D2R),
@@ -46,11 +65,11 @@ public static class Surfaces {
         double span = Const.FLAP_SPAN * Const.D2R * v.CtrlK;
         (double f1, double a1) = FlapAt(v, span);
         (double f2, double a2) = FlapAt(v, -span);
-        return Math.Abs(FlapForce(q, alpha, cm, f1, a1).T - FlapForce(q, alpha, cm, f2, a2).T) / 2;
+        return Math.Abs(FlapForce(v, q, alpha, cm, f1, a1).T - FlapForce(v, q, alpha, cm, f2, a2).T) / 2;
     }
     public static (double Fwd, double Aft) FlapFor(Vehicle v, double q, double alpha, double cm, double torque) {
         double lo = -Const.FLAP_SPAN * Const.D2R * v.CtrlK, hi = -lo;
-        double T(double d) { (double f, double a) = FlapAt(v, d); return FlapForce(q, alpha, cm, f, a).T; }
+        double T(double d) { (double f, double a) = FlapAt(v, d); return FlapForce(v, q, alpha, cm, f, a).T; }
         bool up = T(hi) > T(lo);
         for (int i = 0; i < 30; i++) {
             double mid = (lo + hi) / 2;

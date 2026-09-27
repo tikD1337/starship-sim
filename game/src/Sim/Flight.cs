@@ -32,7 +32,7 @@ public static class Flight {
         if (q > v.MaxQ) v.MaxQ = q;
         if (v.Alt > v.MaxAlt) v.MaxAlt = v.Alt;
         {
-            double d = v.BankCmd - v.Bank, lim = Const.BANK_RATE * Const.D2R * dt;
+            double d = v.BankCmd - v.Bank, lim = Const.BANK_RATE * Surfaces.BankRateK(v) * Const.D2R * dt;
             v.Bank += Const.Clamp(d, -lim, lim);
         }
         if (v.Prop <= 0) { v.Ign = false; v.NEng = 0; }
@@ -107,7 +107,9 @@ public static class Flight {
             double pStep = Const.FLAP_RATE * Const.D2R * dt;
             v.FlapFwd = Const.Clamp(v.FlapFwd + Const.Clamp(wf - v.FlapFwd, -pStep, pStep), 0, Const.FLAP_FWD_MAX * Const.D2R);
             v.FlapAft = Const.Clamp(v.FlapAft + Const.Clamp(wa - v.FlapAft, -pStep, pStep), 0, Const.FLAP_AFT_MAX * Const.D2R);
-            (fSurf, tSurf) = Surfaces.FlapForce(q, v.Alpha, cm, v.FlapFwd, v.FlapAft);
+            for (int i = 0; i < 4; i++)
+                if (!v.Flaps[i].Jammed) v.Flaps[i].Ang = i < 2 ? v.FlapFwd : v.FlapAft;
+            (fSurf, tSurf) = Surfaces.FlapForce(v, q, v.Alpha, cm, v.FlapFwd, v.FlapAft);
             need -= tSurf;
             (double bf, double ba) = Surfaces.FlapBase(v);
             v.Flap = Const.Clamp((v.FlapFwd - bf - (v.FlapAft - ba)) / (2 * Const.FLAP_SPAN * Const.D2R), -1, 1);

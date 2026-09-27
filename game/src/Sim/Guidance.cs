@@ -80,13 +80,13 @@ public static class Guidance {
         else v.Venting = false;
     }
     public static GlideCmd GlideLaw(double miss, double vE, double vv, double h, double vpDeg, double q, double m,
-                                    double r, double lenDia, double area, double alphaNow, double fwd, double aft,
+                                    double r, double lenDia, double area, double alphaNow, double span,
                                     double mach, double hStop, double east) {
         double flat = Const.Clamp((Math.Abs(vpDeg) - Const.BELLY_VP0) / (Const.BELLY_VP1 - Const.BELLY_VP0), 0, 1);
         double lead = miss + Const.BELLY_LEAD, aG = GlideAlpha(lead);
         double lim = Const.BELLY_TILT * Const.D2R;
         double aA = Math.Abs(alphaNow), sa = Math.Sin(aA), ca = Math.Cos(aA);
-        double cn = 2 * sa * Math.Abs(ca) + 1.15 * (lenDia / area) * sa * sa + Surfaces.FlapCn(Math.Abs(aA)) * Surfaces.FlapSpan(fwd, aft) / area;
+        double cn = 2 * sa * Math.Abs(ca) + 1.15 * (lenDia / area) * sa * sa + Surfaces.FlapCn(Math.Abs(aA)) * span / area;
         double aN = Math.Max(q * area * cn / m, 0.5 * Const.MU / (r * r));
         double g = Const.MU / (r * r), a3 = Math.Max(3 * Spec.RaptorSL.Fv / m - g, 5), vd = Math.Max(-vv, 10);
         double tgo = Math.Max(h - hStop - vd * vd / (2 * a3), 0) / vd;
@@ -94,7 +94,7 @@ public static class Guidance {
         double tilt = Math.Asin(Const.Clamp(aLat / aN, -Math.Sin(lim), Math.Sin(lim)));
         double belly = Math.Abs(Vehicle.AngDiff(vpDeg * Const.D2R, Math.PI / 2 + tilt)) * Const.R2D;
         double aa = aG * Const.D2R, sa2 = Math.Sin(aa), ca2 = Math.Cos(aa);
-        double cn2 = 2 * sa2 * ca2 + 1.15 * (lenDia / area) * sa2 * sa2 + Surfaces.FlapCn(Math.Abs(aa)) * Surfaces.FlapSpan(fwd, aft) / area;
+        double cn2 = 2 * sa2 * ca2 + 1.15 * (lenDia / area) * sa2 * sa2 + Surfaces.FlapCn(Math.Abs(aa)) * span / area;
         double ca20 = Atmosphere.Cd0(mach) * ca2 * ca2 + 0.06;
         double lacc = q * area * Math.Max(0, cn2 * ca2 - ca20 * sa2) / m;
         return new GlideCmd(aG + (belly - aG) * flat, (1 - flat) * GlideBank(lead, vE, h, vv, lacc, east), flat, tilt);
@@ -639,7 +639,7 @@ public static class Guidance {
         double x = v.X, y = v.Y, vx = v.Vx, vy = v.Vy, t = 0, phi = v.Bank;
         double al = Math.Abs(v.Alpha * Const.R2D), bk = bankDeg * Const.D2R;
         double K = v.EntK, m = v.Mass, A = v.A, LD = v.FullLen * v.Dia / A;
-        double fwd = 40 * Const.D2R, aft = 55 * Const.D2R, span = Surfaces.FlapSpan(fwd, aft);
+        double span = Surfaces.FlapSpan(v, 40 * Const.D2R, 55 * Const.D2R);
         double hStop = Const.FLIP_STOP + (v.Catch ? 0 : SimState.Surface(v.AimDr) - Const.CATCH_H);
         void Acc(double px, double py, double pvx, double pvy, double ph, double aDeg, Air at, out double ax, out double ay) {
             double r = Math.Sqrt(px * px + py * py), h = r - Const.RE;
@@ -678,7 +678,7 @@ public static class Guidance {
                 double dr = (SimState.PadAngle(sim.T + t) - Math.Atan2(x, y)) * Const.RE + Const.FLIP_D - v.AimDr;
                 double dx = rvx / sp, dy = rvy / sp;
                 GlideCmd gc = GlideLaw(dr, vE, vv, h, Math.Atan2(vE, vv) * Const.R2D, q * K, m, r, v.FullLen * v.Dia, A,
-                                       al * Const.D2R, fwd, aft, sp / at.A, hStop, Math.Abs(-dy * ex + dx * ey));
+                                       al * Const.D2R, span, sp / at.A, hStop, Math.Abs(-dy * ex + dx * ey));
                 aCmd = gc.Alpha; phiCmd = gc.Bank;
             }
             al += Const.Clamp(aCmd - al, -Const.ALPHA_RATE * dt, Const.ALPHA_RATE * dt);
@@ -698,7 +698,7 @@ public static class Guidance {
         double x = cp.X, y = cp.Y, vx = cv.X, vy = cv.Y, t = coast, phi = v.Bank;
         double a0 = alphaDeg, bk = bankDeg * Const.D2R;
         double K = v.EntK, m = v.Mass, A = v.A, LD = v.FullLen * v.Dia / A;
-        double span = Surfaces.FlapSpan(40 * Const.D2R, 55 * Const.D2R);
+        double span = Surfaces.FlapSpan(v, 40 * Const.D2R, 55 * Const.D2R);
         void Coef(double h, double sp, Air at, out double dOut, out double lOut) {
             double aa = (h > 60e3 ? a0 : (h > Const.GLIDE_H ? 70 : 58)) * Const.D2R;
             double sa = Math.Abs(Math.Sin(aa)), ca = Math.Abs(Math.Cos(aa));

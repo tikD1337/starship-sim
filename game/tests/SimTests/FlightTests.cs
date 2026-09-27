@@ -69,6 +69,7 @@ internal static partial class Program {
         WarmSolves(nom, checks);
         CoastSteps(nom, checks);
         GfoldLanding(new[] { ("орбитальное", nom), ("высокая орбита", high), ("трансатмосферное", trans) }, checks);
+        FlapsIntact(new[] { ("орбитальное", nom) }, checks);
         GasBudget(nom, checks);
         VacTurns(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
@@ -264,6 +265,12 @@ internal static partial class Program {
         });
         checks.Add(() => True("спуск ускорителя под 17° держат рули, ДМТ почти не нужны", full < 3,
             $"ДМТ на полной власти {N(full)} с, рули до {N(fin)}°"));
+    }
+    private static void FlapsIntact((string Name, Run R)[] runs, List<Action> checks) {
+        checks.Add(() => Group("штатный вход: кромки закрылков ниже предела с запасом, прогара и заклиниваний нет",
+            string.Join(", ", runs.Select(r => $"{r.Name} {N(r.R.S.Flaps.Max(f => f.MaxEdge))} К")),
+            runs.Select(r => ($"{r.Name}: кромки до {N(r.R.S.Flaps.Max(f => f.MaxEdge))} К, прогар {N(r.R.S.Flaps.Max(f => f.Burn))}",
+                              r.R.S.Flaps.All(f => f.MaxEdge < Const.TILE_LIMIT - 50 && f.MaxEdge > 1000 && f.Burn == 0 && !f.Jammed))).ToArray()));
     }
     private static void EntryCalm(Run n, List<Action> checks) {
         Vehicle s = n.S;

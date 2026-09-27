@@ -268,7 +268,7 @@ public static class Guide {
                 double miss = sim.Downrange(v) + Const.FLIP_D - v.AimDr;
                 double vp = Guidance.AimPro(v) * Const.R2D;
                 GlideCmd gc = Guidance.GlideLaw(miss, v.VHor, v.VVert, h, vp, v.Q, v.Mass, v.R, v.FullLen * v.Dia, v.A,
-                                                v.Alpha, v.FlapFwd, v.FlapAft, v.Mach, FlipStop(v), Math.Abs(rf.East));
+                                                v.Alpha, Surfaces.FlapSpan(v, v.FlapFwd, v.FlapAft), v.Mach, FlipStop(v), Math.Abs(rf.East));
                 double thBelly = Math.PI / 2 + gc.Tilt;
                 double thGlide = Guidance.AimLift(v, Guidance.GlideAlpha(miss + Const.BELLY_LEAD), Guidance.LiftSign(v, "east", rf.East));
                 v.AlphaCmd = gc.Alpha;

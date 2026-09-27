@@ -52,6 +52,7 @@ public static class Const {
     public static double SECO_LEAD = 1.8, SECO_PERI = -800e3;
     public static double CIRC_TAPER = 150e3, CIRC_ONE = 80e3;
     public const double FLAP_S_FWD = 19.9, FLAP_S_AFT = 36.7;
+    public static double FLAP_RE = 0.18, FLAP_SHOCK = 0.36, BURN_EDGE = 6e-7, BURN_HINGE = 1.6e-7, GO_FLAP = 0.25;
     public const double FLAP_Y_FWD = 47.64, FLAP_Y_AFT = 5.91;
     public static double FLAP_FWD_MAX = 85, FLAP_AFT_MAX = 85, FLAP_RATE = 26, FLAP_SPAN = 85;
     public const double FIN_S = 37.4, FIN_Y = 61.2, FIN_N = 2;

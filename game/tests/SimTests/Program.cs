@@ -69,6 +69,8 @@ internal static partial class Program {
         MomentOfInertia();
         OrbitElements();
         HeatShield();
+        FlapEdgeHeat();
+        FlapDamage();
         WindProfile();
         Dispersion_();
         ConditionEvents();

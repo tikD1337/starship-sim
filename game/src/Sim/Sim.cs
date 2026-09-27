@@ -355,6 +355,7 @@ public static class Sim {
             else ManualGuide(sim, v, dt);
             Flight.StepVehicle(sim, v, dt);
             Thermal(sim, v, dt);
+            if (v.Kind == Kind.Ship) FlapHeat.Step(sim, v, dt);
             if (v.Landed || v.Crashed) sim.Once("over" + v.Tag);
         }
         if (s.Attached) {
