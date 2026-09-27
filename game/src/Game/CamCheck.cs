@@ -24,7 +24,43 @@ public static class CamCheck {
             if (verdict != "ok") bad++;
             GD.Print($"CAMCHECK {s.Name}: зазор {gap:F2} м, обшивка на {rSkin:F2} м, камера на {rCam:F2} м — {verdict}");
         }
+        bad += Door(lib);
         GD.Print($"CAMCHECK_SUM плохих {bad}");
+        return bad;
+    }
+    private static float DoorLiftOf(float open) => BayView.DoorAt(open).Origin.Y - BayView.DoorAt(0f).Origin.Y;
+    private static int Door(ModelLibrary lib) {
+        if (!lib.Meshes.TryGetValue("bay_door", out Mesh dm) || !lib.Meshes.TryGetValue("hull_ship", out Mesh hm)) {
+            GD.Print("CAMCHECK створка: нет детали bay_door или hull_ship");
+            return 1;
+        }
+        var hull = new List<Vector3[]> { hm.GetFaces() };
+        Vector3[] door = dm.GetFaces();
+        int bad = 0;
+        foreach (float open in new[] { 0f, 1f }) {
+            Transform3D t = BayView.DoorAt(open);
+            float lo = float.MaxValue, hi = float.MinValue, rMin = float.MaxValue, rMax = float.MinValue;
+            float yMin = float.MaxValue, yMax = float.MinValue;
+            foreach (Vector3 v in door) { Vector3 p = t * v; yMin = Mathf.Min(yMin, p.Y); yMax = Mathf.Max(yMax, p.Y); }
+            var ring = new List<float>();
+            foreach (Vector3 v in door) {
+                Vector3 p = t * v;
+                float skin = Outer(hull, new Vector3(p.X, yMax + 0.05f - DoorLiftOf(open), p.Z));
+                if (skin > 3f) ring.Add(skin);
+            }
+            ring.Sort();
+            float nominal = ring[ring.Count / 2];
+            foreach (Vector3 v in door) {
+                Vector3 p = t * v;
+                float r = new Vector2(p.X, p.Z).Length();
+                rMin = Mathf.Min(rMin, r); rMax = Mathf.Max(rMax, r);
+                float skin = open > 0 ? Outer(hull, p) : nominal;
+                lo = Mathf.Min(lo, r - skin); hi = Mathf.Max(hi, r - skin);
+            }
+            bool ok = open > 0 ? lo > 0.005f && hi < 0.12f : lo > -0.05f && hi < 0.03f && rMax - rMin < 0.06f;
+            if (!ok) bad++;
+            GD.Print($"CAMCHECK створка {(open > 0 ? "открыта" : "закрыта")}: обшивка {nominal:F3} м, створка на {rMin:F3}…{rMax:F3} м, над обшивкой от {lo:F3} до {hi:F3} м — {(ok ? "ok" : "не прилегает")}");
+        }
         return bad;
     }
     private static float Gap(Vector3[] f, Vector3 p) {

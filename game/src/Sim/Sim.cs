@@ -15,9 +15,13 @@ public static class Sim {
         int n = v.Kind == Kind.Ship ? (int)Math.Round(payload / SAT_MASS) : 0;
         v.BayS = new Bay { Sats = n, SatM = n > 0 ? payload / n : SAT_MASS };
     }
-    public static void BayStep(Vehicle v, double dt) {
+    public static void BayStep(SimState sim, Vehicle v, double dt) {
         Bay b = v.BayS;
         if (b == null) return;
+        if (b.Want > 0 && v.Q > 60) {
+            b.Want = 0;
+            sim.LogMsg("К: створка закрывается — напор " + (v.Q / 1000).ToString("F1") + " кПа", 2);
+        }
         double rate = dt * 0.14;
         b.Open += Const.Clamp(b.Want - b.Open, -rate, rate);
         b.Open = Const.Clamp(b.Open, 0, 1);
@@ -324,7 +328,7 @@ public static class Sim {
         foreach (int t in new[] { -8, -5, -3, -2, -1 })
             if (prev < t && sim.T >= t) sim.LogMsg($"Отсчёт: T{t} с", 2);
         if (sim.T < 0) return;
-        foreach (Vehicle v in sim.Veh) BayStep(v, dt);
+        foreach (Vehicle v in sim.Veh) BayStep(sim, v, dt);
         foreach (Vehicle v in sim.Veh)
             if (v.Stowed && !v.Hauled && sim.T - v.StowT > Const.ARM_HAUL) {
                 v.Hauled = true;

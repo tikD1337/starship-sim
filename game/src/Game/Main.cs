@@ -145,7 +145,7 @@ public partial class Main : Node {
         string key = a.Str("--mission", _missionKey);
         if (System.Array.IndexOf(Mission.Keys, key) < 0) key = _missionKey;
         _disp = !a.Has("--nodisp");
-        StartFlight(key, a.Has("--anom"), a.Has("--seed") ? (uint)a.Int("--seed", (int)_seed) : NewSeed());
+        StartFlight(key, a.Has("--anom"), a.Has("--seed") ? a.UInt("--seed", _seed) : NewSeed());
         if (a.Has("--camcheck")) { GetTree().Quit(CamCheck.Run(_lib) == 0 ? 0 : 1); return; }
         if (a.Has("--theme")) Look.SetTheme(Themes.Parse(a.Str("--theme"), Look.Current), false);
         if (a.Has("--noshadow")) _rigWorld.NoShadow();
@@ -162,7 +162,8 @@ public partial class Main : Node {
             if (tab > 0) _scr.Show(3);
         }
         if (a.Has("--pgrp")) _eng.SelectGroup(a.Int("--pgrp", 0));
-        if (a.Has("--pset"))
+        if (a.Has("--pset") && a.Str("--pset") == null) GD.Print("ARG_BAD --pset без значения");
+        if (a.Str("--pset") != null)
             foreach (string one in a.Str("--pset").Split(';')) {
                 string[] kv = one.Split('=');
                 if (kv.Length == 2) _eng.SetParam(_sim.FocusVeh(), kv[0], kv[1]);
@@ -218,6 +219,7 @@ public partial class Main : Node {
             Physics.Sim.Tick(_sim, Const.DT);
             if (guard % 50 != 0) continue;
             _eng.PushTele(_sim);
+            _mission.Quiet = _shot.Armed || _ctl.Play != null;
             _mission.Track(_sim);
         }
     }
@@ -254,10 +256,11 @@ public partial class Main : Node {
         _rigWorld.Update(_sim, org);
         _shot.Track(_frame, _stack.ShipRoot.GlobalPosition - _rigWorld.Cam.GlobalPosition);
         _perf.Add(Perf.Part.Scene);
-        _eng.Update(_sim, _ctl.Speed, _ctl.Paused);
+        _eng.Update(_sim, _ctl.Speed, _ctl.Actual, _ctl.Paused);
         _air.Update(_sim);
-        _hud.Update(_sim, _mission, _rig.Name, _ctl.Speed, _ctl.Paused);
+        _hud.Update(_sim, _mission, _rig.Name, _ctl.Speed, _ctl.Actual, _ctl.Paused);
         _perf.Add(Perf.Part.Ui);
+        _mission.Quiet = _shot.Armed || _ctl.Play != null;
         _mission.Track(_sim);
         _missionView.Update(_mission, _anomOn);
         _tape.Visible = _ctl.Play != null || _mission.Over;

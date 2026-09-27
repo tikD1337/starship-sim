@@ -9,7 +9,7 @@ public sealed class Controls {
     private readonly CamRig _rig;
     private readonly Screens _scr;
     private readonly EngineerView _eng;
-    public double Speed = 1.0;
+    public double Speed = 1.0, Actual = 1.0;
     private const double MaxStepPerFrame = 0.60;
     public bool Paused;
     public Action Restart, NewFlight, NextMission, ToggleAnom, ToggleSmoke, ToggleFlat, ShowRecords;
@@ -27,14 +27,16 @@ public sealed class Controls {
     public void StepPhysics(double delta) {
         if (Paused) return;
         _accum += delta * Speed;
-        double budget = Math.Min(MaxStepPerFrame, delta * Speed * 1.5);
+        double budget = Math.Min(MaxStepPerFrame, delta * Speed * 1.5), done = 0;
         while (_accum > Const.DT && budget > 0) {
             Play?.Apply(_sim);
             Physics.Sim.Tick(_sim, Const.DT);
             _accum -= Const.DT;
             budget -= Const.DT;
+            done += Const.DT;
         }
         if (_accum > Const.DT) _accum = Const.DT;
+        if (delta > 0) Actual += (done / delta - Actual) * Math.Min(1, delta);
     }
     public void ReadAxes(double delta) {
         if (_rig.Cur == CamRig.Kind.Free) {

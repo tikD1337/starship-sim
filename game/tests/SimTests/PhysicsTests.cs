@@ -504,6 +504,21 @@ internal static partial class Program {
               ("с разбросом тангаж тоже по высоте", Math.Abs(d1.pitchH - Const.ASC_CLEAR_H) < 2 && Math.Abs(d2.pitchH - Const.ASC_CLEAR_H) < 2),
               ("двигатели не вышли на режим — разделение по страховке", fail.sepLog.Contains("страховке") && Math.Abs(fail.tSep - fail.tMeco - Const.HOT_SEP_T) < 0.05));
     }
+    private static void BayUnderQ() {
+        Head("Створка грузового отсека и напор");
+        SimState sim = Live(12345, false);
+        Vehicle s = sim.Veh[1];
+        Physics.Sim.BaySet(sim, s, true);
+        double qAt = double.NaN;
+        while (sim.T < 60) {
+            Physics.Sim.Tick(sim, Const.DT);
+            if (double.IsNaN(qAt) && s.Q > 60) qAt = sim.T;
+        }
+        Group("открытая до старта створка закрывается, когда растёт напор",
+              $"напор выше 60 Па с T+{N(qAt)}, к T+60 створка открыта на {N(s.BayS.Open * 100)} %",
+              ("закрыта к T+60", s.BayS.Want == 0 && s.BayS.Open < 0.01),
+              ("в журнале", Logged(sim, "створка закрывается")));
+    }
     private static void MassBalance() {
         Head("Баланс массы");
         var sim = new SimState { T = 0, RhoK = 1 };

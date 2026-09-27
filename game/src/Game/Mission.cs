@@ -22,6 +22,7 @@ public sealed class Mission {
     public int Score { get; private set; }
     public int Best { get; private set; }
     public bool NewBest { get; private set; }
+    public bool Quiet;
     public string Grade { get; private set; } = "";
     public double BoostMiss = double.NaN, ShipMiss = double.NaN;
     public double BoostTouch = double.NaN, ShipTouch = double.NaN;
@@ -130,7 +131,7 @@ public sealed class Mission {
         Grade = b.Crashed && s2.Crashed ? "F"
               : frac >= 0.95 ? "S" : frac >= 0.80 ? "A" : frac >= 0.60 ? "B"
               : frac >= 0.35 ? "C" : "D";
-        NewBest = Score > Best;
+        NewBest = !Quiet && Score > Best;
         if (NewBest) { Best = Score; Remember(RecKey, Score, Grade); }
     }
     public readonly struct Rec {

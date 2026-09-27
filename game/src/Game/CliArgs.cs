@@ -25,6 +25,13 @@ public sealed class CliArgs {
     public double Dbl(string key, double def) => Num(key, out double x) ? x : def;
     public float Flt(string key, float def) => Num(key, out double x) ? (float)x : def;
     public int Int(string key, int def) => Num(key, out double x) ? (int)Math.Round(x) : def;
+    public uint UInt(string key, uint def) {
+        string s = Str(key);
+        if (s == null) return def;
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            return uint.TryParse(s.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint h) ? h : def;
+        return uint.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out uint d) ? d : def;
+    }
     public List<string> Unknown(IEnumerable<string> known) {
         var set = new HashSet<string>(known);
         var bad = new List<string>();

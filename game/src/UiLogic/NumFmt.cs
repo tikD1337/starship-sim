@@ -6,6 +6,10 @@ public static class NumFmt {
     public const char Thin = ' ';
     public const char Minus = '−';
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+    public static string Rate(double want, double actual) {
+        string w = "×" + want.ToString("0.###", Inv).Replace('.', ',');
+        return actual >= want * 0.9 ? w : w + " (≈" + F(actual, actual >= 10 ? 0 : 1) + ")";
+    }
     public static string F(double x, int digits) {
         if (double.IsNaN(x) || double.IsInfinity(x)) return "—";
         string s = Math.Abs(x).ToString("F" + digits, Inv);

@@ -8,7 +8,7 @@ public partial class BroadcastView : Control {
     private Mission _mission;
     private Arc _arc = new("orbital");
     private string _cam = "";
-    private double _camAt = -99, _speed = 1;
+    private double _camAt = -99, _speed = 1, _actual = 1;
     private bool _paused;
     public static BroadcastView Build(Screens scr) {
         var v = new BroadcastView { MouseFilter = MouseFilterEnum.Ignore };
@@ -20,10 +20,11 @@ public partial class BroadcastView : Control {
         _arc = new Arc(mission);
         _camAt = -99;
     }
-    public void Update(SimState sim, Mission mission, string cam, double speed, bool paused) {
+    public void Update(SimState sim, Mission mission, string cam, double speed, double actual, bool paused) {
         _sim = sim;
         _mission = mission;
         _speed = speed;
+        _actual = actual;
         _paused = paused;
         _arc.Track(sim);
         if (cam != _cam) {
@@ -43,7 +44,7 @@ public partial class BroadcastView : Control {
         Mid(w, h, k);
         if (Time.GetTicksMsec() / 1000.0 - _camAt < 3)
             Text(_cam, 56 * k, 40 * k + 18 * k, 18 * k, 400, 0xF2F5F8EB);
-        string mark = _paused ? "пауза" : _speed != 1 ? "×" + _speed.ToString("0.###").Replace('.', ',') : null;
+        string mark = _paused ? "пауза" : _speed != 1 ? NumFmt.Rate(_speed, _actual) : null;
         if (mark != null) Text(mark, w - 56 * k, 40 * k + 18 * k, 18 * k, 500, Themes.Warn, true);
     }
     private void Gradient(float w, float h, float k) {

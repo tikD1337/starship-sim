@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 DLL = ROOT / "game" / "tests" / "SimCheck" / "bin" / "Release" / "net8.0" / "SimCheck.dll"
 KIND = [("ЗАХВАТ БАШНЕЙ", "башня"), ("ПРИВОДНЕНИЕ", "море"), ("КАСАНИЕ", "вне"), ("РАЗРУШ", "разбит"), ("ПРОГАР", "разбит")]
-BAD = {"разбит", "вне", "полёт"}
+BAD = {"разбит", "вне", "полёт", "сбой"}
 METRICS = [
     ("sFlipMiss", "промах переворота, м", -1, ("abs", 20)),
     ("sTouch", "касание корабля, м/с", -1, ("abs", 0.5)),
@@ -54,11 +54,18 @@ def parse(text):
     return res, met
 
 
+def outcome(raw, code):
+    res, met = parse(decode(raw))
+    if code != 0:
+        res = {tag: "сбой" for tag in res}
+    return res, met
+
+
 def one(mission, seed, extra):
     flags = subprocess.BELOW_NORMAL_PRIORITY_CLASS if os.name == "nt" else 0
     p = subprocess.run(["dotnet", str(DLL), "mission", mission, "--quiet", "--log", "--seed", str(seed)] + extra,
                        capture_output=True, cwd=ROOT, creationflags=flags)
-    res, met = parse(decode(p.stdout + p.stderr))
+    res, met = outcome(p.stdout + p.stderr, p.returncode)
     return {"mission": mission, "seed": seed, "res": res, "m": met}
 
 
@@ -150,7 +157,8 @@ def cell(s, b, key, sign):
 def report(a):
     cur = load(a.dir)
     base = {s["set"]: s for s in load(a.baseline)} if a.baseline and pathlib.Path(a.baseline).exists() else {}
-    fails = compare(cur, base) if base else []
+    fails = compare(cur, base) if base else [f"{s['set']}: плохой полёт, базы нет — {f['mission']} {f['seed']} {f['res']}"
+                                             for s in cur for f in bad(s["flights"])]
     out = []
     head = "Стенд: регрессий нет" if not fails else f"Стенд: регрессии — {len(fails)}"
     out.append(f"### {'✅' if not fails else '❌'} {head}")
