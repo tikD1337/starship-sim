@@ -59,6 +59,9 @@ internal static partial class Program {
         LightHover();
         OpenLoop();
         RcsGas();
+        SocpChecks();
+        GfoldChecks();
+        GfoldOpenLoop();
         HotStaging();
         Fins();
         Flaps();

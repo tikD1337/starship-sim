@@ -162,6 +162,117 @@ public static class Guidance {
         aLat = Const.Clamp(aLat, -lat, lat);
         return Steer(v, Const.Clamp(Math.Atan2(aLat, aVert) - GimTrim(v), -maxTilt, maxTilt));
     }
+    private static bool GfoldBurn(SimState sim, Vehicle v, in Burn e, double gate, double vGate) {
+        if (v.NRun == 0) return false;
+        double baseH = e.HT + gate, x = e.Dr, y = e.H - baseH, vx = v.NVh, vy = v.NVv;
+        double left = v.Gf == null ? double.PositiveInfinity : v.Gf.Time - (sim.T - v.GfT0);
+        bool due = v.Gf == null || v.NEng != v.GfN || sim.T >= v.GfNext;
+        if (due && left > Const.GF_MIN_TTG && sim.T >= v.GfNext - (v.Gf == null ? 0 : Const.GF_PERIOD)) {
+            int n = v.NEng, nb = Math.Min(v.GfAll, Const.LAND_B_END);
+            double f1 = e.FOne, mg = v.Gf == null ? Const.GF_MARGIN : 1;
+            GfoldSetup set = GfoldBase(v, x, y, vx, vy, n, f1, e.G - Const.W * Const.W * v.R, vGate);
+            if (v.Kind == Kind.Booster && mg >= 1) set.AccMax = Const.LAND_B_GMAX * Const.G0;
+            void Group(double sw) {
+                bool two = v.Kind == Kind.Booster && sw > 0 && v.GfAll > nb;
+                int k = two ? v.GfAll : n;
+                set.Rho1 = k * Const.LAND_THR_MIN * f1; set.Rho2 = k * mg * f1; set.Rate = k * Const.GF_RATE * f1;
+                set.Switch = two ? sw : double.NaN;
+                set.Rho1B = nb * Const.LAND_THR_MIN * f1; set.Rho2B = nb * mg * f1; set.RateB = nb * Const.GF_RATE * f1;
+            }
+            GfoldPlan Attempt() {
+                if (v.Gf != null) {
+                    double el = sim.T - v.GfT0;
+                    GfoldPlan prev = v.Gf;
+                    set.Step = prev.Step;
+                    set.Bias = t => GfoldDrag(v, prev, baseH)(Math.Min(t + el, prev.Time));
+                    Group(v.GfSwitch - sim.T);
+                    int hint = Math.Max(4, (int)Math.Round(left / set.Step));
+                    return Gfold.Replan(set, hint, Math.Max(4, hint / 2), hint * 2 + 4);
+                }
+                double est = Math.Max(2 * y / Math.Max(-vy + vGate, 1), 1);
+                set.Step = Math.Clamp(est / 20, 0.25, 2);
+                int lo = Math.Max(4, (int)(0.5 * est / set.Step)), hi = Math.Max(lo + 4, (int)(1.8 * est / set.Step));
+                GfoldPlan First() {
+                    set.Bias = null;
+                    GfoldPlan p = Gfold.Plan(set, lo, hi);
+                    if (p.Status != SocpStatus.Optimal) return p;
+                    set.Bias = GfoldDrag(v, p, baseH);
+                    return Gfold.Replan(set, p.Nodes, lo, hi);
+                }
+                if (v.Kind != Kind.Booster || !double.IsNaN(v.GfSwitch) || v.GfAll <= nb) {
+                    Group(v.GfSwitch - sim.T);
+                    return First();
+                }
+                GfoldPlan best = null;
+                int a = 0, b = Const.GF_SWITCH.Length - 1;
+                while (a <= b) {
+                    int mid = (a + b) / 2;
+                    Group(v.GfIgn + Const.GF_SWITCH[mid] - sim.T);
+                    GfoldPlan p = First();
+                    if (p.Status == SocpStatus.Optimal && p.Miss < 1) { best = p; v.GfSwitch = v.GfIgn + Const.GF_SWITCH[mid]; b = mid - 1; }
+                    else { best ??= p; a = mid + 1; }
+                }
+                return best;
+            }
+            GfoldPlan plan = Attempt();
+            if (plan.Status != SocpStatus.Optimal && mg < 1) {
+                mg = 1;
+                if (v.Kind == Kind.Booster) set.AccMax = Const.LAND_B_GMAX * Const.G0;
+                plan = Attempt();
+            }
+            if (plan.Status == SocpStatus.Optimal) {
+                v.Gf = plan; v.GfT0 = sim.T; v.GfN = n; v.GfNext = sim.T + Const.GF_PERIOD; v.GfFail = 0; v.GfUsed++;
+                sim.Once("gfold" + v.Tag, () => sim.LogMsg($"{v.Tag}: посадочный прожиг по G-FOLD — план на {plan.Time:F1} с, топливо {plan.Fuel / 1000:F1} т", 1));
+            }
+            else {
+                v.Gf = null; v.GfFail++; v.GfBad++;
+                v.GfNext = sim.T + Math.Pow(2, Math.Min(v.GfFail - 1, 3));
+                if (plan.Status == SocpStatus.Infeasible)
+                    sim.Once("gfnone" + v.Tag, () => sim.LogMsg($"{v.Tag}: G-FOLD — ворота над руками недостижимы, прежний закон", 2));
+                return false;
+            }
+        }
+        if (v.Gf == null) return false;
+        double tt = sim.T - v.GfT0;
+        if (tt > v.Gf.Time) return false;
+        var r = v.Gf.At(tt);
+        double swt = v.GfSwitch - v.GfT0;
+        var c = v.Gf.At(swt > tt ? Math.Min(tt + Const.GF_LEAD, swt - 1e-3) : tt + Const.GF_LEAD);
+        double ax = c.Ux + Const.GF_KP * (r.X - x) + Const.GF_KD * (r.Vx - vx);
+        double ay = c.Uy + Const.GF_KP * (r.Y - y) + Const.GF_KD * (r.Vy - vy);
+        double am = Math.Sqrt(ax * ax + ay * ay);
+        if (v.Kind == Kind.Booster) am = Math.Min(am, Const.LAND_B_GMAX * Const.G0 - v.Drag / v.Mass);
+        v.Throttle = Const.Clamp(am * v.Mass / (v.NEng * e.FOne), Const.LAND_THR_MIN, 1);
+        double lim = Const.GF_TILT * Const.D2R;
+        v.ThCmd = Steer(v, Const.Clamp(Math.Atan2(ax, ay) - GimTrim(v), -lim, lim));
+        return true;
+    }
+    public static GfoldSetup GfoldBase(Vehicle v, double x, double y, double vx, double vy, int n, double f1, double g, double vGate) {
+        var set = new GfoldSetup {
+            X0 = x, Y0 = y, Vx0 = vx, Vy0 = vy, Mass0 = v.Mass, MassMin = v.Mass - v.Prop + Const.GF_RESERVE,
+            Alpha = Spec.RaptorSL.Mdot / f1, G = g, Tvy = -vGate, Rho1 = n * Const.LAND_THR_MIN * f1, Rho2 = n * Const.GF_MARGIN * f1,
+            Rate = n * Const.GF_RATE * f1,
+            ThetaMax = Const.GF_TILT * Const.D2R, Glide = Const.GF_GLIDE * Const.D2R };
+        if (v.Kind == Kind.Booster) set.AccMax = (Const.LAND_B_GMAX - Const.GF_GSPARE) * Const.G0;
+        return set;
+    }
+    public static Func<double, (double X, double Y)> GfoldDrag(Vehicle v, GfoldPlan p, double baseH) {
+        if (p == null || p.Status != SocpStatus.Optimal) return null;
+        return t => {
+            var c = p.At(t);
+            double sp = Math.Sqrt(c.Vx * c.Vx + c.Vy * c.Vy);
+            if (sp < 1) return (0, 0);
+            Air at = Atmosphere.At(c.Y + baseH, v.RhoEst);
+            double rx = c.Vx - v.WindEst, ry = c.Vy, rs = Math.Max(Math.Sqrt(rx * rx + ry * ry), 1e-6);
+            double d = Math.Atan2(c.Ux, c.Uy) - GimTrim(v), axx = Math.Sin(d), axy = Math.Cos(d), sdx = axy, sdy = -axx;
+            double va = (rx * axx + ry * axy) / rs, vs = (rx * sdx + ry * sdy) / rs;
+            (double ca, double cn) = Aero.Coeffs(v, Math.Atan2(vs, va), va, rs / at.A);
+            double m = p.MassAt(t), qa = 0.5 * at.Rho * rs * rs * v.A / m;
+            double fax = -qa * ca * Math.Sign(va != 0 ? va : 1), fsd = -qa * cn;
+            double fin = v.Kind == Kind.Booster ? 0.5 * at.Rho * rs * rs * 3 * Const.FIN_S * Const.FIN_CD * v.FinDep / m : 0;
+            return (fax * axx + fsd * sdx - fin * rx / rs, fax * axy + fsd * sdy - fin * ry / rs);
+        };
+    }
     public static bool CanDivert(SimState sim, Vehicle v) {
         double g = Const.MU / (v.R * v.R);
         double fOne = Math.Max(1, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(v.Alt).P);
@@ -395,6 +506,14 @@ public static class Guidance {
             return;
         }
         v.NEng = EnginesFor(v, e, nEng, dt);
+        if (v.Kind == Kind.Booster && v.Catch && e.DhS > Const.GF_GATE_B) {
+            if (double.IsNaN(v.GfIgn) && v.NRun > 0) { v.GfIgn = sim.T; v.GfAll = nEng; }
+            int keep = v.NEng;
+            bool after = sim.T >= v.GfSwitch;
+            if (!double.IsNaN(v.GfSwitch)) v.NEng = after ? Math.Min(v.NEng, Const.LAND_B_END) : v.GfAll;
+            if (!after && GfoldBurn(sim, v, e, Const.GF_GATE_B, Const.GF_VGATE_B)) return;
+            if (!after) v.NEng = keep;
+        }
         double fnow = v.NEng * e.FOne;
         v.Throttle = ThrottleFor(v, e, DescentRate(v, e, dt, fnow / v.Mass), fnow);
         AimBody(sim, v, e);
