@@ -50,6 +50,7 @@ public sealed class Vehicle {
     public double DeoMiss = double.NaN, DeoLeft = double.NaN, EntMiss = double.NaN;
     public bool DeoAuto;
     public double TTile = 290, TSkin = 290, TLee = 290, MaxTile, MaxLee, Dmg;
+    public readonly FlapState[] Flaps = { new(), new(), new(), new() };
     public Bay BayS;
     public string Anom;
     public double GimLim = double.NaN;

@@ -69,6 +69,7 @@ internal static partial class Program {
         WarmSolves(nom, checks);
         CoastSteps(nom, checks);
         GfoldLanding(new[] { ("орбитальное", nom), ("высокая орбита", high), ("трансатмосферное", trans) }, checks);
+        FlapsIntact(new[] { ("орбитальное", nom) }, checks);
         GasBudget(nom, checks);
         VacTurns(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
@@ -264,6 +265,12 @@ internal static partial class Program {
         });
         checks.Add(() => True("спуск ускорителя под 17° держат рули, ДМТ почти не нужны", full < 3,
             $"ДМТ на полной власти {N(full)} с, рули до {N(fin)}°"));
+    }
+    private static void FlapsIntact((string Name, Run R)[] runs, List<Action> checks) {
+        checks.Add(() => Group("штатный вход: кромки закрылков ниже предела с запасом, прогара и заклиниваний нет",
+            string.Join(", ", runs.Select(r => $"{r.Name} {N(r.R.S.Flaps.Max(f => f.MaxEdge))} К")),
+            runs.Select(r => ($"{r.Name}: кромки до {N(r.R.S.Flaps.Max(f => f.MaxEdge))} К, прогар {N(r.R.S.Flaps.Max(f => f.Burn))}",
+                              r.R.S.Flaps.All(f => f.MaxEdge < Const.TILE_LIMIT - 50 && f.MaxEdge > 1000 && f.Burn == 0 && !f.Jammed))).ToArray()));
     }
     private static void EntryCalm(Run n, List<Action> checks) {
         Vehicle s = n.S;
@@ -708,6 +715,22 @@ internal static partial class Program {
         var outS = new SimState { Mission = "high", AnomOn = false, Disperse = true, TargetApo = 520e3, TargetPeri = 500e3 };
         Physics.Sim.Reset(outS, 18);
         Run lameS = Add(outS, r => Run.Over(r.S));
+        Run flapT = Add(Scripted("flapTile"), r => Run.Over(r.S));
+        checks.Add(() => {
+            Head("Потеря плиток у шарнира закрылка");
+            SimState fs = flapT.Sim;
+            Vehicle fv = flapT.S;
+            int k = fs.Anom.FlapIdx;
+            FlapState hit = fv.Flaps[k];
+            Group("шарнир без плиток перегревается, закрылок горит или заклинивает, опрос уводит в море",
+                  $"{FlapHeat.Names[k]}: шарнир до {N(hit.MaxHinge)} К, кромка до {N(hit.MaxEdge)} К, прогар {N(hit.Burn)}, заклинен {hit.Jammed}; корабль {fv.Mode}",
+                  ("шарнир выше предела стали", hit.MaxHinge > Const.SKIN_LIMIT),
+                  ("закрылок повреждён", hit.Jammed || hit.Burn > 0),
+                  ("остальные три целы", fv.Flaps.Where((f, i) => i != k).All(f => f.Burn == 0 && !f.Jammed)),
+                  ("в журнале отказ и повреждение", Logged(fs, "у шарнира") && (Logged(fs, "заклинивание привода") || Logged(fs, "прогар"))),
+                  ("опрос отменил захват", Logged(fs, "закрылка") && Logged(fs, "уход в море")),
+                  ("корабль в море, не разбит", fv.Landed && !fv.Crashed && !fv.Caught));
+        });
         checks.Add(() => {
             Head("Запасная посадка: опор нет — только руки или море");
             var land = new SimState { Mission = "orbital", AnomOn = false };

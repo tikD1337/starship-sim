@@ -20,6 +20,7 @@ public sealed class MissionView {
         ("copvLeak", "наддув"),
         ("ctrlJam", "плоскость"),
         ("tileLoss", "плитки"),
+        ("flapTile", "закрылок"),
         ("relightB", "жига Б"),
         ("relightS", "жига К"),
     };

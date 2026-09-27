@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using Starship.Physics;
 namespace Starship.Check;
@@ -497,7 +498,8 @@ internal static class Program {
                                 (double.IsNaN(orbPeri) ? "" : $"orbit={orbPeri / 1000:F0}x{orbApo / 1000:F0}km ") +
                                 $"bProp={b.Prop / 1000:F1}t bMaxQ={b.MaxQ / 1000:F0}kPa bMaxG={b.MaxG:F1} " +
                                 $"sProp={s.Prop / 1000:F1}t sMaxQ={s.MaxQ / 1000:F0}kPa sMaxTile={s.MaxTile:F0}K " +
-                                $"sMaxLee={s.MaxLee:F0}K sDmg={s.Dmg:F3} sEntK={s.EntK:F3} " +
+                                $"sMaxLee={s.MaxLee:F0}K sDmg={s.Dmg:F3} sEntK={s.EntK:F3} sEdge={s.Flaps.Max(f => f.MaxEdge):F0}K " +
+                                $"sHinge={s.Flaps.Max(f => f.MaxHinge):F0}K sFlapBurn={s.Flaps.Max(f => f.Burn):F3} sJam={s.Flaps.Count(f => f.Jammed)} " +
                                 $"bMode={b.Mode} bMiss={sim.Downrange(b):F1}m sMode={s.Mode} sMiss={sim.Downrange(s) / 1000:F1}km");
         Console.Error.WriteLine($"PEAK sQ={qPeak / 1000:F1}kPa alpha={aPeak:F1}deg bank={bkPeak:F1}deg " +
                                 $"cm={cmPeak:F2}m mass={mPeak / 1000:F1}t sDry={s.Dry / 1000:F1}t sats={s.BayS?.Sats}");

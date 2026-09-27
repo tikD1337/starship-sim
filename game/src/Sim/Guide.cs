@@ -268,7 +268,7 @@ public static class Guide {
                 double miss = sim.Downrange(v) + Const.FLIP_D - v.AimDr;
                 double vp = Guidance.AimPro(v) * Const.R2D;
                 GlideCmd gc = Guidance.GlideLaw(miss, v.VHor, v.VVert, h, vp, v.Q, v.Mass, v.R, v.FullLen * v.Dia, v.A,
-                                                v.Alpha, v.FlapFwd, v.FlapAft, v.Mach, FlipStop(v), Math.Abs(rf.East));
+                                                v.Alpha, Surfaces.FlapSpan(v, v.FlapFwd, v.FlapAft), v.Mach, FlipStop(v), Math.Abs(rf.East));
                 double thBelly = Math.PI / 2 + gc.Tilt;
                 double thGlide = Guidance.AimLift(v, Guidance.GlideAlpha(miss + Const.BELLY_LEAD), Guidance.LiftSign(v, "east", rf.East));
                 v.AlphaCmd = gc.Alpha;
@@ -362,10 +362,18 @@ public static class Guide {
         if (why == null) sim.LogMsg("Б: опрос перед тормозным импульсом — GO на захват башней", 1);
         else Divert(sim, v, Const.SEA_DR, why);
     }
+    private static string FlapWhy(Vehicle v) {
+        for (int i = 0; i < v.Flaps.Length; i++) {
+            if (v.Flaps[i].Jammed) return $"заклинивание {FlapHeat.Names[i]}";
+            if (v.Flaps[i].Burn > Const.GO_FLAP) return $"прогар {FlapHeat.Names[i]} {v.Flaps[i].Burn * 100:F0} %";
+        }
+        return null;
+    }
     private static void PollShip(SimState sim, Vehicle v, string at) {
         if (!v.Catch) return;
         double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBiasAvg);
         string why = v.Dmg > Const.GO_DMG_S ? $"повреждение теплозащиты {v.Dmg * 100:F0} %"
+            : FlapWhy(v) is string fw ? fw
             : v.CtrlK < 1 ? "заедание привода закрылка"
             : v.Prop < Const.GO_PROP_S ? $"топлива на посадку {v.Prop / 1000:F0} т"
             : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"

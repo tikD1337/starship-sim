@@ -69,6 +69,8 @@ internal static partial class Program {
         MomentOfInertia();
         OrbitElements();
         HeatShield();
+        FlapEdgeHeat();
+        FlapDamage();
         WindProfile();
         Dispersion_();
         ConditionEvents();
@@ -77,6 +79,7 @@ internal static partial class Program {
         EngineOut();
         BadNumbers();
         UiNumbers();
+        UiFlaps();
         UiThemes();
         UiEngineLayout();
         UiParams();
