@@ -322,8 +322,6 @@ internal static class Program {
         var sim = new SimState { Mission = mission, AnomOn = anom || anomKeys != null, Disperse = disp };
         if (anomKeys != null)
             sim.AnomScript = new System.Collections.Generic.HashSet<string>(anomKeys.Split(','));
-        if (mission == "high") { sim.TargetApo = 520e3; sim.TargetPeri = 500e3; }
-        else if (mission == "trans") { sim.TargetApo = 180e3; sim.TargetPeri = 160e3; }
         Physics.Sim.Reset(sim, seed);
         if (anom)
             Console.Error.WriteLine("ANOM seed=" + seed + " list=" + string.Join(" | ", sim.Anom.List));

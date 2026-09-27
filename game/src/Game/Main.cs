@@ -125,11 +125,6 @@ public partial class Main : Node {
         _ctl.Rec = _rec;
         _ctl.Play = null;
         _saved = false;
-        (_sim.TargetApo, _sim.TargetPeri) = key switch {
-            "high" => (520e3, 500e3),
-            "trans" => (180e3, 160e3),
-            _ => (220e3, 200e3),
-        };
         Physics.Sim.Reset(_sim, seed);
         _mission = Mission.Start(key, anom, _script);
         _missionView.Reset(_mission);
