@@ -243,17 +243,16 @@ public static class Guidance {
         double am = Math.Sqrt(ax * ax + ay * ay);
         if (v.Kind == Kind.Booster) am = Math.Min(am, Const.LAND_B_GMAX * Const.G0 - v.Drag / v.Mass);
         v.Throttle = Const.Clamp(am * v.Mass / (v.NEng * e.FOne), Const.LAND_THR_MIN, 1);
-        double lim = Tilt(v) * Const.D2R, aim = Const.Clamp(Math.Atan2(ax, ay) - GimTrim(v), -lim, lim);
-        v.ThCmd = v.Kind == Kind.Booster ? Steer(v, aim) : Const.Clamp(SteerP(v, aim, Const.SHIP_POLE), -2 * lim, 2 * lim);
+        double lim = Const.GF_TILT * Const.D2R;
+        v.ThCmd = Steer(v, Const.Clamp(Math.Atan2(ax, ay) - GimTrim(v), -lim, lim));
         return true;
     }
-    private static double Tilt(Vehicle v) => v.Kind == Kind.Ship ? Const.SHIP_TILT : Const.GF_TILT;
     public static GfoldSetup GfoldBase(Vehicle v, double x, double y, double vx, double vy, int n, double f1, double g, double vGate) {
         var set = new GfoldSetup {
             X0 = x, Y0 = y, Vx0 = vx, Vy0 = vy, Mass0 = v.Mass, MassMin = v.Mass - v.Prop + Const.GF_RESERVE,
             Alpha = Spec.RaptorSL.Mdot / f1, G = g, Tvy = -vGate, Rho1 = n * Const.LAND_THR_MIN * f1, Rho2 = n * Const.GF_MARGIN * f1,
             Rate = n * Const.GF_RATE * f1,
-            ThetaMax = Tilt(v) * Const.D2R, Glide = Const.GF_GLIDE * Const.D2R };
+            ThetaMax = Const.GF_TILT * Const.D2R, Glide = Const.GF_GLIDE * Const.D2R };
         if (v.Kind == Kind.Booster) set.AccMax = (Const.LAND_B_GMAX - Const.GF_GSPARE) * Const.G0;
         return set;
     }
@@ -469,9 +468,6 @@ public static class Guidance {
             v.Throttle = pr < Const.LAND_PROJ ? FlipThrottle(v, e, fl, Const.SHIP_FLIP_TW) : Const.Clamp(aZ * v.Mass / (fl * pr), Const.LAND_THR_MIN, 1);
             return;
         }
-        if (v.Catch && !v.ShipHold && e.DhS > Const.SHIP_GATE && tV > 2 && v.NEng == 1
-            && (v.Gf == null || v.Gf.Time - (sim.T - v.GfT0) > 6 / Const.SHIP_POLE)
-            && GfoldBurn(sim, v, e, Const.SHIP_GATE, vGate)) return;
         double want;
         if (v.ShipHold || e.DhS <= Const.SHIP_GATE || tV <= 2) {
             v.ShipHold = true;
