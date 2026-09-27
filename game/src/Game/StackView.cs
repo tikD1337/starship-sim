@@ -13,6 +13,7 @@ public sealed class StackView {
     private static readonly float[] _flapSide = { 1f, -1f };
     private readonly List<MeshInstance3D> _glow = new();
     private float _flapFwdNow, _flapAftNow;
+    private readonly FlapBurnView[] _flapBurn = new FlapBurnView[4];
     public (float Fwd, float Aft) FlapAngles => (_flapFwdNow, _flapAftNow);
     public Node3D FlapFwd => _flapsFwd.Count > 0 ? _flapsFwd[0] : null;
     public Node3D FlapAft => _flapsAft.Count > 0 ? _flapsAft[0] : null;
@@ -91,8 +92,8 @@ public sealed class StackView {
             v._flapAftAxis.Add(HingeAxis(aa, 0f));
             v._flapsFwd.Add(pf);
             v._flapsAft.Add(pa);
-            if (mf != null) v._glow.Add(mf);
-            if (ma != null) v._glow.Add(ma);
+            v._flapBurn[k] = FlapBurnView.Dress(mf, IsTile, Dress);
+            v._flapBurn[2 + k] = FlapBurnView.Dress(ma, IsTile, Dress);
             v._flapFwdAzim.Add(Mathf.DegToRad(fa));
             v._flapAftAzim.Add(Mathf.DegToRad(aa));
         }
@@ -179,11 +180,7 @@ public sealed class StackView {
                 }
             }
         }
-        float x = Mathf.Clamp((float)(tTile - 640.0) / 1180f, 0f, 1.45f);
-        float e = Mathf.Pow(x, 3.4f) * 1.35f;
-        Color c = x < 0.62f
-            ? new Color(0.58f, 0.045f, 0.008f).Lerp(new Color(1.0f, 0.30f, 0.035f), x / 0.62f)
-            : new Color(1.0f, 0.30f, 0.035f).Lerp(new Color(1.0f, 0.86f, 0.66f), Mathf.Min((x - 0.62f) / 0.7f, 1f));
+        (Color c, float e) = GlowOf(tTile);
         foreach (StandardMaterial3D m in _tileMats) {
             m.Emission = c;
             m.EmissionEnergyMultiplier = e;
@@ -199,12 +196,28 @@ public sealed class StackView {
                 Basis.FromEuler(new Vector3(defl, 0, 0));
         }
     }
-    public void SetFlaps(float fwdDeg, float aftDeg) {
-        _flapFwdNow = fwdDeg;
-        _flapAftNow = aftDeg;
+    public static (Color C, float E) GlowOf(double t) {
+        float x = Mathf.Clamp((float)(t - 640.0) / 1180f, 0f, 1.45f);
+        Color c = x < 0.62f
+            ? new Color(0.58f, 0.045f, 0.008f).Lerp(new Color(1.0f, 0.30f, 0.035f), x / 0.62f)
+            : new Color(1.0f, 0.30f, 0.035f).Lerp(new Color(1.0f, 0.86f, 0.66f), Mathf.Min((x - 0.62f) / 0.7f, 1f));
+        return (c, Mathf.Pow(x, 3.4f) * 1.35f);
+    }
+    public void SetFlaps(float fwdA, float fwdB, float aftA, float aftB) {
+        _flapFwdNow = fwdA;
+        _flapAftNow = aftA;
+        float[] fwd = { fwdA, fwdB }, aft = { aftA, aftB };
         for (int i = 0; i < _flapsFwd.Count; i++)
-            _flapsFwd[i].Basis = new Basis(_flapFwdAxis[i], _flapSide[i] * Mathf.DegToRad(fwdDeg));
+            _flapsFwd[i].Basis = new Basis(_flapFwdAxis[i], _flapSide[i] * Mathf.DegToRad(fwd[i]));
         for (int i = 0; i < _flapsAft.Count; i++)
-            _flapsAft[i].Basis = new Basis(_flapAftAxis[i], _flapSide[i] * Mathf.DegToRad(aftDeg));
+            _flapsAft[i].Basis = new Basis(_flapAftAxis[i], _flapSide[i] * Mathf.DegToRad(aft[i]));
+    }
+    public void SetFlapHeat(Physics.FlapState[] f, double tTile, bool glow) {
+        (Color tc, float te) = GlowOf(tTile);
+        for (int i = 0; i < _flapBurn.Length; i++) {
+            if (_flapBurn[i] == null) continue;
+            (Color ec, float ee) = GlowOf(f[i].TEdge);
+            _flapBurn[i].Set(f[i].Burn, ec, glow ? ee : 0f, tc, glow ? te : 0f);
+        }
     }
 }

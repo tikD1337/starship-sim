@@ -59,7 +59,8 @@ public sealed class SceneSync {
             _stack.ShipRoot.Rotation = new Vector3(0, 0, (float)-s.Th);
         }
         _stack.SetFins((float)b.FinDep, (float)b.FinDefl);
-        _stack.SetFlaps(Mathf.RadToDeg((float)s.FlapFwd), Mathf.RadToDeg((float)s.FlapAft));
+        _stack.SetFlaps(Mathf.RadToDeg((float)s.Flaps[0].Ang), Mathf.RadToDeg((float)s.Flaps[1].Ang),
+                        Mathf.RadToDeg((float)s.Flaps[2].Ang), Mathf.RadToDeg((float)s.Flaps[3].Ang));
         return new ShipPose(_stack.ShipRoot.GlobalPosition + _stack.ShipRoot.GlobalBasis.Y * 24f,
                             _stack.ShipRoot.Basis);
     }
@@ -68,6 +69,7 @@ public sealed class SceneSync {
         _stack.BoosterPlume.Update(Frac(b), b.Pa, b.NRun, 1.30);
         _stack.ShipPlume.Update(Frac(s), s.Pa, s.NRun, 1.30, s.Attached ? 7f : 0f);
         if (tileGlow) _stack.SetTileGlow(s.TTile);
+        _stack.SetFlapHeat(s.Flaps, s.TTile, tileGlow);
     }
     private void Plasma(SimState sim, ShipPose pose) {
         Vehicle s = sim.Veh[1];
