@@ -106,7 +106,10 @@ public static class Guide {
         case "ascent2": {
             v.Ign = true; v.NEng = 6; v.Throttle = 1;
             if (v.Acc > 3.6) v.Throttle = Const.Clamp(3.6 / v.Acc, 0.45, 1);
-            double aV = Const.Clamp(Const.ASC_KA * (sim.TargetApo - o.Apo) - Const.ASC_KV * v.VVert,
+            bool shaped = !double.IsNaN(sim.SecoH);
+            double vT = double.NaN, spd = Math.Sqrt(v.Vx * v.Vx + v.Vy * v.Vy);
+            double aV = Const.Clamp(shaped ? Guidance.AscentClimb(v, sim.SecoH, Const.SECO_RP, sim.TargetApo, out vT)
+                                           : Const.ASC_KA * (sim.TargetApo - o.Apo) - Const.ASC_KV * v.VVert,
                                     -Const.ASC_AVMAX, Const.ASC_AVMAX);
             double aMax = Math.Max(v.F / v.Mass, 0.1);
             double vhIn = (v.X * v.Vy - v.Y * v.Vx) / v.R;
@@ -117,7 +120,9 @@ public static class Guide {
             double periRate = v.PeriPrev < -1e11 ? 0 : (o.Peri - v.PeriPrev) / Math.Max(dt, 1e-6);
             v.PeriPrev = o.Peri;
             double periLead = o.Peri + Math.Max(0, periRate) * Const.SECO_LEAD;
-            if (periLead >= sim.SecoPeri || v.Prop < 0.045 * v.PropMax) {
+            if (shaped) v.Throttle = Math.Min(v.Throttle, Const.Clamp((vT - spd) / Const.ASC_TAPER, 0.4, 1));
+            bool cut = shaped ? spd + aMax * Const.SECO_SPOOL >= vT : periLead >= sim.SecoPeri;
+            if (cut || v.Prop < 0.045 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Mode = "coastS"; v.Throttle = 0;
                 double vt = Math.Sqrt(v.Vx * v.Vx + v.Vy * v.Vy);
                 sim.LogMsg($"SECO-1: {(o.Peri / 1000):F0} x {(o.Apo / 1000):F0} км, V={vt:F0} м/с", 2);
@@ -154,10 +159,10 @@ public static class Guide {
             Vec2 e = v.East;
             double s2 = Math.Sign(v.VHor != 0 ? v.VHor : 1);
             v.ThCmd = Guidance.PitchOf(new Vec2(e.X * s2, e.Y * s2), v);
-            double periLeft = sim.TargetPeri - 8e3 - o.Peri;
+            double periGoal = Math.Min(sim.TargetPeri - 8e3, o.Apo - 5e3), periLeft = periGoal - o.Peri;
             if (periLeft < Const.CIRC_ONE) v.NEng = 1;
             v.Throttle = Const.Clamp(periLeft / Const.CIRC_TAPER, 0.4, 1);
-            if (o.Peri >= sim.TargetPeri - 8e3 || v.Prop < 0.03 * v.PropMax) {
+            if (o.Peri >= periGoal || v.Prop < 0.03 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Mode = "orbit";
             }
             break;
@@ -356,12 +361,12 @@ public static class Guide {
     private static void PollBooster(SimState sim, Vehicle v) {
         if (!v.Catch) return;
         int dead = Dead(v, 13);
-        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H));
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H)) + Const.GO_GUST * sim.Wind.GustSigma(Const.CATCH_H);
         string why = dead >= 2 ? $"{dead} из 13 посадочных двигателей неисправны"
             : v.CopvK < 1 ? "утечка газа наддува"
             : v.CtrlK < 1 ? "заедание решётчатого руля"
             : v.Prop < Const.GO_PROP_B ? $"топлива на посадку {v.Prop / 1000:F0} т"
-            : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"
+            : wind > Const.GO_WIND ? $"ветер у башни с порывами {wind:F0} м/с"
             : null;
         if (why == null) sim.LogMsg("Б: опрос перед тормозным импульсом — GO на захват башней", 1);
         else Divert(sim, v, Const.SEA_DR, why);
@@ -375,14 +380,14 @@ public static class Guide {
     }
     private static void PollShip(SimState sim, Vehicle v, string at) {
         if (!v.Catch) return;
-        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBiasAvg);
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBiasAvg) + Const.GO_GUST * sim.Wind.GustSigma(Const.CATCH_H);
         string why = v.Dmg > Const.GO_DMG_S ? $"повреждение теплозащиты {v.Dmg * 100:F0} %"
             : FlapWhy(v) is string fw ? fw
             : v.CtrlK < 1 ? "заедание привода закрылка"
             : v.Prop < Const.GO_PROP_S ? $"топлива на посадку {v.Prop / 1000:F0} т"
-            : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"
+            : wind > Const.GO_WIND ? $"ветер у башни с порывами {wind:F0} м/с"
             : null;
-        if (why == null) sim.LogMsg($"К: опрос {at} — GO на захват башней, ветер у башни {wind:F0} м/с", 1);
+        if (why == null) sim.LogMsg($"К: опрос {at} — GO на захват башней, ветер у башни с порывами {wind:F0} м/с", 1);
         else Divert(sim, v, Const.SEA_DR, why);
     }
     private static void LatePoll(SimState sim, Vehicle v, double dt) {

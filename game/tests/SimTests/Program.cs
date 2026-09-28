@@ -72,6 +72,7 @@ internal static partial class Program {
         FlapEdgeHeat();
         FlapDamage();
         WindProfile();
+        GustForecast();
         Dispersion_();
         ConditionEvents();
         MassBalance();

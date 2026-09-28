@@ -57,6 +57,7 @@ internal static partial class Program {
         Marks(nom, checks);
         MaxQAtPeak(nom, checks);
         FiveOrbits(nom, checks);
+        SecoCoast(nom, checks);
         BoosterReturn(nom, checks);
         Relights(nom, checks);
         SloshDescent(nom, checks);
@@ -117,6 +118,20 @@ internal static partial class Program {
                   ($"есть ключевые (нет: {string.Join(", ", miss)})", miss.Length == 0),
                   ("последняя не позже конца полёта", m[^1].T <= n.Sim.T + 1e-9));
         });
+    }
+    private static void SecoCoast(Run n, List<Action> checks) {
+        double tSeco = double.NaN, hSeco = 0, pSeco = 0, tOrb = double.NaN;
+        string prev = "";
+        n.Each(() => {
+            if (prev == "ascent2" && n.S.Mode == "coastS") { tSeco = n.Sim.T; hSeco = n.S.Alt; pSeco = Guidance.Orb(n.S).Peri; }
+            if (n.S.Mode == "orbit" && double.IsNaN(tOrb)) tOrb = n.Sim.T;
+            prev = n.S.Mode;
+        });
+        checks.Add(() => Group("выведение как у IFT-14: отсечка до апогея, долгий полёт к довыведению",
+            $"отсечка T+{N(tSeco)} на {N(hSeco / 1000)} км, перигей {N(pSeco / 1000)} км; орбита через {N((tOrb - tSeco) / 60)} мин",
+            ("отсечка на 140…160 км", hSeco > 140e3 && hSeco < 160e3),
+            ("перигей отсечки ниже 50 км — без довыведения корабль вернётся", pSeco < 50e3),
+            ("до орбиты 12…22 мин (IFT-14 — 17)", tOrb - tSeco > 12 * 60 && tOrb - tSeco < 22 * 60)));
     }
     private static void FiveOrbits(Run n, List<Action> checks) {
         double tDeo = double.NaN, per = double.NaN;

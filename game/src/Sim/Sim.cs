@@ -183,6 +183,7 @@ public static class Sim {
         sim.MecoFill = 0.125;
         sim.MecoV = 1800;
         sim.SecoPeri = sim.Mission == "trans" ? -150e3 : Const.SECO_PERI;
+        sim.SecoH = sim.Mission == "trans" ? double.NaN : Const.SECO_H;
         sim.Seed = seed;
         sim.Rng.Seed(Rng.Mix(seed));
         sim.NavRng.Seed(unchecked(seed * 3266489917u + 374761393u));

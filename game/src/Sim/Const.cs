@@ -19,7 +19,7 @@ public static class Const {
     public static double LAND_THR_MIN = 0.40, LAND_PROJ = 0.5;
     public static double LAND_WIND_K = 2.0, LAND_WIND_H = 3000;
     public const double DECK_H = 16, MOUNT_R = 23, COAST_DR = 700, LAND_W = 30000, SEA_DR = 6000;
-    public static double GO_MISS_B = 1500, GO_PROP_B = 75e3, GO_PROP_S = 25e3, GO_DMG_S = 0.15, GO_WIND = 20,
+    public static double GO_MISS_B = 1500, GO_PROP_B = 75e3, GO_PROP_S = 25e3, GO_DMG_S = 0.15, GO_WIND = 20, GO_GUST = 1,
         GO_POLL_H = 3000, WAIT_MAX = 12, TIP_K = 0.4, REACH_S = 500, REACH_B = 700, RELIGHT_P = 0.02;
     public static double DIV_V = 20, DIV_T = 10, DIV_MARGIN = 1.05, DIV_RESERVE = 2e3;
     public static double GF_RATE = 0.5, GF_LEAD = 0.4, GF_GATE_B = 40, GF_VGATE_B = 13.6, GF_TILT = 20, GF_GLIDE = 45,
@@ -49,7 +49,7 @@ public static class Const {
     public static double SHIP_ALAT = 6, SHIP_TILT = 25, SHIP_GATE = 40, SHIP_AD = 6, SHIP_AB = 9,
         SHIP_ENG_K = 1.3, SHIP_POLE = 0.9, SHIP_KP = 6, SHIP_KD = 4.5, BOOST_KP = 0.9, BOOST_KD = 2.6, SHIP_CATCH_V = 2, SHIP_FINAL_A = 2.5, SHIP_KV = 1.5,
         SHIP_HOLD_DR = 4, SHIP_HOLD_VH = 2, SHIP_HOLD_H = 15, SHIP_WAIT_T = 5;
-    public static double SECO_LEAD = 1.8, SECO_PERI = -800e3, DEO_REVS = 5;
+    public static double SECO_LEAD = 1.8, SECO_PERI = -800e3, DEO_REVS = 5, SECO_H = 150e3, SECO_RP = 0, SECO_SPOOL = 0.28;
     public static double CIRC_TAPER = 150e3, CIRC_ONE = 80e3;
     public const double FLAP_S_FWD = 19.9, FLAP_S_AFT = 36.7;
     public static double FLAP_RE = 0.18, FLAP_SHOCK = 0.36, BURN_EDGE = 6e-7, BURN_HINGE = 1.6e-7, BURN_ROOT = 0.3e-7, GO_FLAP = 0.25;
@@ -61,7 +61,7 @@ public static class Const {
     public static double GLIDE_KA = 400, GLIDE_A_LO = 45, GLIDE_A_HI = 70;
     public static double BELLY_TILT = 15, BELLY_VP0 = 140, BELLY_VP1 = 165, BELLY_LEAD = 1600, BELLY_VF = 0, BELLY_TMIN = 3;
     public static double BOOST_AOA = 17, BOOST_STRAIGHT_H = 4000, BOOST_SWITCH_H = 450;
-    public static double ASC_KA = 5e-4, ASC_KV = 0.04, ASC_AVMAX = 40, ASC_THMAX = 140, DEO_AIM = 30e3, DEO_TURN = 1500e3;
+    public static double ASC_KA = 5e-4, ASC_KV = 0.04, ASC_TAPER = 150, ASC_TGO = 3, ASC_AVMAX = 40, ASC_THMAX = 140, DEO_AIM = 30e3, DEO_TURN = 1500e3;
     public const double DT = 0.01, GAS_T = 270, DT_COAST = 0.1;
     public static double Clamp(double v, double a, double b) => v < a ? a : (v > b ? b : v);
     public static double Lerp(double a, double b, double t) => a + (b - a) * t;

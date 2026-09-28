@@ -440,6 +440,15 @@ internal static partial class Program {
         rng.Seed(seed);
         return Wind.Roll(rng);
     }
+    private static void GustForecast() {
+        Head("Ветер: порывы в прогнозе");
+        Wind w = Wind.Steady(22);
+        w.Gusts(1.2, 17);
+        double h = Const.CATCH_H, sum = 0;
+        int n = 0;
+        for (double t = 0; t < 20000; t += 0.5, n++) { double d = w.At(h, t) - w.At(h); sum += d * d; }
+        Near("прогноз знает силу порывов у рук: СКО модели порывов", w.GustSigma(h), Math.Sqrt(sum / n), 0.05);
+    }
     private static void WindProfile() {
         Head("Ветер");
         Wind w = Rolled(12345), same = Rolled(12345), other = Rolled(777);

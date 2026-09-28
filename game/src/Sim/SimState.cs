@@ -23,6 +23,7 @@ public sealed class SimState {
     public double ManPitchAxis, ManThrAxis, ManBankAxis;
     public string Mission = "orbital";
     public bool Coarse = true;
+    public double SecoH = double.NaN;
     public double TargetApo = 220e3, TargetPeri = 200e3, SecoPeri = 190e3, MecoFill = 0.19, MecoV = 1450;
     public Action OnSeparate;
     public Rng Rng = new(), NavRng = new();
