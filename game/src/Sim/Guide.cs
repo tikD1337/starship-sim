@@ -361,12 +361,12 @@ public static class Guide {
     private static void PollBooster(SimState sim, Vehicle v) {
         if (!v.Catch) return;
         int dead = Dead(v, 13);
-        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H)) + Const.GO_GUST * sim.Wind.GustSigma(Const.CATCH_H);
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H));
         string why = dead >= 2 ? $"{dead} из 13 посадочных двигателей неисправны"
             : v.CopvK < 1 ? "утечка газа наддува"
             : v.CtrlK < 1 ? "заедание решётчатого руля"
             : v.Prop < Const.GO_PROP_B ? $"топлива на посадку {v.Prop / 1000:F0} т"
-            : wind > Const.GO_WIND ? $"ветер у башни с порывами {wind:F0} м/с"
+            : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"
             : null;
         if (why == null) sim.LogMsg("Б: опрос перед тормозным импульсом — GO на захват башней", 1);
         else Divert(sim, v, Const.SEA_DR, why);
