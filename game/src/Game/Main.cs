@@ -99,7 +99,7 @@ public partial class Main : Node {
             if (_tape.SummaryShown) _missionView.HideFinal(); else _missionView.ShowFinalAgain();
         };
         _ctl.StepMark = dir => { double? t = FlightTape.Step(_sim, dir); if (t != null) SeekTo(t.Value); };
-        _ctl.StepOne = () => { _ctl.Play?.Apply(_sim); Physics.Sim.Tick(_sim, Const.DT); };
+        _ctl.StepOne = () => { _ctl.Play?.Apply(_sim); Physics.Sim.Step(_sim, Const.DT); };
         _ctl.ToggleSmoke = () => _smoke.Off = !_smoke.Off;
         _ctl.ToggleFlat = () => { _flat = !_flat; if (_flat) _rigWorld.FlatLight(); else _rigWorld.NormalLight(); };
         foreach (string name in _scr.MouseGrabs()) GD.Print("UI_MOUSE_GRAB " + name);
@@ -116,6 +116,7 @@ public partial class Main : Node {
         _anomOn = anom;
         _seed = seed;
         _sim.Mission = key;
+        _sim.Coarse = false;
         _sim.AnomOn = anom;
         _sim.Disperse = _disp;
         _sim.AnomScript = _script == null ? null
@@ -209,14 +210,17 @@ public partial class Main : Node {
     }
     private void FastForward(double toT) {
         int guard = 0;
-        while (_sim.T < toT && guard++ < 3_000_000) {
+        bool own = _ctl.Play == null;
+        if (own) { _sim.Coarse = true; _ctl.Rec?.Put(_sim.T, "warp", 1); }
+        while (_sim.T < toT && guard++ < 6_000_000) {
             _ctl.Play?.Apply(_sim);
-            Physics.Sim.Tick(_sim, Const.DT);
+            Physics.Sim.Step(_sim, Const.DT);
             if (guard % 50 != 0) continue;
             _eng.PushTele(_sim);
             _mission.Quiet = _shot.Armed || _ctl.Play != null;
             _mission.Track(_sim);
         }
+        if (own) { _sim.Coarse = false; _ctl.Rec?.Put(_sim.T, "warp", 0); }
     }
     private void SeekTo(double toT) {
         Replay play = _ctl.Play;

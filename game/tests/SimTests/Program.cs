@@ -80,6 +80,7 @@ internal static partial class Program {
         BadNumbers();
         UiNumbers();
         UiFlaps();
+        UiWarp();
         UiThemes();
         UiEngineLayout();
         UiParams();

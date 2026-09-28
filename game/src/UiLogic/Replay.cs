@@ -103,6 +103,7 @@ public sealed class Replay {
                 case "bay": Physics.Sim.BaySet(sim, s, a > 0.5); break;
                 case "sat": Physics.Sim.DeploySat(sim, s, (int)a); break;
                 case "focus": sim.Focus = a > 0 ? "ship" : "stack"; break;
+                case "warp": sim.Coarse = a > 0; break;
                 default: if (k.StartsWith("p:", StringComparison.Ordinal)) SetParam(sim, k, a); break;
             }
         }

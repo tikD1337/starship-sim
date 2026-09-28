@@ -309,7 +309,7 @@ public static class Sim {
         return true;
     }
     public static double Step(SimState sim, double dt) {
-        double h = Coasting(sim) ? Math.Max(dt, Const.DT_COAST) : dt;
+        double h = sim.Coarse && Coasting(sim) ? Math.Max(dt, Const.DT_COAST) : dt;
         if (sim.LastStep > 0 && h != sim.LastStep)
             foreach (Vehicle v in sim.Veh) {
                 if (!v.Alive || v.Landed || v.Attached) continue;
