@@ -55,6 +55,8 @@ internal static partial class Program {
 
         checks.Add(() => Head("Орбитальное задание без разброса: полёт целиком"));
         Marks(nom, checks);
+        MaxQAtPeak(nom, checks);
+        FiveOrbits(nom, checks);
         BoosterReturn(nom, checks);
         Relights(nom, checks);
         SloshDescent(nom, checks);
@@ -114,6 +116,34 @@ internal static partial class Program {
                   ("отсчёт секунд в вехи не попадает", !m.Exists(x => x.M.StartsWith("Отсчёт"))),
                   ($"есть ключевые (нет: {string.Join(", ", miss)})", miss.Length == 0),
                   ("последняя не позже конца полёта", m[^1].T <= n.Sim.T + 1e-9));
+        });
+    }
+    private static void FiveOrbits(Run n, List<Action> checks) {
+        double tDeo = double.NaN, per = double.NaN;
+        n.Each(() => {
+            if (n.S.Mode == "orbit" && double.IsNaN(per)) per = Guidance.Orb(n.S).Per;
+            if (n.S.Mode == "deorbit" && double.IsNaN(tDeo)) tDeo = n.Sim.T;
+        });
+        checks.Add(() => {
+            double tOrb = n.Sim.Events.TryGetValue("orbMsg" + n.S.Tag, out double t) ? t : double.NaN;
+            double revs = (tDeo - tOrb) / per;
+            Group("сход с орбиты после пяти витков, как у IFT-14", $"выход на орбиту T+{N(tOrb)}, сход T+{N(tDeo)} — {N(revs)} витка",
+                  ("не раньше пяти витков", revs >= 5),
+                  ("в ближайшее окно после них", revs < 6.2),
+                  ("корабль пойман", n.S.Caught));
+        });
+    }
+    private static void MaxQAtPeak(Run n, List<Action> checks) {
+        double qMax = 0, tMax = double.NaN;
+        n.Each(() => {
+            if (n.B.Mode == "ascent" && n.B.Q > qMax) { qMax = n.B.Q; tMax = n.Sim.T; }
+        });
+        checks.Add(() => {
+            double at = n.Sim.Events.TryGetValue("maxq", out double t) ? t : double.NaN;
+            LogEntry m = n.Sim.Marks.FirstOrDefault(x => x.M.Contains("Max Q"));
+            Group("max Q отмечен в момент пика, а не когда напор уже упал", $"пик T+{N(tMax)}, отметка T+{N(at)}, «{m?.M}»",
+                  ("отметка на пике", Math.Abs(at - tMax) < 0.05),
+                  ("в сообщении время пика", m != null && m.M.Contains($"T+{tMax:F0}")));
         });
     }
     private static void StackPush(Run n, List<Action> checks) {
@@ -210,8 +240,8 @@ internal static partial class Program {
             }
             if (s.Mode == "orbit") { fx = s.X; fy = s.Y; fvx = s.Vx; fvy = s.Vy; ft = n.Sim.T; }
         });
-        checks.Add(() => True("на орбите шаг 0,1 с, путь совпадает с тяготением при шаге 0,01 с",
-            big > 10000 && err < 100,
+        checks.Add(() => True("на орбите шаг 0,1 с, путь совпадает с тяготением при шаге 0,01 с — не дальше 100 м на час полёта",
+            big > 10000 && err < 100 * Math.Max(1, span / 3600),
             $"крупных шагов {big}, участков {parts}, самый длинный {N(longest)} с; сверка на {N(span)} с — расхождение {N(err)} м"));
     }
     private static void EntryForecast(Run n, List<Action> checks) {
@@ -401,7 +431,7 @@ internal static partial class Program {
                   ("зажигание на 500…2000 м", hIgn > 500 && hIgn < 2000),
                   ("при 1100…1400 км/ч (пятый полёт ~1250)", vIgn * 3.6 >= 1100 && vIgn * 3.6 <= 1400),
                   ("13 двигателей, потом 3 — и только они", nIgn == 13 && nLast == 3 && counts.SetEquals(new[] { 13, 3 })),
-                  ("13 горят 4…8 с (пятый полёт — чуть больше 5)", t13 >= 4 && t13 <= 8),
+                  ("13 горят 4…9 с (пятый полёт — чуть больше 5, у Block 3 вся жига 25 с)", t13 >= 4 && t13 <= 9),
                   ("перегрузка не выше 6 g", g <= 6),
                   ("от зажигания до захвата не больше 31 с", tCatch - tIgn <= 31));
             Group("ускоритель пойман и стоит", $"промах {N(miss)} м, через 1000 с {N(v1000 * 3.6)} км/ч",

@@ -29,7 +29,7 @@ public static class Flight {
         v.Q = q; v.Mach = M; v.Rho = at.Rho; v.Pa = at.P;
         v.Heat = Aero.Heat(at.Rho, sp);
         if (v.Heat > v.MaxHeat) v.MaxHeat = v.Heat;
-        if (q > v.MaxQ) v.MaxQ = q;
+        if (q > v.MaxQ) { v.MaxQ = q; v.MaxQT = sim.T; v.MaxQH = v.Alt; }
         if (v.Alt > v.MaxAlt) v.MaxAlt = v.Alt;
         {
             double d = v.BankCmd - v.Bank, lim = Const.BANK_RATE * Surfaces.BankRateK(v) * Const.D2R * dt;

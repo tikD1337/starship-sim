@@ -28,7 +28,10 @@ public static class Guide {
             if (v.Acc > 3.6) v.Throttle = Const.Clamp(v.Throttle * 3.6 / v.Acc, 0.4, 1);
             if (v.Q < 8e3 && sim.T > 60) sim.Once("maxq-pass");
             if (v.MaxQ > 1e3 && v.Q < v.MaxQ * 0.85)
-                sim.Once("maxq", () => sim.LogMsg($"Max Q пройден — {(v.MaxQ / 1000):F1} кПа на H={(h / 1000):F1} км", 1));
+                sim.Once("maxq", () => {
+                    sim.Events["maxq"] = v.MaxQT;
+                    sim.LogMsg($"Max Q пройден — {(v.MaxQ / 1000):F1} кПа на T+{v.MaxQT:F0}, H={(v.MaxQH / 1000):F1} км", 1);
+                });
             if (v.Prop <= sim.MecoFill * v.PropMax || sp > sim.MecoV) {
                 v.Mode = "meco"; v.Tmr = 0; v.FRef = v.F;
                 sim.LogMsg($"MECO: отсечка маршевых. V={sp:F0} м/с, H={(h / 1000):F1} км", 2);
@@ -168,6 +171,7 @@ public static class Guide {
             v.ThCmd = (v.SeekPad && !double.IsNaN(v.DeoMiss) && Math.Abs(v.DeoMiss) < Const.DEO_TURN)
                       ? Guidance.AimRetro(v) : Guidance.AimPro(v);
             if (!v.SeekPad) break;
+            if (!sim.Events.TryGetValue("orbMsg" + v.Tag, out double tOrb) || sim.T - tOrb < Const.DEO_REVS * o.Per) break;
             v.DeoAcc += dt;
             if (v.DeoAcc > 3) {
                 v.DeoAcc = 0;

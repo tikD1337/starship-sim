@@ -24,7 +24,7 @@ public static class Const {
     public static double DIV_V = 20, DIV_T = 10, DIV_MARGIN = 1.05, DIV_RESERVE = 2e3;
     public static double GF_RATE = 0.5, GF_LEAD = 0.4, GF_GATE_B = 40, GF_VGATE_B = 13.6, GF_TILT = 20, GF_GLIDE = 45,
         GF_MIN_TTG = 2, GF_PERIOD = 1, GF_KP = 0.36, GF_KD = 0.96, GF_RESERVE = 3e3, GF_MARGIN = 0.9, GF_GSPARE = 0.5;
-    public static readonly double[] GF_SWITCH = { 4, 5, 6, 7, 8 };
+    public static readonly double[] GF_SWITCH = { 4, 5, 6, 7, 8, 9 };
     public static double ASC_CLEAR_H = 87, ASC_Q_IN = 25.5e3, ASC_Q_OUT = 24.5e3,
         HOT_IGN_F = 0.15, HOT_IGN_T = 1.5, HOT_PC = 0.85, HOT_SEP_T = 3.5;
     public static double NAV_LAG = 0.1, NAV_POS_SIG = 0.8, NAV_POS_TAU = 20, NAV_VEL_SIG = 0.08, NAV_VEL_TAU = 4,
@@ -49,7 +49,7 @@ public static class Const {
     public static double SHIP_ALAT = 6, SHIP_TILT = 25, SHIP_GATE = 40, SHIP_AD = 6, SHIP_AB = 9,
         SHIP_ENG_K = 1.3, SHIP_POLE = 0.9, SHIP_KP = 6, SHIP_KD = 4.5, BOOST_KP = 0.9, BOOST_KD = 2.6, SHIP_CATCH_V = 2, SHIP_FINAL_A = 2.5, SHIP_KV = 1.5,
         SHIP_HOLD_DR = 4, SHIP_HOLD_VH = 2, SHIP_HOLD_H = 15, SHIP_WAIT_T = 5;
-    public static double SECO_LEAD = 1.8, SECO_PERI = -800e3;
+    public static double SECO_LEAD = 1.8, SECO_PERI = -800e3, DEO_REVS = 5;
     public static double CIRC_TAPER = 150e3, CIRC_ONE = 80e3;
     public const double FLAP_S_FWD = 19.9, FLAP_S_AFT = 36.7;
     public static double FLAP_RE = 0.18, FLAP_SHOCK = 0.36, BURN_EDGE = 6e-7, BURN_HINGE = 1.6e-7, BURN_ROOT = 0.3e-7, GO_FLAP = 0.25;

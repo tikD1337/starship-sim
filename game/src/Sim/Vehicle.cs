@@ -17,7 +17,7 @@ public sealed class Vehicle {
     public bool Alive = true, Landed, Crashed, Launched, Attached;
     public string Mode = "idle";
     public double F, Mdot, Q, Mach, Acc, Alpha, Heat, Rho = 1.225, Pa = Const.P0, Drag;
-    public double MaxQ, MaxG, MaxHeat, MaxAlt;
+    public double MaxQ, MaxG, MaxHeat, MaxAlt, MaxQT, MaxQH;
     public double Hdr, HdrLeft;
     public double PeriPrev = -1e12;
     public System.Collections.Generic.List<Engine> Eng;
