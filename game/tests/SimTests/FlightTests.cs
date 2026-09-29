@@ -58,6 +58,7 @@ internal static partial class Program {
         MaxQAtPeak(nom, checks);
         FiveOrbits(nom, checks);
         SecoCoast(nom, checks);
+        OneEngineBurns(nom, checks);
         BoosterReturn(nom, checks);
         Relights(nom, checks);
         SloshDescent(nom, checks);
@@ -118,6 +119,23 @@ internal static partial class Program {
                   ($"есть ключевые (нет: {string.Join(", ", miss)})", miss.Length == 0),
                   ("последняя не позже конца полёта", m[^1].T <= n.Sim.T + 1e-9));
         });
+    }
+    private static void OneEngineBurns(Run n, List<Action> checks) {
+        int circMax = 0, deoMax = 0;
+        bool vac = false;
+        n.Each(() => {
+            if (n.S.Mode == "circ") circMax = Math.Max(circMax, n.S.NRun);
+            if (n.S.Mode == "deorbit") deoMax = Math.Max(deoMax, n.S.NRun);
+            if (n.S.Mode is "circ" or "deorbit") vac |= n.S.Eng.Exists(e => e.IsVac && e.On);
+        });
+        var sim = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(sim, 1);
+        Bay bay = sim.Veh[1].BayS;
+        checks.Add(() => Group("орбитальное задание как IFT-14: 26 Starlink V3 по 2 т, орбита ~275 км, импульсы одним двигателем",
+            $"{bay.Sats} × {N(bay.SatM / 1000)} т, цель {N(sim.TargetApo / 1000)} × {N(sim.TargetPeri / 1000)} км; довыведение до {circMax}, сход до {deoMax} двигателей",
+            ("26 Starlink V3 по 2 т", bay.Sats == 26 && Math.Abs(bay.SatM - 2000) < 1),
+            ("орбита 280 × 270 км", sim.TargetApo == 280e3 && sim.TargetPeri == 270e3),
+            ("довыведение и сход — один двигатель уровня моря", circMax == 1 && deoMax == 1 && !vac)));
     }
     private static void SecoCoast(Run n, List<Action> checks) {
         double tSeco = double.NaN, hSeco = 0, pSeco = 0, tOrb = double.NaN;
@@ -285,6 +303,7 @@ internal static partial class Program {
         (SimState Sim, Vehicle V) Near(int k, double prop, double dh, double wait) {
             var sim = new SimState { Mission = "orbital", AnomOn = false };
             Physics.Sim.Reset(sim, 5);
+            if (k == 1) { sim.Payload = 0; Physics.Sim.MakeVehicles(sim); }
             sim.T = 500;
             Vehicle v = sim.Veh[k];
             v.Attached = false; v.Stacked = false; v.Launched = true; v.Mode = k == 0 ? "landB" : "landS";

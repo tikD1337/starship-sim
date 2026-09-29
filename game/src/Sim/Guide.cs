@@ -146,8 +146,8 @@ public static class Guide {
             }
             double vt = (v.X * v.Vy - v.Y * v.Vx) / v.R, aR = Const.MU / (v.R * v.R) - vt * vt / v.R;
             if (vrIn < 5 + Math.Max(aR, 0) * Propellant.SettleLeft(v) && h > 100e3) {
-                v.Mode = "circ"; v.Ign = true; v.NEng = 3; v.Throttle = 1; v.PeriPrev = -1e12;
-                sim.LogMsg("Круговое довыведение: включение трёх вакуумных двигателей", 1);
+                v.Mode = "circ"; v.Ign = true; v.NEng = 1; v.Throttle = 1; v.PeriPrev = -1e12;
+                sim.LogMsg("Орбитальный импульс: включение одного двигателя уровня моря", 1);
             }
             if (h < 100e3 && vrIn < 0) {
                 v.Mode = "entryS";
@@ -160,7 +160,6 @@ public static class Guide {
             double s2 = Math.Sign(v.VHor != 0 ? v.VHor : 1);
             v.ThCmd = Guidance.PitchOf(new Vec2(e.X * s2, e.Y * s2), v);
             double periGoal = Math.Min(sim.TargetPeri - 8e3, o.Apo - 5e3), periLeft = periGoal - o.Peri;
-            if (periLeft < Const.CIRC_ONE) v.NEng = 1;
             v.Throttle = Const.Clamp(periLeft / Const.CIRC_TAPER, 0.4, 1);
             if (o.Peri >= periGoal || v.Prop < 0.03 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Mode = "orbit";
@@ -209,7 +208,7 @@ public static class Guide {
                 sim.LogMsg($"К: тормозной импульс {v.DeoLeft:F1} м/с" +
                            (v.DeoAuto ? " — наведение на башню" : " — ручной сход, перигей 35 км"), 1);
             }
-            v.Ign = true; v.NEng = 3;
+            v.Ign = true; v.NEng = 1;
             v.DvBurn += v.F / v.Mass * dt;
             v.DeoLeft -= v.F / v.Mass * dt;
             v.DeoAcc += dt;

@@ -245,7 +245,6 @@ internal static class Program {
             if (args[k] == "--boostaoa") Const.BOOST_AOA = double.Parse(args[k + 1], Inv);
             if (args[k] == "--secolead") Const.SECO_LEAD = double.Parse(args[k + 1], Inv);
             if (args[k] == "--circtaper") Const.CIRC_TAPER = double.Parse(args[k + 1], Inv);
-            if (args[k] == "--circone") Const.CIRC_ONE = double.Parse(args[k + 1], Inv);
             if (args[k] == "--secoperi") secoPeri = double.Parse(args[k + 1], Inv);
             if (args[k] == "--entprop") Const.ENTRY_PROP = double.Parse(args[k + 1], Inv);
             if (args[k] == "--bellyvf") Const.BELLY_VF = double.Parse(args[k + 1], Inv);
