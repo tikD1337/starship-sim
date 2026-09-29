@@ -63,6 +63,18 @@ internal static partial class Program {
         GfoldPlan l = Gfold.Plan(free, 6, 80);
         double gap = l.Status == SocpStatus.Optimal ? l.Slack : double.NaN;
         GfoldPlan far = Gfold.Plan(Booster(40000, 2000, 0, -100), 6, 80);
+        GfoldSetup three = Booster(150, 1700, -10, -330);
+        three.Rho1 = 13 * 0.4 * 2.3e6; three.Rho2 = 13 * 2.3e6;
+        three.Stages = new[] { (4.0, 5 * 0.4 * 2.3e6, 5 * 2.3e6, 0.0), (9.0, 3 * 0.4 * 2.3e6, 3 * 2.3e6, 0.0) };
+        GfoldPlan st = Gfold.Plan(three, 6, 120);
+        int[] seen = new int[3];
+        double outB = st.Status == SocpStatus.Optimal ? 0 : double.NaN;
+        for (int k = 0; st.Status == SocpStatus.Optimal && k <= st.Nodes; k++) {
+            double t = Math.Sqrt(st.Ux[k] * st.Ux[k] + st.Uy[k] * st.Uy[k]) * st.Mass[k];
+            int e = k * st.Step >= 9 ? 3 : k * st.Step >= 4 ? 5 : 13;
+            seen[e == 13 ? 0 : e == 5 ? 1 : 2]++;
+            outB = Math.Max(outB, Math.Max(e * 0.4 * 2.3e6 * 0.999 - t, t - e * 2.3e6 * 1.001) / 2.3e6);
+        }
         double P(double[] a, int i) => ok ? a[i] : double.NaN;
         Group("G-FOLD: дискретизация, попадание, границы тяги, релаксация без потерь, недостижимость",
               $"тождества {N(idv)}/{N(idr)}, пошагово {N(prop)}; отвесно {v.Status}, {n} узлов: {N(P(v.X, n))}/{N(P(v.Y, n))} м, {N(P(v.Vy, n))} м/с, топливо {N(v.Fuel)} кг, невязка до поправки {N(v.Slack)}, тяга {N(tLo / 1e6)}…{N(tHi / 1e6)} МН; ‖u‖ − σ до {N(gap)}; 40 км вбок {far.Status}",
@@ -72,6 +84,9 @@ internal static partial class Program {
               ("тяга в паспорте, масса не ниже минимальной", inBounds && v.Mass[n] >= 250e3 && v.Fuel > 0),
               ("релаксация без потерь: ‖u‖ = σ", l.Status == SocpStatus.Optimal && gap < 1e-4),
               ("недостижимая цель — не Optimal", far.Status != SocpStatus.Optimal));
+        True("G-FOLD: тяга идёт по ступеням 13 → 5 → 3 двигателей",
+             st.Status == SocpStatus.Optimal && seen.All(c => c > 0) && outB <= 0 && st.Miss < 1,
+             $"{st.Status}, {st.Nodes} узлов по {N(st.Step)} с: 13 — {seen[0]}, 5 — {seen[1]}, 3 — {seen[2]}; выход за границы ступени {N(outB)} двиг., промах {N(st.Miss)} м");
     }
     private static void GfoldOpenLoop() {
         SimState sim = Live(12345, false);
@@ -111,7 +126,7 @@ internal static partial class Program {
              $"с {N(h0)} м, {N(v0)} м/с, {ne} двигателей: {p.Status}, {p.Nodes} узлов по {N(p.Step)} с, топливо {N(p.Fuel)} кг (без сопротивления {N(dry.Fuel)}); у ворот {N(ex)}/{N(ey)} м, {N(b.VHor)}/{N(b.VVert)} м/с (цель 0/−13,6)");
     }
     private static void GfoldLanding((string Name, Run R)[] runs, List<Action> checks) {
-        checks.Add(() => Group("посадочный прожиг ускорителя до перехода 13→3 ведёт G-FOLD без отказов",
+        checks.Add(() => Group("посадочный прожиг ускорителя до перехода на 3 двигателя ведёт G-FOLD без отказов",
             string.Join(", ", runs.Select(x => $"{x.Name}: планов {x.R.B.GfUsed}, отказов {x.R.B.GfBad}, остаток {N(x.R.B.Prop / 1e3)} т")),
             runs.Select(x => (x.Name, x.R.B.GfUsed > 3 && x.R.B.GfBad == 0 && x.R.B.Caught)).ToArray()));
     }

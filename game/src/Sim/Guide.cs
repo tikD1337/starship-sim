@@ -181,7 +181,7 @@ public static class Guide {
                 v.DeoAcc = 0;
                 double wait = Propellant.SettleLeft(v);
                 (Vec2 bp, Vec2 bv) = Guidance.Coast(v, wait);
-                double dv = Guidance.DeorbitDv(bp, bv, Const.RE + 35e3);
+                double dv = Guidance.DeorbitDv(bp, bv, Const.RE + Const.DEO_PERI);
                 EntryPred p = Guidance.PredictEntry(sim, v, dv, 62, Const.ENTRY_BANK0, wait);
                 double prev = v.DeoMiss;
                 v.DeoMiss = p.Miss;

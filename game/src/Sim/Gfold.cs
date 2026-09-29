@@ -3,10 +3,16 @@ using System.Collections.Generic;
 namespace Starship.Physics;
 public sealed class GfoldSetup {
     public double X0, Y0, Vx0, Vy0, Mass0, MassMin, Alpha, Rho1, Rho2, G, Tvx, Tvy, Rate;
-    public double Switch = double.NaN, Rho1B, Rho2B, RateB, AccMax = double.PositiveInfinity;
-    public bool After(int k) => k * Step >= Switch;
-    public double R1(int k) => After(k) ? Rho1B : Rho1;
-    public double R2(int k) => After(k) ? Rho2B : Rho2;
+    public (double At, double Rho1, double Rho2, double Rate)[] Stages = Array.Empty<(double, double, double, double)>();
+    public double AccMax = double.PositiveInfinity;
+    public int Stage(int k) {
+        int i = 0;
+        while (i < Stages.Length && k * Step >= Stages[i].At) i++;
+        return i;
+    }
+    public double R1(int k) { int i = Stage(k); return i == 0 ? Rho1 : Stages[i - 1].Rho1; }
+    public double R2(int k) { int i = Stage(k); return i == 0 ? Rho2 : Stages[i - 1].Rho2; }
+    public double RateAt(int k) { int i = Stage(k); return i == 0 ? Rate : Stages[i - 1].Rate; }
     public double ThetaMax = 20 * Const.D2R, Glide = 45 * Const.D2R, GlideDepth = 5, Step = 0.5;
     public Func<double, (double X, double Y)> Bias;
     public int Nodes = 20;
@@ -112,8 +118,8 @@ public static class Gfold {
             }
         }
         for (int k = 0; k < n; k++) {
-            if (s.After(k) != s.After(k + 1)) continue;
-            double rate = s.After(k) ? s.RateB : s.Rate;
+            if (s.Stage(k) != s.Stage(k + 1)) continue;
+            double rate = s.RateAt(k);
             if (!(rate > 0)) continue;
             double r = rate * s.Step / (s.Mass0 * acs);
             lin.Add((new Dictionary<int, double> { [SG(k + 1)] = 1, [SG(k)] = -1 }, r));

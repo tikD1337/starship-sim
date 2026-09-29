@@ -673,6 +673,19 @@ internal static partial class Program {
               ("сопло отклонено на −asin(0,87 / плечо до центра масс)", Math.Abs(one.G - want) < 0.05 * Math.Abs(want)),
               ("корпус не уводит", Math.Abs(one.Th) < 0.2 * Const.D2R),
               ("на трёх тяга симметрична — сопло прямо", Math.Abs(three.G) < 0.01 * Math.Abs(want)));
+        Vehicle lb = DeepSpace(Kind.Booster);
+        lb.Mode = "landB"; lb.Ign = true;
+        (int On, double Arm) Lit(int n) {
+            lb.NEng = n;
+            EngineSet.Update(lb, Const.DT, 0);
+            return (lb.Eng.Count(e => e.On), lb.Eng.Where(e => e.On).Sum(e => e.Arm));
+        }
+        var l3 = Lit(3); var l5 = Lit(5); var l13 = Lit(13);
+        Group("ускоритель на посадке зажигает симметричные наборы — сумма плеч ноль",
+              $"3: {l3.On} двиг., {N(l3.Arm)} м; 5: {l5.On}, {N(l5.Arm)} м; 13: {l13.On}, {N(l13.Arm)} м",
+              ("3 центральных", l3.On == 3 && Math.Abs(l3.Arm) < 1e-9),
+              ("5 — центр и пара напротив друг друга", l5.On == 5 && Math.Abs(l5.Arm) < 1e-9),
+              ("13 — центр и среднее кольцо", l13.On == 13 && Math.Abs(l13.Arm) < 1e-9));
     }
     private static Vehicle DeepSpace(Kind kind) {
         var v = new Vehicle(kind, 0) { Mode = "man", Direct = true, Launched = true };

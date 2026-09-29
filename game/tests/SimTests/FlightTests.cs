@@ -152,17 +152,20 @@ internal static partial class Program {
             ("до орбиты 12…22 мин (IFT-14 — 17)", tOrb - tSeco > 12 * 60 && tOrb - tSeco < 22 * 60)));
     }
     private static void FiveOrbits(Run n, List<Action> checks) {
-        double tDeo = double.NaN, per = double.NaN;
+        double tDeo = double.NaN, per = double.NaN, tIgn = double.NaN, tFlip = double.NaN;
         n.Each(() => {
             if (n.S.Mode == "orbit" && double.IsNaN(per)) per = Guidance.Orb(n.S).Per;
             if (n.S.Mode == "deorbit" && double.IsNaN(tDeo)) tDeo = n.Sim.T;
+            if (n.S.Mode == "deorbit" && n.S.NRun > 0 && double.IsNaN(tIgn)) tIgn = n.Sim.T;
+            if (n.S.Mode == "flipS" && double.IsNaN(tFlip)) tFlip = n.Sim.T;
         });
         checks.Add(() => {
             double tOrb = n.Sim.Events.TryGetValue("orbMsg" + n.S.Tag, out double t) ? t : double.NaN;
-            double revs = (tDeo - tOrb) / per;
-            Group("сход с орбиты после пяти витков, как у IFT-14", $"выход на орбиту T+{N(tOrb)}, сход T+{N(tDeo)} — {N(revs)} витка",
+            double revs = (tDeo - tOrb) / per, down = (tFlip - tIgn) / 60;
+            Group("сход с орбиты после пяти витков и спуск как у IFT-14", $"выход на орбиту T+{N(tOrb)}, сход T+{N(tDeo)} — {N(revs)} витка; от зажигания до переворота {N(down)} мин",
                   ("не раньше пяти витков", revs >= 5),
                   ("в ближайшее окно после них", revs < 6.2),
+                  ("от зажигания схода до переворота 53…60 мин (IFT-14: план 57,6, факт ~56)", down > 53 && down < 60),
                   ("корабль пойман", n.S.Caught));
         });
     }
@@ -431,7 +434,7 @@ internal static partial class Program {
         Vehicle b = n.B;
         SimState sim = n.Sim;
         bool back = false, coast = false, over = false, off = false;
-        double lit = 0, hIgn = double.NaN, vIgn = double.NaN, tIgn = double.NaN, qDesc = 0, g = 0, t13 = 0, tCatch = double.NaN, v1000 = double.NaN, miss = double.NaN;
+        double lit = 0, hIgn = double.NaN, vIgn = double.NaN, tIgn = double.NaN, qDesc = 0, g = 0, t13 = 0, t5 = 0, vUp = double.NegativeInfinity, tCatch = double.NaN, v1000 = double.NaN, miss = double.NaN;
         int nIgn = 0, nLast = 0;
         var counts = new SortedSet<int>();
         n.Each(() => {
@@ -450,6 +453,8 @@ internal static partial class Program {
                 if (double.IsNaN(hIgn)) { hIgn = b.Alt; nIgn = b.NRun; tIgn = sim.T; vIgn = b.Speed; }
                 g = Math.Max(g, b.Acc);
                 if (b.NRun == 13) t13 += Const.DT;
+                if (b.NRun == 5) t5 += Const.DT;
+                vUp = Math.Max(vUp, b.VVert);
                 counts.Add(b.NRun);
                 nLast = b.NRun;
             }
@@ -461,13 +466,14 @@ internal static partial class Program {
                   ("между импульсом и жигой не работал ни один двигатель", lit == 0),
                   ("напор на спуске ниже предела конструкции", qDesc < 200e3));
             Group("посадочная жига ускорителя как у пятого полёта (пункт 48)",
-                  $"с {N(hIgn)} м при {N(vIgn * 3.6)} км/ч, 13 двигателей {N(t13)} с, {N(g)} g, до захвата {N(tCatch - tIgn)} с",
+                  $"с {N(hIgn)} м при {N(vIgn * 3.6)} км/ч, 13 двигателей {N(t13)} с, 5 — {N(t5)} с, {N(g)} g, до захвата {N(tCatch - tIgn)} с",
                   ("зажигание на 500…2000 м", hIgn > 500 && hIgn < 2000),
                   ("при 1100…1400 км/ч (пятый полёт ~1250)", vIgn * 3.6 >= 1100 && vIgn * 3.6 <= 1400),
-                  ("13 двигателей, потом 3 — и только они", nIgn == 13 && nLast == 3 && counts.SetEquals(new[] { 13, 3 })),
+                  ("13, потом 5, потом 3 — и только они (IFT-14)", nIgn == 13 && nLast == 3 && counts.SetEquals(new[] { 13, 5, 3 })),
+                  ("5 горят 3…10 с и не поднимают ускоритель", t5 >= 3 && t5 <= 10 && vUp < 0.5),
                   ("13 горят 4…9 с (пятый полёт — чуть больше 5, у Block 3 вся жига 25 с)", t13 >= 4 && t13 <= 9),
                   ("перегрузка не выше 6 g", g <= 6),
-                  ("от зажигания до захвата не больше 31 с", tCatch - tIgn <= 31));
+                  ("от зажигания до захвата 20…31 с (IFT-14 — 26, седьмой полёт — 24)", tCatch - tIgn >= 20 && tCatch - tIgn <= 31));
             Group("ускоритель пойман и стоит", $"промах {N(miss)} м, через 1000 с {N(v1000 * 3.6)} км/ч",
                   ("пойман", b.Caught),
                   ("конец полёта записан в события в момент захвата", sim.Events.TryGetValue("overБ", out double t) && Math.Abs(t - tCatch) < 0.05),
