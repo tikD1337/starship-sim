@@ -14,7 +14,7 @@ public sealed class TankSet {
         var ts = new TankSet {
             F = new Tank { V = vf * 1.04, P = 350e3, P0 = 350e3, R = 518, G = 1.31, Name = "горючего" },
             O = new Tank { V = vo * 1.04, P = 380e3, P0 = 380e3, R = 260, G = 1.40, Name = "окислителя" },
-            Copv = kind == Kind.Booster ? 900 : 420, Copv0 = kind == Kind.Booster ? 900 : 420,
+            Copv = kind == Kind.Booster ? 900 : 1100, Copv0 = kind == Kind.Booster ? 900 : 1100,
         };
         foreach (Tank t in new[] { ts.F, ts.O })
             t.Mg = t.P * Math.Max(t.V * 0.02, 1) / (t.R * Const.GAS_T);

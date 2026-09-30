@@ -10,7 +10,7 @@ public sealed class Controls {
     private readonly Screens _scr;
     private readonly EngineerView _eng;
     public double Speed = 1.0, Actual = 1.0;
-    private const double MaxStepPerFrame = 0.60;
+    private const int FineSteps = 60, CoastSteps = 200;
     public bool Paused;
     public Action Restart, NewFlight, NextMission, ToggleAnom, ToggleSmoke, ToggleFlat, ShowRecords;
     public Action ShowTape, StepOne, ManualCam;
@@ -26,14 +26,21 @@ public sealed class Controls {
     }
     public void StepPhysics(double delta) {
         if (Paused) return;
+        bool coast = Physics.Sim.Coasting(_sim);
+        Speed = Warp.Limit(Speed, coast);
+        if (Play == null && _sim.Coarse != Speed > Warp.Fine) {
+            _sim.Coarse = Speed > Warp.Fine;
+            Rec?.Put(_sim.T, "warp", _sim.Coarse ? 1 : 0);
+        }
         _accum += delta * Speed;
-        double budget = Math.Min(MaxStepPerFrame, delta * Speed * 1.5), done = 0;
-        while (_accum > Const.DT && budget > 0) {
+        double budget = delta * Speed * 1.5, done = 0;
+        int left = coast ? CoastSteps : FineSteps;
+        while (_accum > Const.DT && budget > 0 && left-- > 0) {
             Play?.Apply(_sim);
-            Physics.Sim.Tick(_sim, Const.DT);
-            _accum -= Const.DT;
-            budget -= Const.DT;
-            done += Const.DT;
+            double h = Physics.Sim.Step(_sim, Const.DT);
+            _accum -= h;
+            budget -= h;
+            done += h;
         }
         if (_accum > Const.DT) _accum = Const.DT;
         if (delta > 0) Actual += (done / delta - Actual) * Math.Min(1, delta);
@@ -89,8 +96,8 @@ public sealed class Controls {
             case Key.Period: if (TapeOn) StepMark?.Invoke(1); break;
             case Key.Slash: if (TapeOn) { Paused = true; StepOne?.Invoke(); } break;
             case Key.Space: Paused = !Paused; break;
-            case Key.Bracketright: Speed = Math.Min(64, Speed * 2); break;
-            case Key.Bracketleft: Speed = Math.Max(0.125, Speed / 2); break;
+            case Key.Bracketright: Speed = Warp.Up(Speed, Physics.Sim.Coasting(_sim)); break;
+            case Key.Bracketleft: Speed = Warp.Down(Speed); break;
             case Key.R:
                 if (k.ShiftPressed ? Restart == null : NewFlight == null) Physics.Sim.Reset(_sim, _sim.Seed);
                 else if (k.ShiftPressed) Restart();

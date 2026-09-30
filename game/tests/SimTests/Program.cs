@@ -72,6 +72,7 @@ internal static partial class Program {
         FlapEdgeHeat();
         FlapDamage();
         WindProfile();
+        GustForecast();
         Dispersion_();
         ConditionEvents();
         MassBalance();
@@ -80,6 +81,7 @@ internal static partial class Program {
         BadNumbers();
         UiNumbers();
         UiFlaps();
+        UiWarp();
         UiThemes();
         UiEngineLayout();
         UiParams();

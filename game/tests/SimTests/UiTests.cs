@@ -9,6 +9,17 @@ internal static partial class Program {
         var bad = rows.Where(r => r.Got != r.Want).Select(r => $"{r.What}: «{r.Got}» вместо «{r.Want}»").ToArray();
         True(name, bad.Length == 0, bad.Length == 0 ? $"{rows.Length} случаев" : string.Join("; ", bad));
     }
+    private static void UiWarp() {
+        Head("Интерфейс: ускорение времени");
+        Cases("выше 64× — только на орбите без двигателей, до 1024×",
+              ("в атмосфере потолок 64×", N(Warp.Up(64, false)), "64"),
+              ("на орбите выше", N(Warp.Up(64, true)), "128"),
+              ("на орбите потолок 1024×", N(Warp.Up(1024, true)), "1024"),
+              ("вниз до 1/8", N(Warp.Down(0.125)), "0.125"),
+              ("конец орбиты срезает до 64×", N(Warp.Limit(512, false)), "64"),
+              ("на орбите не трогает", N(Warp.Limit(512, true)), "512"),
+              ("медленное не трогает", N(Warp.Limit(0.5, false)), "0.5"));
+    }
     private static void UiFlaps() {
         Head("Интерфейс: закрылки");
         FlapState[] F(Action<FlapState[]> set) {
@@ -314,6 +325,14 @@ internal static partial class Program {
               ("в имени время: два полёта не затирают друг друга", n1 != n2 && n1.StartsWith("orbital-") && n1.EndsWith(".txt")),
               ("F10 берёт самую свежую по времени", newest == "orbital-0003.txt"),
               ("копия режется для перемотки, оригинал цел, повтор не дублируется", kept == 5 && r.Ev.Count == 9 && c.Seed == 5 && c.Disp && c.Ev.Count == 5));
+        var wr = new Starship.Game.Replay();
+        wr.Put(1, "warp", 1); wr.Put(2, "warp", 0);
+        var ws = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(ws, 5);
+        ws.Coarse = false; ws.T = 1.5; wr.Apply(ws);
+        bool coarseOn = ws.Coarse;
+        ws.T = 2.5; wr.Apply(ws);
+        True("повтор включает и выключает крупный шаг орбиты там же, где живой полёт", coarseOn && !ws.Coarse);
         var live = new SimState { Mission = "orbital", AnomOn = false };
         var play = new SimState { Mission = "orbital", AnomOn = false };
         Physics.Sim.Reset(live, 12345); Physics.Sim.Reset(play, 12345);

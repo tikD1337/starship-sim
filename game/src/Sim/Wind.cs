@@ -68,6 +68,11 @@ public sealed class Wind {
         for (int i = 0; i < 4; i++) _gA[i] /= Math.Sqrt(norm);
         _gust = k;
     }
+    public double GustSigma(double h) {
+        if (_gust <= 0 || _still || double.IsNaN(h) || h >= GustTop) return 0;
+        double fade = Math.Max(h, 0) < GustFull ? 1 : (GustTop - h) / (GustTop - GustFull);
+        return _gust * (0.6 + 0.08 * Math.Abs(At(h))) * fade;
+    }
     public double At(double h, double t) {
         double v = At(h);
         if (_gust <= 0 || _still || double.IsNaN(h) || h >= GustTop) return v;

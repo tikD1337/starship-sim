@@ -10,7 +10,7 @@ public sealed class Bay {
     public List<Sat> Out = new();
 }
 public static class Sim {
-    public const double SAT_MASS = 1.5e3, SAT_EVERY = 15;
+    public const double SAT_MASS = 2.0e3, SAT_EVERY = 15;
     public static void BayInit(Vehicle v, double payload) {
         int n = v.Kind == Kind.Ship ? (int)Math.Round(payload / SAT_MASS) : 0;
         v.BayS = new Bay { Sats = n, SatM = n > 0 ? payload / n : SAT_MASS };
@@ -175,14 +175,15 @@ public static class Sim {
     public static (double Apo, double Peri) Targets(string mission) => mission switch {
         "high" => (520e3, 500e3),
         "trans" => (180e3, 160e3),
-        _ => (220e3, 200e3),
+        _ => (280e3, 270e3),
     };
     public static void Reset(SimState sim, uint seed) {
-        sim.Payload = sim.Mission == "high" ? 20e3 : (sim.Mission == "trans" ? 0 : 67e3);
+        sim.Payload = sim.Mission == "high" ? 20e3 : (sim.Mission == "trans" ? 0 : 52e3);
         (sim.TargetApo, sim.TargetPeri) = Targets(sim.Mission);
         sim.MecoFill = 0.125;
         sim.MecoV = 1800;
         sim.SecoPeri = sim.Mission == "trans" ? -150e3 : Const.SECO_PERI;
+        sim.SecoH = sim.Mission == "trans" ? double.NaN : Const.SECO_H;
         sim.Seed = seed;
         sim.Rng.Seed(Rng.Mix(seed));
         sim.NavRng.Seed(unchecked(seed * 3266489917u + 374761393u));
@@ -309,7 +310,7 @@ public static class Sim {
         return true;
     }
     public static double Step(SimState sim, double dt) {
-        double h = Coasting(sim) ? Math.Max(dt, Const.DT_COAST) : dt;
+        double h = sim.Coarse && Coasting(sim) ? Math.Max(dt, Const.DT_COAST) : dt;
         if (sim.LastStep > 0 && h != sim.LastStep)
             foreach (Vehicle v in sim.Veh) {
                 if (!v.Alive || v.Landed || v.Attached) continue;

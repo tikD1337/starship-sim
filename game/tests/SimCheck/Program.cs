@@ -245,7 +245,6 @@ internal static class Program {
             if (args[k] == "--boostaoa") Const.BOOST_AOA = double.Parse(args[k + 1], Inv);
             if (args[k] == "--secolead") Const.SECO_LEAD = double.Parse(args[k + 1], Inv);
             if (args[k] == "--circtaper") Const.CIRC_TAPER = double.Parse(args[k + 1], Inv);
-            if (args[k] == "--circone") Const.CIRC_ONE = double.Parse(args[k + 1], Inv);
             if (args[k] == "--secoperi") secoPeri = double.Parse(args[k + 1], Inv);
             if (args[k] == "--entprop") Const.ENTRY_PROP = double.Parse(args[k + 1], Inv);
             if (args[k] == "--bellyvf") Const.BELLY_VF = double.Parse(args[k + 1], Inv);
@@ -293,6 +292,10 @@ internal static class Program {
             if (args[k] == "--klat") Const.LAND_KLAT = double.Parse(args[k + 1], Inv);
             if (args[k] == "--anomkey") anomKeys = args[k + 1];
             if (args[k] == "--asckv") Const.ASC_KV = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--secoh") Const.SECO_H = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--secorp") Const.SECO_RP = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--asctgo") Const.ASC_TGO = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--asctaper") Const.ASC_TAPER = double.Parse(args[k + 1], Inv);
             if (args[k] == "--log") showLog = true;
             if (args[k] == "--deploy") deploy = true;
             if (args[k] == "--anom") anom = true;

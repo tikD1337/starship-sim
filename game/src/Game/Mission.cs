@@ -32,7 +32,7 @@ public sealed class Mission {
     public static string NameOf(string key) => key switch {
         "trans" => "трансатмосферный полёт, возврат обеих ступеней",
         "high" => "20 т на орбиту 520 × 500 км",
-        _ => "67 т на орбиту 220 × 200 км",
+        _ => "26 Starlink V3 (52 т) на орбиту 280 × 270 км",
     };
     public int Total {
         get { int s = 0; foreach (Goal g in Goals) s += g.Score; return s; }

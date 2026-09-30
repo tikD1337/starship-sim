@@ -28,7 +28,10 @@ public static class Guide {
             if (v.Acc > 3.6) v.Throttle = Const.Clamp(v.Throttle * 3.6 / v.Acc, 0.4, 1);
             if (v.Q < 8e3 && sim.T > 60) sim.Once("maxq-pass");
             if (v.MaxQ > 1e3 && v.Q < v.MaxQ * 0.85)
-                sim.Once("maxq", () => sim.LogMsg($"Max Q пройден — {(v.MaxQ / 1000):F1} кПа на H={(h / 1000):F1} км", 1));
+                sim.Once("maxq", () => {
+                    sim.Events["maxq"] = v.MaxQT;
+                    sim.LogMsg($"Max Q пройден — {(v.MaxQ / 1000):F1} кПа на T+{v.MaxQT:F0}, H={(v.MaxQH / 1000):F1} км", 1);
+                });
             if (v.Prop <= sim.MecoFill * v.PropMax || sp > sim.MecoV) {
                 v.Mode = "meco"; v.Tmr = 0; v.FRef = v.F;
                 sim.LogMsg($"MECO: отсечка маршевых. V={sp:F0} м/с, H={(h / 1000):F1} км", 2);
@@ -103,7 +106,10 @@ public static class Guide {
         case "ascent2": {
             v.Ign = true; v.NEng = 6; v.Throttle = 1;
             if (v.Acc > 3.6) v.Throttle = Const.Clamp(3.6 / v.Acc, 0.45, 1);
-            double aV = Const.Clamp(Const.ASC_KA * (sim.TargetApo - o.Apo) - Const.ASC_KV * v.VVert,
+            bool shaped = !double.IsNaN(sim.SecoH);
+            double vT = double.NaN, spd = Math.Sqrt(v.Vx * v.Vx + v.Vy * v.Vy);
+            double aV = Const.Clamp(shaped ? Guidance.AscentClimb(v, sim.SecoH, Const.SECO_RP, sim.TargetApo, out vT)
+                                           : Const.ASC_KA * (sim.TargetApo - o.Apo) - Const.ASC_KV * v.VVert,
                                     -Const.ASC_AVMAX, Const.ASC_AVMAX);
             double aMax = Math.Max(v.F / v.Mass, 0.1);
             double vhIn = (v.X * v.Vy - v.Y * v.Vx) / v.R;
@@ -114,7 +120,9 @@ public static class Guide {
             double periRate = v.PeriPrev < -1e11 ? 0 : (o.Peri - v.PeriPrev) / Math.Max(dt, 1e-6);
             v.PeriPrev = o.Peri;
             double periLead = o.Peri + Math.Max(0, periRate) * Const.SECO_LEAD;
-            if (periLead >= sim.SecoPeri || v.Prop < 0.045 * v.PropMax) {
+            if (shaped) v.Throttle = Math.Min(v.Throttle, Const.Clamp((vT - spd) / Const.ASC_TAPER, 0.4, 1));
+            bool cut = shaped ? spd + aMax * Const.SECO_SPOOL >= vT : periLead >= sim.SecoPeri;
+            if (cut || v.Prop < 0.045 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Mode = "coastS"; v.Throttle = 0;
                 double vt = Math.Sqrt(v.Vx * v.Vx + v.Vy * v.Vy);
                 sim.LogMsg($"SECO-1: {(o.Peri / 1000):F0} x {(o.Apo / 1000):F0} км, V={vt:F0} м/с", 2);
@@ -138,8 +146,8 @@ public static class Guide {
             }
             double vt = (v.X * v.Vy - v.Y * v.Vx) / v.R, aR = Const.MU / (v.R * v.R) - vt * vt / v.R;
             if (vrIn < 5 + Math.Max(aR, 0) * Propellant.SettleLeft(v) && h > 100e3) {
-                v.Mode = "circ"; v.Ign = true; v.NEng = 3; v.Throttle = 1; v.PeriPrev = -1e12;
-                sim.LogMsg("Круговое довыведение: включение трёх вакуумных двигателей", 1);
+                v.Mode = "circ"; v.Ign = true; v.NEng = 1; v.Throttle = 1; v.PeriPrev = -1e12;
+                sim.LogMsg("Орбитальный импульс: включение одного двигателя уровня моря", 1);
             }
             if (h < 100e3 && vrIn < 0) {
                 v.Mode = "entryS";
@@ -151,10 +159,9 @@ public static class Guide {
             Vec2 e = v.East;
             double s2 = Math.Sign(v.VHor != 0 ? v.VHor : 1);
             v.ThCmd = Guidance.PitchOf(new Vec2(e.X * s2, e.Y * s2), v);
-            double periLeft = sim.TargetPeri - 8e3 - o.Peri;
-            if (periLeft < Const.CIRC_ONE) v.NEng = 1;
+            double periGoal = Math.Min(sim.TargetPeri - 8e3, o.Apo - 5e3), periLeft = periGoal - o.Peri;
             v.Throttle = Const.Clamp(periLeft / Const.CIRC_TAPER, 0.4, 1);
-            if (o.Peri >= sim.TargetPeri - 8e3 || v.Prop < 0.03 * v.PropMax) {
+            if (o.Peri >= periGoal || v.Prop < 0.03 * v.PropMax) {
                 v.Ign = false; v.NEng = 0; v.Mode = "orbit";
             }
             break;
@@ -168,6 +175,7 @@ public static class Guide {
             v.ThCmd = (v.SeekPad && !double.IsNaN(v.DeoMiss) && Math.Abs(v.DeoMiss) < Const.DEO_TURN)
                       ? Guidance.AimRetro(v) : Guidance.AimPro(v);
             if (!v.SeekPad) break;
+            if (!sim.Events.TryGetValue("orbMsg" + v.Tag, out double tOrb) || sim.T - tOrb < Const.DEO_REVS * o.Per) break;
             v.DeoAcc += dt;
             if (v.DeoAcc > 3) {
                 v.DeoAcc = 0;
@@ -200,7 +208,7 @@ public static class Guide {
                 sim.LogMsg($"К: тормозной импульс {v.DeoLeft:F1} м/с" +
                            (v.DeoAuto ? " — наведение на башню" : " — ручной сход, перигей 35 км"), 1);
             }
-            v.Ign = true; v.NEng = 3;
+            v.Ign = true; v.NEng = 1;
             v.DvBurn += v.F / v.Mass * dt;
             v.DeoLeft -= v.F / v.Mass * dt;
             v.DeoAcc += dt;
@@ -371,14 +379,14 @@ public static class Guide {
     }
     private static void PollShip(SimState sim, Vehicle v, string at) {
         if (!v.Catch) return;
-        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBiasAvg);
+        double wind = Math.Abs(sim.Wind.Forecast(Const.CATCH_H) + v.WindBiasAvg) + Const.GO_GUST * sim.Wind.GustSigma(Const.CATCH_H);
         string why = v.Dmg > Const.GO_DMG_S ? $"повреждение теплозащиты {v.Dmg * 100:F0} %"
             : FlapWhy(v) is string fw ? fw
             : v.CtrlK < 1 ? "заедание привода закрылка"
             : v.Prop < Const.GO_PROP_S ? $"топлива на посадку {v.Prop / 1000:F0} т"
-            : wind > Const.GO_WIND ? $"ветер у башни {wind:F0} м/с"
+            : wind > Const.GO_WIND ? $"ветер у башни с порывами {wind:F0} м/с"
             : null;
-        if (why == null) sim.LogMsg($"К: опрос {at} — GO на захват башней, ветер у башни {wind:F0} м/с", 1);
+        if (why == null) sim.LogMsg($"К: опрос {at} — GO на захват башней, ветер у башни с порывами {wind:F0} м/с", 1);
         else Divert(sim, v, Const.SEA_DR, why);
     }
     private static void LatePoll(SimState sim, Vehicle v, double dt) {

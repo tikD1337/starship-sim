@@ -43,6 +43,17 @@ public static class Guidance {
         return new Orbit(a, e, a * (1 + e) - Const.RE, a * (1 - e) - Const.RE,
                          a > 0 ? 2 * Math.PI * Math.Sqrt(a * a * a / Const.MU) : 0);
     }
+    public static double AscentClimb(Vehicle v, double hT, double rpT, double raT, out double vT) {
+        double rT = Const.RE + hT, rp = Const.RE + rpT, ra = Const.RE + raT;
+        double a = (rp + ra) / 2, e = (ra - rp) / (ra + rp);
+        vT = Math.Sqrt(Const.MU * (2 / rT - 1 / a));
+        double vHorT = Math.Sqrt(Const.MU * a * (1 - e * e)) / rT;
+        double vVertT = Math.Sqrt(Math.Max(0, vT * vT - vHorT * vHorT));
+        double spd = Math.Sqrt(v.Vx * v.Vx + v.Vy * v.Vy);
+        double tgo = Math.Max((vT - spd) / Math.Max(v.F / v.Mass, 0.1), Const.ASC_TGO);
+        double dh = hT - v.Alt - v.VVert * tgo;
+        return 6 * dh / (tgo * tgo) - 2 * (vVertT - v.VVert) / tgo;
+    }
     public static double PitchOf(Vec2 d, Vehicle veh) {
         Vec2 u = veh.Up, e = veh.East;
         return Math.Atan2(d.X * e.X + d.Y * e.Y, d.X * u.X + d.Y * u.Y);

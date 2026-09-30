@@ -72,7 +72,7 @@ public sealed class Spec {
         Rings = new[] { (3, 1.02, 0.0), (10, 2.40, 0.0), (20, 3.55, 0.0) },
     };
     public static readonly Spec Ship = new() {
-        Name = "Starship (S)", Dry = 85e3, Prop = 1500e3, Len = 52.1, Dia = 9,
+        Name = "Starship (S)", Dry = 85e3, Prop = 1600e3, Len = 52.1, Dia = 9,
         Eng = RaptorSL, NEng = 3, NVac = 3, NLand = 3, Gimbal = 15 * Const.D2R,
         Rings = new[] { (3, 0.87, 0.0), (3, 3.06, Math.PI / 3) },
     };
