@@ -50,7 +50,7 @@ public static class Const {
         SHIP_ENG_K = 1.3, SHIP_POLE = 0.9, SHIP_KP = 6, SHIP_KD = 4.5, BOOST_KP = 0.9, BOOST_KD = 2.6, SHIP_CATCH_V = 2, SHIP_FINAL_A = 2.5, SHIP_KV = 1.5,
         SHIP_HOLD_DR = 4, SHIP_HOLD_VH = 2, SHIP_HOLD_H = 15, SHIP_WAIT_T = 5;
     public static double SECO_LEAD = 1.8, SECO_PERI = -800e3, DEO_REVS = 5, SECO_H = 150e3, SECO_RP = 0, SECO_SPOOL = 0.28, DEO_PERI = 55e3;
-    public static double CIRC_TAPER = 150e3;
+    public static double CIRC_TAPER = 150e3, ASC_GMAX = 3.6, ASC_GK = 3, ASC_THR = 0.95;
     public const double FLAP_S_FWD = 19.9, FLAP_S_AFT = 36.7;
     public static double FLAP_RE = 0.18, FLAP_SHOCK = 0.36, BURN_EDGE = 6e-7, BURN_HINGE = 1.6e-7, BURN_ROOT = 0.3e-7, GO_FLAP = 0.25;
     public const double FLAP_Y_FWD = 47.64, FLAP_Y_AFT = 5.91;

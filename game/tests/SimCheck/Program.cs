@@ -300,6 +300,7 @@ internal static class Program {
             if (args[k] == "--midt") Const.LAND_B_MID_T = double.Parse(args[k + 1], Inv);
             if (args[k] == "--midk") Const.GF_MID_K = double.Parse(args[k + 1], Inv);
             if (args[k] == "--midv") Const.LAND_B_MID_V = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--ascthr") Const.ASC_THR = double.Parse(args[k + 1], Inv);
             if (args[k] == "--asctaper") Const.ASC_TAPER = double.Parse(args[k + 1], Inv);
             if (args[k] == "--log") showLog = true;
             if (args[k] == "--deploy") deploy = true;
@@ -456,6 +457,8 @@ internal static class Program {
                 if (ob.Apo > apoMax && ob.Apo < 5e7) apoMax = ob.Apo;
                 if (s.Mode == "orbit" && s.F < 1e3 && double.IsNaN(orbPeri)) { orbPeri = ob.Peri; orbApo = ob.Apo; }
             }
+            if (ascDbg && s.Mode == "ascent2" && !s.Attached && i % 50 == 0 && i % 500 != 0)
+                Console.Error.WriteLine($"ACC t={sim.T:F1} acc={s.Acc:F2}g thr={s.Throttle:F2} n={s.NRun} m={(s.Mass / 1000):F0}t");
             if (ascDbg && (s.Mode == "ascent2" || s.Mode == "coastS" || s.Mode == "circ") && i % 500 == 0) {
                 Orbit oo = Guidance.Orb(s);
                 Console.Error.WriteLine($"ASC t={sim.T:F0} {s.Mode} h={(s.Alt/1000):F1} v={s.Speed:F0}"
@@ -474,7 +477,7 @@ internal static class Program {
                     + $" tc={(b.ThCmd*Const.R2D):F2} n={b.NRun} thr={b.Throttle:F2}"
                     + $" wind={b.WindE:F1} q={(b.Q/1000):F1} aoa={(b.AoaDev*Const.R2D):F1}"
                     + $" bank={(b.Bank*Const.R2D):F0} fin={b.Fin:F2} v={b.Speed:F0}"
-                    + $" sl={b.SloshY[0]:F2} st={(b.SloshT/1e6):F1} ax={b.AAx:F0} om={(b.Om*Const.R2D):F1}");
+                    + $" sl={b.SloshY[0]:F2} st={(b.SloshT/1e6):F1} ax={b.AAx:F0} om={(b.Om*Const.R2D):F1} ct={b.CutT:F2} nvv={b.NVv:F1} lc={b.LandCut}");
             if (lndDbg && (s.Mode == "entryS" && s.Alt < 6000 || s.Mode == "flipS" || s.Mode == "landS")
                 && i % (s.Mode == "flipS" ? 10 : 50) == 0)
                 Console.Error.WriteLine($"LND t={sim.T:F1} {s.Mode} h={s.Alt:F0} vv={s.VVert:F1}"

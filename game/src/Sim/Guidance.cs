@@ -366,7 +366,6 @@ public static class Guidance {
                    : v.NEng > 0 && v.NEng <= Const.LAND_B_MID || need <= Const.LAND_B_MID ? Math.Min(Const.LAND_B_MID, nEng) : nEng;
             if (v.NEng > Const.LAND_B_MID && nb < Const.LAND_B_MID && nEng > Const.LAND_B_MID) nb = Const.LAND_B_MID;
             if (v.NEng == Const.LAND_B_MID && nb < v.NEng && v.CutT < Const.LAND_B_MID_T && e.Vv < -Const.LAND_B_MID_V) nb = v.NEng;
-            if (nb != v.NEng) v.CutT = 0;
             if (!v.Catch && nb <= Const.LAND_B_END)
                 while (nb > 1 && nb * e.FOne * Const.LAND_THR_MIN > v.Mass * e.G * 0.95) nb--;
             if (v.Catch && nb <= Const.LAND_B_END && nb > 1 && v.NRun == nb && e.DhS > 0 && e.Vv > -0.5
@@ -522,15 +521,19 @@ public static class Guidance {
             ShipApproach(sim, v, e, nEng, dt);
             return;
         }
+        int was = v.NEng;
         v.NEng = EnginesFor(v, e, nEng, dt);
+        bool planned = false;
         if (v.Kind == Kind.Booster && v.Catch && e.DhS > Const.GF_GATE_B) {
             if (double.IsNaN(v.GfIgn) && v.NRun > 0) { v.GfIgn = sim.T; v.GfAll = nEng; }
             int keep = v.NEng;
             bool after = sim.T >= v.GfSwitch;
             if (!double.IsNaN(v.GfSwitch)) v.NEng = after ? Math.Min(v.NEng, Const.LAND_B_MID) : v.GfAll;
-            if (!after && GfoldBurn(sim, v, e, Const.GF_GATE_B, Const.GF_VGATE_B)) return;
-            if (!after) v.NEng = keep;
+            planned = !after && GfoldBurn(sim, v, e, Const.GF_GATE_B, Const.GF_VGATE_B);
+            if (!after && !planned) v.NEng = keep;
         }
+        if (v.Kind == Kind.Booster && v.NEng != was) v.CutT = 0;
+        if (planned) return;
         double fnow = v.NEng * e.FOne;
         v.Throttle = ThrottleFor(v, e, DescentRate(v, e, dt, fnow / v.Mass), fnow);
         AimBody(sim, v, e);

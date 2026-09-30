@@ -108,12 +108,14 @@ internal static partial class Program {
             set.Bias = Guidance.GfoldDrag(b, p, gateH);
             p = Gfold.Replan(set, p.Nodes, 6, 80);
         }
-        double t0 = sim.T, h0 = b.Alt, v0 = b.VVert, servo = 0;
+        double t0 = sim.T, h0 = b.Alt, v0 = b.VVert, servo = 0, fWant = 0, kF = 1;
         while (p.Status == SocpStatus.Optimal && sim.T - t0 < p.Time) {
             var c = p.At(sim.T - t0 + Const.GF_LEAD);
             double f1 = Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(b.Alt).P;
             b.NEng = ne;
-            b.Throttle = Math.Clamp(Math.Sqrt(c.Ux * c.Ux + c.Uy * c.Uy) * b.Mass / (ne * f1), Const.LAND_THR_MIN, 1);
+            if (fWant > 0 && b.F > 0) kF = Math.Clamp(kF + 2 * Const.DT * (fWant - b.F) / fWant, 0.8, 1.25);
+            fWant = Math.Sqrt(c.Ux * c.Ux + c.Uy * c.Uy) * b.Mass;
+            b.Throttle = Math.Clamp(fWant / (ne * f1) * kF, Const.LAND_THR_MIN, 1);
             double dir = Math.Atan2(c.Ux, c.Uy);
             servo += 0.5 * (dir - Vehicle.AngDiff(b.Th, 0) - b.Gimbal) * Const.DT;
             b.ThCmd = dir - Guidance.GimTrim(b) + servo;
