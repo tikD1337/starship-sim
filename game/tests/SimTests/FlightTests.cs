@@ -57,6 +57,7 @@ internal static partial class Program {
         Marks(nom, checks);
         MaxQAtPeak(nom, checks);
         FiveOrbits(nom, checks);
+        AscentG(nom, checks);
         SecoCoast(nom, checks);
         OneEngineBurns(nom, checks);
         BoosterReturn(nom, checks);
@@ -138,31 +139,46 @@ internal static partial class Program {
             ("довыведение и сход — один двигатель уровня моря", circMax == 1 && deoMax == 1 && !vac)));
     }
     private static void SecoCoast(Run n, List<Action> checks) {
-        double tSeco = double.NaN, hSeco = 0, pSeco = 0, tOrb = double.NaN;
+        double tSeco = double.NaN, hSeco = 0, pSeco = 0, tOrb = double.NaN, tMeco = double.NaN;
         string prev = "";
         n.Each(() => {
+            if (n.B.Mode == "meco" && double.IsNaN(tMeco)) tMeco = n.Sim.T;
             if (prev == "ascent2" && n.S.Mode == "coastS") { tSeco = n.Sim.T; hSeco = n.S.Alt; pSeco = Guidance.Orb(n.S).Peri; }
             if (n.S.Mode == "orbit" && double.IsNaN(tOrb)) tOrb = n.Sim.T;
             prev = n.S.Mode;
         });
-        checks.Add(() => Group("выведение как у IFT-14: отсечка до апогея, долгий полёт к довыведению",
-            $"отсечка T+{N(tSeco)} на {N(hSeco / 1000)} км, перигей {N(pSeco / 1000)} км; орбита через {N((tOrb - tSeco) / 60)} мин",
+        checks.Add(() => Group("выведение как у IFT-14: MECO и отсечка в срок, отсечка до апогея, долгий полёт к довыведению",
+            $"MECO T+{N(tMeco)}, отсечка T+{N(tSeco)} на {N(hSeco / 1000)} км, перигей {N(pSeco / 1000)} км; орбита через {N((tOrb - tSeco) / 60)} мин",
+            ("MECO на 2:15…2:25 (IFT-13 — 2:18, IFT-14 — 2:20)", tMeco >= 135 && tMeco <= 145),
+            ("отсечка на 8:00…8:20 (IFT-13 — 8:05, IFT-14 — 8:10)", tSeco >= 480 && tSeco <= 500),
             ("отсечка на 140…160 км", hSeco > 140e3 && hSeco < 160e3),
             ("перигей отсечки ниже 50 км — без довыведения корабль вернётся", pSeco < 50e3),
             ("до орбиты 12…22 мин (IFT-14 — 17)", tOrb - tSeco > 12 * 60 && tOrb - tSeco < 22 * 60)));
     }
+    private static void AscentG(Run n, List<Action> checks) {
+        double bG = 0, sG = 0;
+        n.Each(() => {
+            if (n.B.Mode == "ascent" && n.Sim.T > 10) bG = Math.Max(bG, n.B.Acc);
+            if (n.S.Mode == "ascent2" && !n.S.Attached) sG = Math.Max(sG, n.S.Acc);
+        });
+        checks.Add(() => Group("выведение не тяжелее 3,6 g", $"ускоритель до {N(bG)} g, корабль до {N(sG)} g",
+            ("ускоритель до MECO", bG <= 3.6 * 1.02), ("корабль до отсечки", sG <= 3.6 * 1.02)));
+    }
     private static void FiveOrbits(Run n, List<Action> checks) {
-        double tDeo = double.NaN, per = double.NaN;
+        double tDeo = double.NaN, per = double.NaN, tIgn = double.NaN, tFlip = double.NaN;
         n.Each(() => {
             if (n.S.Mode == "orbit" && double.IsNaN(per)) per = Guidance.Orb(n.S).Per;
             if (n.S.Mode == "deorbit" && double.IsNaN(tDeo)) tDeo = n.Sim.T;
+            if (n.S.Mode == "deorbit" && n.S.NRun > 0 && double.IsNaN(tIgn)) tIgn = n.Sim.T;
+            if (n.S.Mode == "flipS" && double.IsNaN(tFlip)) tFlip = n.Sim.T;
         });
         checks.Add(() => {
             double tOrb = n.Sim.Events.TryGetValue("orbMsg" + n.S.Tag, out double t) ? t : double.NaN;
-            double revs = (tDeo - tOrb) / per;
-            Group("сход с орбиты после пяти витков, как у IFT-14", $"выход на орбиту T+{N(tOrb)}, сход T+{N(tDeo)} — {N(revs)} витка",
+            double revs = (tDeo - tOrb) / per, down = (tFlip - tIgn) / 60;
+            Group("сход с орбиты после пяти витков и спуск как у IFT-14", $"выход на орбиту T+{N(tOrb)}, сход T+{N(tDeo)} — {N(revs)} витка; от зажигания до переворота {N(down)} мин",
                   ("не раньше пяти витков", revs >= 5),
                   ("в ближайшее окно после них", revs < 6.2),
+                  ("от зажигания схода до переворота 53…60 мин (IFT-14: план 57,6, факт ~56)", down > 53 && down < 60),
                   ("корабль пойман", n.S.Caught));
         });
     }
@@ -195,9 +211,11 @@ internal static partial class Program {
         var got = runs.Select(x => {
             Vehicle s = x.R.S;
             double seco = double.NaN, apo = double.NaN, peri = double.NaN;
+            bool cut = false;
             string was = "";
             x.R.Each(() => {
-                if (was == "ascent2" && s.Mode != "ascent2") seco = Guidance.Orb(s).Apo;
+                if (was == "ascent2" && s.Mode != "ascent2") cut = true;
+                if (cut && double.IsNaN(seco) && s.F < 1e3) seco = Guidance.Orb(s).Apo;
                 if (was != "orbit" && s.Mode == "orbit" && double.IsNaN(apo)) { Orbit o = Guidance.Orb(s); apo = o.Apo; peri = o.Peri; }
                 was = s.Mode;
             });
@@ -431,7 +449,7 @@ internal static partial class Program {
         Vehicle b = n.B;
         SimState sim = n.Sim;
         bool back = false, coast = false, over = false, off = false;
-        double lit = 0, hIgn = double.NaN, vIgn = double.NaN, tIgn = double.NaN, qDesc = 0, g = 0, t13 = 0, tCatch = double.NaN, v1000 = double.NaN, miss = double.NaN;
+        double lit = 0, hIgn = double.NaN, vIgn = double.NaN, tIgn = double.NaN, qDesc = 0, g = 0, t13 = 0, t5 = 0, vUp = double.NegativeInfinity, v53 = double.NaN, tCatch = double.NaN, v1000 = double.NaN, miss = double.NaN;
         int nIgn = 0, nLast = 0;
         var counts = new SortedSet<int>();
         n.Each(() => {
@@ -450,6 +468,9 @@ internal static partial class Program {
                 if (double.IsNaN(hIgn)) { hIgn = b.Alt; nIgn = b.NRun; tIgn = sim.T; vIgn = b.Speed; }
                 g = Math.Max(g, b.Acc);
                 if (b.NRun == 13) t13 += Const.DT;
+                if (b.NRun == 5) t5 += Const.DT;
+                if (nLast == 5 && b.NRun == 3 && double.IsNaN(v53)) v53 = b.VVert;
+                vUp = Math.Max(vUp, b.VVert);
                 counts.Add(b.NRun);
                 nLast = b.NRun;
             }
@@ -461,13 +482,14 @@ internal static partial class Program {
                   ("между импульсом и жигой не работал ни один двигатель", lit == 0),
                   ("напор на спуске ниже предела конструкции", qDesc < 200e3));
             Group("посадочная жига ускорителя как у пятого полёта (пункт 48)",
-                  $"с {N(hIgn)} м при {N(vIgn * 3.6)} км/ч, 13 двигателей {N(t13)} с, {N(g)} g, до захвата {N(tCatch - tIgn)} с",
+                  $"с {N(hIgn)} м при {N(vIgn * 3.6)} км/ч, 13 двигателей {N(t13)} с, 5 — {N(t5)} с, 5→3 на {N(v53)} м/с, {N(g)} g, до захвата {N(tCatch - tIgn)} с",
                   ("зажигание на 500…2000 м", hIgn > 500 && hIgn < 2000),
                   ("при 1100…1400 км/ч (пятый полёт ~1250)", vIgn * 3.6 >= 1100 && vIgn * 3.6 <= 1400),
-                  ("13 двигателей, потом 3 — и только они", nIgn == 13 && nLast == 3 && counts.SetEquals(new[] { 13, 3 })),
+                  ("13, потом 5, потом 3 — и только они (IFT-14)", nIgn == 13 && nLast == 3 && counts.SetEquals(new[] { 13, 5, 3 })),
+                  ("5 горят 3…10 с, отдают тройке на медленном спуске и не поднимают ускоритель", t5 >= 3 && t5 <= 10 && v53 > -12 && vUp < 0.5),
                   ("13 горят 4…9 с (пятый полёт — чуть больше 5, у Block 3 вся жига 25 с)", t13 >= 4 && t13 <= 9),
                   ("перегрузка не выше 6 g", g <= 6),
-                  ("от зажигания до захвата не больше 31 с", tCatch - tIgn <= 31));
+                  ("от зажигания до захвата 17…31 с (ловли 24–28 с — с уводом от моря к башне, его у нас нет)", tCatch - tIgn >= 17 && tCatch - tIgn <= 31));
             Group("ускоритель пойман и стоит", $"промах {N(miss)} м, через 1000 с {N(v1000 * 3.6)} км/ч",
                   ("пойман", b.Caught),
                   ("конец полёта записан в события в момент захвата", sim.Events.TryGetValue("overБ", out double t) && Math.Abs(t - tCatch) < 0.05),
@@ -652,8 +674,8 @@ internal static partial class Program {
         SimState sim = n.Sim;
         var arc = new Arc("orbital");
         Rail.Mark[] r100 = null, r600 = null;
-        bool[] p140 = null;
-        double f140 = double.NaN, f470 = double.NaN;
+        bool[] p150 = null;
+        double f150 = double.NaN, f470 = double.NaN;
         int first470 = -1;
         bool caught470 = false;
         n.Each(() => {
@@ -661,7 +683,7 @@ internal static partial class Program {
             arc.Track(sim);
             if (r100 == null && sim.T >= 100) r100 = Rail.Of(sim);
             if (r600 == null && sim.T >= 600) r600 = Rail.Of(sim);
-            if (p140 == null && sim.T >= 140) { p140 = (bool[])arc.Passed.Clone(); f140 = arc.Frac(sim.T); }
+            if (p150 == null && sim.T >= 150) { p150 = (bool[])arc.Passed.Clone(); f150 = arc.Frac(sim.T); }
             if (first470 < 0 && sim.T >= 470) {
                 f470 = arc.Frac(sim.T);
                 first470 = arc.First;
@@ -671,12 +693,12 @@ internal static partial class Program {
         });
         checks.Add(() => {
             int sc = Array.IndexOf(arc.Names, "сход с орбиты");
-            Group("лента и дуга эфира идут за полётом", $"T+140: метка {N(f140)}; T+470: {N(f470)}, вехи с {first470}; после орбиты: {string.Join(", ", r600.Select(m => m.Name + (m.Past ? "✓" : "")))}",
+            Group("лента и дуга эфира идут за полётом", $"T+150: метка {N(f150)}; T+470: {N(f470)}, вехи с {first470}; после орбиты: {string.Join(", ", r600.Select(m => m.Name + (m.Past ? "✓" : "")))}",
                   ("на ленте четыре вехи, на T+100 пройдены старт и max Q, следующая — разделение",
                    r100.Length == 4 && r100[0].Past && r100[1].Past && !r100[2].Past && r100[2].Next && !r100[3].Past && !r100[3].Next),
                   ("после выхода на орбиту следующая — сход с орбиты", r600.Any(m => m.Name == "сход с орбиты" && !m.Past)),
-                  ("на T+140 дуга прошла старт, max Q и разделение, но не SECO", p140[0] && p140[1] && p140[2] && !p140[4] && !p140[5]),
-                  ("метка на T+140 внутри дуги", f140 > 0.35 && f140 < 0.8),
+                  ("на T+150 дуга прошла старт, max Q и разделение, но не SECO", p150[0] && p150[1] && p150[2] && !p150[4] && !p150[5]),
+                  ("метка на T+150 внутри дуги", f150 > 0.35 && f150 < 0.8),
                   ("на T+470 ускоритель пойман, но дуга не кончилась", caught470 && f470 < 0.9),
                   ("окно дуги сдвинулось к сходу с орбиты", first470 > 0 && first470 + arc.Shown > sc));
         });

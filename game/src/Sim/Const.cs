@@ -15,14 +15,14 @@ public static class Const {
     public static double LAND_KDAMP = 2.4, LAND_TILT_END = 7, LAND_DH_END = 18;
     public static double LAND_POLE = 0.43, LAND_B_GMAX = 6;
     public const double LAND_CUT2 = 9, LAND_CUT_HOLD = 0.8;
-    public const int LAND_B_END = 3;
+    public const int LAND_B_END = 3, LAND_B_MID = 5;
     public static double LAND_THR_MIN = 0.40, LAND_PROJ = 0.5;
     public static double LAND_WIND_K = 2.0, LAND_WIND_H = 3000;
     public const double DECK_H = 16, MOUNT_R = 23, COAST_DR = 700, LAND_W = 30000, SEA_DR = 6000;
     public static double GO_MISS_B = 1500, GO_PROP_B = 75e3, GO_PROP_S = 25e3, GO_DMG_S = 0.15, GO_WIND = 20, GO_GUST = 1,
         GO_POLL_H = 3000, WAIT_MAX = 12, TIP_K = 0.4, REACH_S = 500, REACH_B = 700, RELIGHT_P = 0.02;
     public static double DIV_V = 20, DIV_T = 10, DIV_MARGIN = 1.05, DIV_RESERVE = 2e3;
-    public static double GF_RATE = 0.5, GF_LEAD = 0.4, GF_GATE_B = 40, GF_VGATE_B = 13.6, GF_TILT = 20, GF_GLIDE = 45,
+    public static double GF_RATE = 0.5, GF_MID_K = 0.8, LAND_B_MID_T = 6, LAND_B_MID_V = 10, GF_LEAD = 0.4, GF_GATE_B = 40, GF_VGATE_B = 13.6, GF_TILT = 20, GF_GLIDE = 45,
         GF_MIN_TTG = 2, GF_PERIOD = 1, GF_KP = 0.36, GF_KD = 0.96, GF_RESERVE = 3e3, GF_MARGIN = 0.9, GF_GSPARE = 0.5;
     public static readonly double[] GF_SWITCH = { 4, 5, 6, 7, 8, 9 };
     public static double ASC_CLEAR_H = 87, ASC_Q_IN = 25.5e3, ASC_Q_OUT = 24.5e3,
@@ -32,7 +32,7 @@ public static class Const {
         NAV_RHO_H = 60e3, NAV_RHO_Q = 2000, NAV_RHO_TAU = 3;
     public const double TILE_CAP = 6000, SKIN_CAP = 15800, BODY_CAP = 160e3, TILE_LIMIT = 1700,
         SKIN_LIMIT = 1100, TILE_EPS = 0.85, SKIN_EPS = 0.45, LEE_SHADE = 0.03, BURN_RATE = 1.2e-6,
-        ENTRY_BANK0 = 45;
+        ENTRY_BANK0 = 25;
     public static double ENTRY_KB = 6e-5, ENTRY_GAIN = 0.5, ENTRY_TRIM_LO = -18, ENTRY_TRIM_HI = 8, ENTRY_TRIM_STEP = 1, ENTRY_SLOPE_MIN = 50;
     public const double BANK_RATE = 8, BANK_SMOOTH = 0.35, ALPHA_RATE = 1.5, ENTRY_PRED_DT = 0.5, ENTRY_SENS_DT = 2;
     public static double FLIP_H = 1500, HOLD_MAX = 2, LAND_STOP_S = 500;
@@ -49,8 +49,8 @@ public static class Const {
     public static double SHIP_ALAT = 6, SHIP_TILT = 25, SHIP_GATE = 40, SHIP_AD = 6, SHIP_AB = 9,
         SHIP_ENG_K = 1.3, SHIP_POLE = 0.9, SHIP_KP = 6, SHIP_KD = 4.5, BOOST_KP = 0.9, BOOST_KD = 2.6, SHIP_CATCH_V = 2, SHIP_FINAL_A = 2.5, SHIP_KV = 1.5,
         SHIP_HOLD_DR = 4, SHIP_HOLD_VH = 2, SHIP_HOLD_H = 15, SHIP_WAIT_T = 5;
-    public static double SECO_LEAD = 1.8, SECO_PERI = -800e3, DEO_REVS = 5, SECO_H = 150e3, SECO_RP = 0, SECO_SPOOL = 0.28;
-    public static double CIRC_TAPER = 150e3;
+    public static double SECO_LEAD = 1.8, SECO_PERI = -800e3, DEO_REVS = 5, SECO_H = 150e3, SECO_RP = 0, SECO_SPOOL = 0.28, DEO_PERI = 55e3;
+    public static double CIRC_TAPER = 150e3, ASC_GMAX = 3.6, ASC_GK = 3, ASC_THR = 0.95;
     public const double FLAP_S_FWD = 19.9, FLAP_S_AFT = 36.7;
     public static double FLAP_RE = 0.18, FLAP_SHOCK = 0.36, BURN_EDGE = 6e-7, BURN_HINGE = 1.6e-7, BURN_ROOT = 0.3e-7, GO_FLAP = 0.25;
     public const double FLAP_Y_FWD = 47.64, FLAP_Y_AFT = 5.91;

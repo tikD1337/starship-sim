@@ -131,11 +131,18 @@ public static class EngineSet {
             for (int j = 0; j < n; j++) outp[k++].Arm = r * Math.Cos(2 * Math.PI * j / n + phase);
         return outp;
     }
+    private static readonly int[] BoosterOrder = Order(33, 0, 1, 2, 3, 8, 4, 9, 5, 10, 6, 11, 7, 12), ShipOrder = Order(6);
+    private static int[] Order(int n, params int[] head) {
+        var o = new List<int>(head);
+        for (int i = 0; i < n; i++) if (!o.Contains(i)) o.Add(i);
+        return o.ToArray();
+    }
     public static void Update(Vehicle v, double dt, double pa) {
         int n = v.Ign && !v.IgnHold ? v.NEng : 0;
         double thr = v.Ign ? Const.Clamp(v.Throttle, 0, 1) : 0;
         int live = 0;
-        foreach (Engine e in v.Eng) {
+        foreach (int i in v.Kind == Kind.Booster ? BoosterOrder : ShipOrder) {
+            Engine e = v.Eng[i];
             bool want = !e.Failed && live < n && v.Ign && Relights(v, e);
             if (want) live++;
             e.Update(dt, pa, thr, want);

@@ -24,8 +24,9 @@ public static class Guide {
             v.ThCmd = h < Const.ASC_CLEAR_H ? 0 : Guidance.PitchProg(sp);
             if (v.Q > Const.ASC_Q_IN) v.QDown = true;
             else if (v.Q < Const.ASC_Q_OUT) v.QDown = false;
-            v.Throttle = !v.QDown ? 1 : v.Q > 32e3 ? 0.74 : 0.86;
-            if (v.Acc > 3.6) v.Throttle = Const.Clamp(v.Throttle * 3.6 / v.Acc, 0.4, 1);
+            double thr0 = v.Throttle;
+            v.Throttle = Math.Min(Const.ASC_THR, !v.QDown ? 1 : v.Q > 32e3 ? 0.74 : 0.86);
+            v.Throttle = Math.Min(v.Throttle, GLimit(v, thr0, 0.4, dt));
             if (v.Q < 8e3 && sim.T > 60) sim.Once("maxq-pass");
             if (v.MaxQ > 1e3 && v.Q < v.MaxQ * 0.85)
                 sim.Once("maxq", () => {
@@ -104,8 +105,9 @@ public static class Guide {
             break;
         }
         case "ascent2": {
-            v.Ign = true; v.NEng = 6; v.Throttle = 1;
-            if (v.Acc > 3.6) v.Throttle = Const.Clamp(3.6 / v.Acc, 0.45, 1);
+            double thr0 = v.Throttle;
+            v.Ign = true; v.NEng = 6;
+            v.Throttle = Math.Min(Const.ASC_THR, GLimit(v, thr0, 0.45, dt));
             bool shaped = !double.IsNaN(sim.SecoH);
             double vT = double.NaN, spd = Math.Sqrt(v.Vx * v.Vx + v.Vy * v.Vy);
             double aV = Const.Clamp(shaped ? Guidance.AscentClimb(v, sim.SecoH, Const.SECO_RP, sim.TargetApo, out vT)
@@ -181,7 +183,7 @@ public static class Guide {
                 v.DeoAcc = 0;
                 double wait = Propellant.SettleLeft(v);
                 (Vec2 bp, Vec2 bv) = Guidance.Coast(v, wait);
-                double dv = Guidance.DeorbitDv(bp, bv, Const.RE + 35e3);
+                double dv = Guidance.DeorbitDv(bp, bv, Const.RE + Const.DEO_PERI);
                 EntryPred p = Guidance.PredictEntry(sim, v, dv, 62, Const.ENTRY_BANK0, wait);
                 double prev = v.DeoMiss;
                 v.DeoMiss = p.Miss;
@@ -319,6 +321,8 @@ public static class Guide {
             break;
         }
     }
+    private static double GLimit(Vehicle v, double thr0, double lo, double dt) =>
+        v.Acc > 0.1 ? Const.Clamp(thr0 + Math.Min(1, Const.ASC_GK * dt) * (thr0 * Const.ASC_GMAX / v.Acc - thr0), lo, 1) : 1;
     private static void DescentB(SimState sim, Vehicle v, double dt) {
         v.PredAcc += dt;
         if (v.Alt > Const.BOOST_STRAIGHT_H) {

@@ -295,6 +295,12 @@ internal static class Program {
             if (args[k] == "--secoh") Const.SECO_H = double.Parse(args[k + 1], Inv);
             if (args[k] == "--secorp") Const.SECO_RP = double.Parse(args[k + 1], Inv);
             if (args[k] == "--asctgo") Const.ASC_TGO = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--deoperi") Const.DEO_PERI = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--sdry") Spec.Ship.Dry = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--midt") Const.LAND_B_MID_T = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--midk") Const.GF_MID_K = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--midv") Const.LAND_B_MID_V = double.Parse(args[k + 1], Inv);
+            if (args[k] == "--ascthr") Const.ASC_THR = double.Parse(args[k + 1], Inv);
             if (args[k] == "--asctaper") Const.ASC_TAPER = double.Parse(args[k + 1], Inv);
             if (args[k] == "--log") showLog = true;
             if (args[k] == "--deploy") deploy = true;
@@ -345,7 +351,8 @@ internal static class Program {
         bool fine = Array.IndexOf(args, "--fine") >= 0;
         double sepV = double.NaN, apoMax = 0, qPeak = 0, aPeak = 0, bkPeak = 0, cmPeak = 0, mPeak = 0;
         double orbPeri = double.NaN, orbApo = double.NaN;
-        double burnT = 0, holdT = 0, sBurnT = 0, omMax = 0, omSum = 0, devMax = 0;
+        double burnT = 0, holdT = 0, sBurnT = 0, omMax = 0, omSum = 0, devMax = 0, sCircT = 0, sDeoT = 0, sDeoDv = 0;
+        double sPoMin = 1e9; string sPoAt = ""; bool sOn = false;
         double bIgnH = double.NaN, bIgnV = double.NaN, b13T = 0, bBurnG = 0;
         double finMax = 0, flapMax = 0;
         double sTouch = double.NaN, bTouch = double.NaN, sVvPrev = 0, bVvPrev = 0;
@@ -391,6 +398,10 @@ internal static class Program {
             }
             if (b.Mode == "landB" && b.Alt - Const.CATCH_H < 40 && !b.Landed) holdT += h;
             if (s.Mode == "landS" && s.Ign) sBurnT += h;
+            if (showLog && !s.Attached && (s.NRun > 0) != sOn) { sOn = s.NRun > 0; Console.Error.WriteLine($"SRUN T+{sim.T:F1} {s.Mode} n={s.NRun} thr={s.Throttle:F2} dv={s.DvBurn:F1}"); }
+            if (s.Mode == "circ" && s.NRun > 0) sCircT += h;
+            if (s.Tanks != null && s.NRun == 0 && s.Alt > 60e3 && !s.Attached && s.Tanks.O.P < sPoMin) { sPoMin = s.Tanks.O.P; sPoAt = $"{s.Mode}@T+{sim.T:F0} h={s.Alt / 1000:F0}km fill={s.Fill:F3} copv={s.Tanks.Copv:F0}kg"; }
+            if (s.Mode == "deorbit" && s.NRun > 0) { sDeoT += h; sDeoDv += s.F / s.Mass * h; }
             if (s.Mode == "flipS" && double.IsNaN(sDrFlip)) { sDrFlip = sim.Downrange(s) + Const.FLIP_D - s.AimDr; sVhFlip0 = s.VHor; }
             if (s.Mode == "flipS" || s.Mode == "landS") {
                 double vh = Math.Abs(s.VHor);
@@ -446,6 +457,8 @@ internal static class Program {
                 if (ob.Apo > apoMax && ob.Apo < 5e7) apoMax = ob.Apo;
                 if (s.Mode == "orbit" && s.F < 1e3 && double.IsNaN(orbPeri)) { orbPeri = ob.Peri; orbApo = ob.Apo; }
             }
+            if (ascDbg && s.Mode == "ascent2" && !s.Attached && i % 50 == 0 && i % 500 != 0)
+                Console.Error.WriteLine($"ACC t={sim.T:F1} acc={s.Acc:F2}g thr={s.Throttle:F2} n={s.NRun} m={(s.Mass / 1000):F0}t");
             if (ascDbg && (s.Mode == "ascent2" || s.Mode == "coastS" || s.Mode == "circ") && i % 500 == 0) {
                 Orbit oo = Guidance.Orb(s);
                 Console.Error.WriteLine($"ASC t={sim.T:F0} {s.Mode} h={(s.Alt/1000):F1} v={s.Speed:F0}"
@@ -464,7 +477,7 @@ internal static class Program {
                     + $" tc={(b.ThCmd*Const.R2D):F2} n={b.NRun} thr={b.Throttle:F2}"
                     + $" wind={b.WindE:F1} q={(b.Q/1000):F1} aoa={(b.AoaDev*Const.R2D):F1}"
                     + $" bank={(b.Bank*Const.R2D):F0} fin={b.Fin:F2} v={b.Speed:F0}"
-                    + $" sl={b.SloshY[0]:F2} st={(b.SloshT/1e6):F1} ax={b.AAx:F0} om={(b.Om*Const.R2D):F1}");
+                    + $" sl={b.SloshY[0]:F2} st={(b.SloshT/1e6):F1} ax={b.AAx:F0} om={(b.Om*Const.R2D):F1} ct={b.CutT:F2} nvv={b.NVv:F1} lc={b.LandCut}");
             if (lndDbg && (s.Mode == "entryS" && s.Alt < 6000 || s.Mode == "flipS" || s.Mode == "landS")
                 && i % (s.Mode == "flipS" ? 10 : 50) == 0)
                 Console.Error.WriteLine($"LND t={sim.T:F1} {s.Mode} h={s.Alt:F0} vv={s.VVert:F1}"
@@ -504,6 +517,7 @@ internal static class Program {
                                 $"bMode={b.Mode} bMiss={sim.Downrange(b):F1}m sMode={s.Mode} sMiss={sim.Downrange(s) / 1000:F1}km");
         Console.Error.WriteLine($"PEAK sQ={qPeak / 1000:F1}kPa alpha={aPeak:F1}deg bank={bkPeak:F1}deg " +
                                 $"cm={cmPeak:F2}m mass={mPeak / 1000:F1}t sDry={s.Dry / 1000:F1}t sats={s.BayS?.Sats}");
+        Console.Error.WriteLine($"ORBIT sCirc={sCircT:F1}s sDeo={sDeoT:F1}s sDeoDv={sDeoDv:F1}m/s sPoMin={sPoMin / 1000:F1}kPa at {sPoAt}");
         Console.Error.WriteLine($"BURN bBurn={burnT:F1}s bHold={holdT:F1}s sBurn={sBurnT:F1}s " +
                                 $"bTouch={Math.Abs(bTouch):F2}m/s sTouch={Math.Abs(sTouch):F2}m/s " +
                                 $"bIgnH={bIgnH:F0}m bIgnV={bIgnV:F0}kmh b13={b13T:F1}s bBurnG={bBurnG:F1}");

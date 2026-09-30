@@ -179,16 +179,17 @@ public static class Guidance {
         double left = v.Gf == null ? double.PositiveInfinity : v.Gf.Time - (sim.T - v.GfT0);
         bool due = v.Gf == null || v.NEng != v.GfN || sim.T >= v.GfNext;
         if (due && left > Const.GF_MIN_TTG && sim.T >= v.GfNext - (v.Gf == null ? 0 : Const.GF_PERIOD)) {
-            int n = v.NEng, nb = Math.Min(v.GfAll, Const.LAND_B_END);
+            int n = v.NEng, nm = Math.Min(v.GfAll, Const.LAND_B_MID);
             double f1 = e.FOne, mg = v.Gf == null ? Const.GF_MARGIN : 1;
             GfoldSetup set = GfoldBase(v, x, y, vx, vy, n, f1, e.G - Const.W * Const.W * v.R, vGate);
             if (v.Kind == Kind.Booster && mg >= 1) set.AccMax = Const.LAND_B_GMAX * Const.G0;
+            (double At, double Rho1, double Rho2, double Rate) Stage(double at, int k) => (at, k * Const.LAND_THR_MIN * f1, k * mg * f1, k * Const.GF_RATE * f1);
             void Group(double sw) {
-                bool two = v.Kind == Kind.Booster && sw > 0 && v.GfAll > nb;
-                int k = two ? v.GfAll : n;
-                set.Rho1 = k * Const.LAND_THR_MIN * f1; set.Rho2 = k * mg * f1; set.Rate = k * Const.GF_RATE * f1;
-                set.Switch = two ? sw : double.NaN;
-                set.Rho1B = nb * Const.LAND_THR_MIN * f1; set.Rho2B = nb * mg * f1; set.RateB = nb * Const.GF_RATE * f1;
+                bool two = v.Kind == Kind.Booster && sw > 0 && v.GfAll > nm;
+                var s0 = Stage(0, two ? v.GfAll : n);
+                set.Rho1 = s0.Rho1; set.Rho2 = s0.Rho2; set.Rate = s0.Rate;
+                var mid = Stage(sw, nm);
+                set.Stages = two ? new[] { mid with { Rho2 = mid.Rho2 * Const.GF_MID_K } } : Array.Empty<(double, double, double, double)>();
             }
             GfoldPlan Attempt() {
                 if (v.Gf != null) {
@@ -210,7 +211,7 @@ public static class Guidance {
                     set.Bias = GfoldDrag(v, p, baseH);
                     return Gfold.Replan(set, p.Nodes, lo, hi);
                 }
-                if (v.Kind != Kind.Booster || !double.IsNaN(v.GfSwitch) || v.GfAll <= nb) {
+                if (v.Kind != Kind.Booster || !double.IsNaN(v.GfSwitch) || v.GfAll <= nm) {
                     Group(v.GfSwitch - sim.T);
                     return First();
                 }
@@ -360,7 +361,11 @@ public static class Guidance {
         for (int k = 1; k <= nEng; k++)
             if (k * e.FOne / v.Mass - e.G >= aNeed * 1.35 + 1.5) { need = k; break; }
         if (v.Kind == Kind.Booster) {
-            int nb = v.NEng > 0 && v.NEng <= Const.LAND_B_END || need <= Const.LAND_B_END ? Math.Min(Const.LAND_B_END, nEng) : nEng;
+            v.CutT += dt;
+            int nb = v.NEng > 0 && v.NEng <= Const.LAND_B_END || need <= Const.LAND_B_END ? Math.Min(Const.LAND_B_END, nEng)
+                   : v.NEng > 0 && v.NEng <= Const.LAND_B_MID || need <= Const.LAND_B_MID ? Math.Min(Const.LAND_B_MID, nEng) : nEng;
+            if (v.NEng > Const.LAND_B_MID && nb < Const.LAND_B_MID && nEng > Const.LAND_B_MID) nb = Const.LAND_B_MID;
+            if (v.NEng == Const.LAND_B_MID && nb < v.NEng && v.CutT < Const.LAND_B_MID_T && e.Vv < -Const.LAND_B_MID_V) nb = v.NEng;
             if (!v.Catch && nb <= Const.LAND_B_END)
                 while (nb > 1 && nb * e.FOne * Const.LAND_THR_MIN > v.Mass * e.G * 0.95) nb--;
             if (v.Catch && nb <= Const.LAND_B_END && nb > 1 && v.NRun == nb && e.DhS > 0 && e.Vv > -0.5
@@ -516,15 +521,19 @@ public static class Guidance {
             ShipApproach(sim, v, e, nEng, dt);
             return;
         }
+        int was = v.NEng;
         v.NEng = EnginesFor(v, e, nEng, dt);
+        bool planned = false;
         if (v.Kind == Kind.Booster && v.Catch && e.DhS > Const.GF_GATE_B) {
             if (double.IsNaN(v.GfIgn) && v.NRun > 0) { v.GfIgn = sim.T; v.GfAll = nEng; }
             int keep = v.NEng;
             bool after = sim.T >= v.GfSwitch;
-            if (!double.IsNaN(v.GfSwitch)) v.NEng = after ? Math.Min(v.NEng, Const.LAND_B_END) : v.GfAll;
-            if (!after && GfoldBurn(sim, v, e, Const.GF_GATE_B, Const.GF_VGATE_B)) return;
-            if (!after) v.NEng = keep;
+            if (!double.IsNaN(v.GfSwitch)) v.NEng = after ? Math.Min(v.NEng, Const.LAND_B_MID) : v.GfAll;
+            planned = !after && GfoldBurn(sim, v, e, Const.GF_GATE_B, Const.GF_VGATE_B);
+            if (!after && !planned) v.NEng = keep;
         }
+        if (v.Kind == Kind.Booster && v.NEng != was) v.CutT = 0;
+        if (planned) return;
         double fnow = v.NEng * e.FOne;
         v.Throttle = ThrottleFor(v, e, DescentRate(v, e, dt, fnow / v.Mass), fnow);
         AimBody(sim, v, e);
