@@ -117,7 +117,7 @@ public sealed class Mission {
                 g.Note = $"промах {miss:F1} м, касание {Math.Abs(vv):F1} м/с, бонус {g.Bonus}";
             }
             else if (g.Note.Length == 0) {
-                g.Note = $"T+{(int)(sim.T / 60):00}:{sim.T % 60:00.0}";
+                g.Note = NumFmt.Clock(sim.T);
             }
         }
         Vehicle b = sim.Veh[0], s2 = sim.Veh[1];
