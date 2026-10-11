@@ -789,6 +789,10 @@ internal static partial class Program {
         cases.Add(("разброс и ветер 15 м/с, зерно 9 (порыв у рук)", new Run(Windy(9, true, 15))));
         foreach (uint seed in new uint[] { 14, 17 }) cases.Add(($"разброс и ветер 22 м/с, зерно {seed}", new Run(Windy(seed, true, 22))));
         cases.Add(("разброс и ветер с моря 20 м/с, зерно 7 («добро» у самого порога)", new Run(Windy(7, true, -20))));
+        SimState highGale = Live(7, true, "high");
+        highGale.Wind = Wind.Steady(-20);
+        highGale.Disp?.ApplyWind(highGale);
+        cases.Add(("высокая орбита, разброс и ветер с моря 20 м/с, зерно 7", new Run(highGale)));
         foreach ((string _, Run r) in cases) { r.Until(() => Run.Over(r.S)); runs.Add(r); }
         checks.Add(() => {
             Head("Живой полёт: разброс и ветер");
