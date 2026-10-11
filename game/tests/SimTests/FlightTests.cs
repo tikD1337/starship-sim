@@ -82,6 +82,7 @@ internal static partial class Program {
         Rails(nom, checks);
         Run gust = Add(Windy(2, true, -18), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
         Arms(gust, checks);
+        Squall(Add(Windy(2, true, -18), r => Run.Over(r.S)), checks);
         checks.Add(() => Head("Высокая орбита и трансатмосферное"));
         ShipDescent(high, "высокая орбита", checks);
         ShipDescent(trans, "трансатмосферное", checks);
@@ -640,6 +641,20 @@ internal static partial class Program {
         sim.T += 0.02;
         Flight.StepVehicle(sim, s, 0.02);
         return s.Caught;
+    }
+    private static void Squall(Run g, List<Action> checks) {
+        SimState sim = g.Sim;
+        Vehicle s = g.S;
+        double t0 = double.NaN, away = 0;
+        bool over = false;
+        g.Each(() => {
+            if (double.IsNaN(t0) && s.Mode == "landS" && s.Alt - Const.CATCH_H < 15) { t0 = sim.T; sim.Wind = Wind.Steady(-32); }
+            if (!over && sim.T - t0 > 8) { over = true; sim.Wind = Wind.Steady(-18); }
+            if (!double.IsNaN(t0) && !s.Caught) away = Math.Max(away, Math.Abs(sim.Downrange(s)));
+        });
+        checks.Add(() => Group("шквал 32 м/с сносит корабль от рук: после него корабль возвращается и пойман",
+            $"снесло на {N(away)} м, К {s.Mode}, топлива {N(s.Prop / 1000)} т",
+            ("шквал действительно снёс", away > 25), ("вернулся и пойман", s.Caught && !s.Crashed)));
     }
     private static void Arms(Run g, List<Action> checks) {
         SimState sim = g.Sim;

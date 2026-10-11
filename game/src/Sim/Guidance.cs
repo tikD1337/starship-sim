@@ -504,7 +504,7 @@ public static class Guidance {
             v.Throttle = Const.Clamp(aZ * v.Mass / (v.NEng * e.FOne * Math.Max(Math.Cos(v.Th), 0.3)), Const.LAND_THR_MIN, 1);
             want = Math.Atan2(aX, aZ);
         }
-        double lim = (e.DhS < Const.LAND_DH_END ? EndTilt(v) : Const.SHIP_TILT) * Const.D2R;
+        double lim = (e.DhS < Const.LAND_DH_END && Math.Abs(e.Dr) < Const.SHIP_FREE_DR ? EndTilt(v) : Const.SHIP_TILT) * Const.D2R;
         v.ThCmd = Const.Clamp(SteerP(v, Const.Clamp(want - GimTrim(v), -lim, lim), Const.SHIP_POLE), -2 * lim, 2 * lim);
     }
     private static int Avail(Vehicle v) {
