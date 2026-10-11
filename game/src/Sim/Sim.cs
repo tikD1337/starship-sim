@@ -218,7 +218,8 @@ public static class Sim {
             if (v.Caught && v.SeekPad && !v.Stowed) { held = v; break; }
         if (held == null)
             foreach (Vehicle v in sim.Veh)
-                if (v.Catch && !v.Landed && !v.Crashed && v.Launched && v.Alt < Const.ARM_APPROACH_H && v.VVert < 0)
+                if (v.Catch && !v.Landed && !v.Crashed && v.Launched && v.Alt < Const.ARM_APPROACH_H
+                    && (v.VVert < 0 || v.Mode == "landB" || v.Mode == "landS"))
                 { serve = v; break; }
         Vehicle at = held ?? serve;
         double armWant = at == null && !b.Launched ? Const.ARM_PARK
