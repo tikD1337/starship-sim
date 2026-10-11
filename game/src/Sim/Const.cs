@@ -17,7 +17,7 @@ public static class Const {
     public const double LAND_CUT2 = 9, LAND_CUT_HOLD = 0.8;
     public const int LAND_B_END = 3, LAND_B_MID = 5;
     public static double LAND_THR_MIN = 0.40, LAND_PROJ = 0.5;
-    public static double LAND_WIND_K = 2.0, LAND_WIND_H = 3000;
+    public static double LAND_WIND_K = 2.6, LAND_WIND_H = 3000;
     public const double DECK_H = 16, MOUNT_R = 23, COAST_DR = 700, LAND_W = 30000, SEA_DR = 6000;
     public static double GO_MISS_B = 1500, GO_PROP_B = 75e3, GO_PROP_S = 25e3, GO_DMG_S = 0.15, GO_WIND = 20, GO_GUST = 1,
         GO_POLL_H = 3000, WAIT_MAX = 12, TIP_K = 0.4, REACH_S = 500, REACH_B = 700, RELIGHT_P = 0.02;

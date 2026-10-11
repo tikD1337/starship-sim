@@ -775,12 +775,13 @@ internal static partial class Program {
         foreach (uint seed in new uint[] { 1, 2 }) cases.Add(($"разброс, зерно {seed}", new Run(Live(seed, true))));
         cases.Add(("разброс и ветер 15 м/с, зерно 9 (порыв у рук)", new Run(Windy(9, true, 15))));
         foreach (uint seed in new uint[] { 14, 17 }) cases.Add(($"разброс и ветер 22 м/с, зерно {seed}", new Run(Windy(seed, true, 22))));
+        cases.Add(("разброс и ветер с моря 20 м/с, зерно 7 («добро» у самого порога)", new Run(Windy(7, true, -20))));
         foreach ((string _, Run r) in cases) { r.Until(() => Run.Over(r.S)); runs.Add(r); }
         checks.Add(() => {
             Head("Живой полёт: разброс и ветер");
             Group("с разбросом обе ступени пойманы", string.Join(", ", cases.Take(3).Select(c => $"{c.Name}: Б {c.R.B.Mode}, К {c.R.S.Mode}")),
                   cases.Take(3).Select(c => (c.Name, c.R.B.Caught && c.R.S.Caught)).ToArray());
-            Group("ветер 22 м/с выше допуска: корабль пойман или приводнился, но не разбит (пункты 63–64)",
+            Group("ветер у допуска и выше: корабль пойман или приводнился, но не разбит (пункты 63–64)",
                   string.Join(", ", cases.Skip(3).Select(c => $"{c.Name}: {c.R.S.Mode}")),
                   cases.Skip(3).Select(c => (c.Name, !c.R.S.Crashed && (c.R.S.Caught || c.R.S.Splash))).ToArray());
         });
