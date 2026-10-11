@@ -92,6 +92,15 @@ internal static partial class Program {
               ("вышел на режим", sea.Spool > 0.99 && sea.F > 1e6),
               ("прибавка в пустоте равна Ae·P₀", Math.Abs((vac.F - sea.F) / (sea.Spec.Ae * Const.P0) - 1) < 0.005),
               ("тяга в пустоте по паспорту", Math.Abs(vac.F / Spec.RaptorSL.Fv - 1) < 0.02));
+        double Off(double pa) {
+            double full = Burning(Kind.Booster, 12, pa).Eng[0].F, worst = 0;
+            foreach (double th in new[] { 0.4, 0.5, 0.6, 0.8 })
+                worst = Math.Max(worst, Math.Abs(Burning(Kind.Booster, 12, pa, 1, th).Eng[0].F / (th * full) - 1));
+            return worst;
+        }
+        double offSea = Off(Const.P0), offVac = Off(0);
+        Group("дроссель — доля тяги: регулятор держит её и у земли, и в пустоте", $"отклонение тяги от команды на 40…80 %: у земли до {N(offSea * 100)} %, в пустоте до {N(offVac * 100)} %",
+              ("у земли, с противодавлением и отрывом потока", offSea < 0.01), ("в пустоте", offVac < 0.01));
         EngineSpec sl = Spec.RaptorSL, vc = Spec.RaptorVac;
         double pc = EngineSpec.PC_PA;
         Group("геометрия из паспортных чисел", $"горловина {N(2 * Math.Sqrt(sl.At / Math.PI))} м, срез {N(2 * Math.Sqrt(sl.Ae / Math.PI))} м, ε {N(sl.Eps)} и {N(vc.Eps)}",

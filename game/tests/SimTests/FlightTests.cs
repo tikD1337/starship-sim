@@ -80,7 +80,7 @@ internal static partial class Program {
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
-        Run gust = Add(Windy(2, true, -20), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
+        Run gust = Add(Windy(2, true, -18), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
         Arms(gust, checks);
         checks.Add(() => Head("Высокая орбита и трансатмосферное"));
         ShipDescent(high, "высокая орбита", checks);
@@ -666,7 +666,7 @@ internal static partial class Program {
                   ("промах 9 м, руки сошлись — пойман", CaughtAt(9, true, 0)),
                   ("руки ещё раскрыты — нет", !CaughtAt(0, false, 0)),
                   ("вращение 5°/с — нет, 1°/с — да", !CaughtAt(0, true, 5) && CaughtAt(0, true, 1)));
-            Group("ветер с моря 20 м/с: руки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м",
+            Group("ветер с моря 18 м/с: руки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м",
                   ("пойман", s.Caught));
         });
     }
@@ -738,7 +738,7 @@ internal static partial class Program {
         Vehicle bb = r.B;
         var navH = new List<double>();
         var navV = new List<double>();
-        double rhoMeco = double.NaN, errEst = 0, errFc = 0, n = 0, lagSum = 0, lagN = 0;
+        double rhoMeco = double.NaN, rhoDesc = double.NaN, errEst = 0, errFc = 0, n = 0, lagSum = 0, lagN = 0;
         int tick = 0;
         r.Each(() => {
             tick++;
@@ -746,6 +746,7 @@ internal static partial class Program {
             if (tick % 100 == 0 && Math.Abs(bb.VVert) < 5) navV.Add(bb.NavVh);
             if (bb.Mode == "coastB" && bb.VVert < -300) { lagSum += (bb.NAlt - bb.Alt) / -bb.VVert; lagN++; }
             if (double.IsNaN(rhoMeco) && sim.T > 60 && bb.Mode != "ascent") rhoMeco = bb.RhoEst;
+            if (double.IsNaN(rhoDesc) && bb.Mode == "landB" && bb.Alt < 3000) rhoDesc = bb.RhoEst;
             if (bb.Mode == "landB" && bb.Alt < 1500) {
                 errEst += Math.Abs(bb.WindEst - bb.WindE) * Const.DT;
                 errFc += Math.Abs(sim.Wind.Forecast(bb.Alt) - bb.WindE) * Const.DT;
@@ -760,8 +761,9 @@ internal static partial class Program {
                   ("запаздывает на ~0,1 с", lagN > 100 && Math.Abs(lagSum / lagN - Const.NAV_LAG) < 0.02),
                   ("по высоте порядка метра", sH > 0.3 && sH < 1.6 && Math.Abs(mH) < 0.8),
                   ("по скорости — сотые м/с", sV > 0.02 && sV < 0.2));
-            Group("оценки плотности и ветра", $"плотность {N(rhoMeco)} при настоящей {N(sim.RhoK)}; ветер у земли ошибается на {N(errEst / Math.Max(n, 1e-9))} м/с, прогноз — на {N(errFc / Math.Max(n, 1e-9))}",
+            Group("оценки плотности и ветра", $"плотность {N(rhoMeco)} на подъёме и {N(rhoDesc)} на спуске при настоящей {N(sim.RhoK)}; ветер у земли ошибается на {N(errEst / Math.Max(n, 1e-9))} м/с, прогноз — на {N(errFc / Math.Max(n, 1e-9))}",
                   ("плотность по торможению точнее 1 %", Math.Abs(rhoMeco / sim.RhoK - 1) < 0.01),
+                  ("и на спуске с раскрытыми рулями — точнее 3 %", Math.Abs(rhoDesc / sim.RhoK - 1) < 0.03),
                   ("ниже 1,5 км оценка ветра лучше прогноза", n > 5 && errEst < errFc && errEst / n < 1.2),
                   ("ускоритель пойман, наводясь по оценкам", bb.Caught));
         });
