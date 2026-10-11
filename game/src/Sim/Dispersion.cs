@@ -27,7 +27,8 @@ public sealed class Dispersion {
     public void Apply(SimState sim) {
         for (int i = 0; i < sim.Veh.Count && i < 2; i++) {
             Vehicle v = sim.Veh[i];
-            v.Dry *= DryK[i];
+            v.Dry += v.DryBase * (DryK[i] - 1);
+            v.DryBase *= DryK[i];
             v.Prop *= PropK[i];
             v.PropMax = v.Prop;
             for (int j = 0; j < v.Eng.Count; j++) v.Eng[j].P.Cf *= EngK[i][j % EngK[i].Length];

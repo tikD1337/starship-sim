@@ -4,7 +4,7 @@ public sealed class Vehicle {
     public Kind Kind;
     public Spec Spec;
     public string Name, Tag;
-    public double Dry, Prop, PropMax, Len, Dia, A;
+    public double Dry, DryBase, Prop, PropMax, Len, Dia, A;
     public bool Stacked;
     public Vehicle Mate;
     public double X, Y, Vx, Vy;
@@ -65,7 +65,8 @@ public sealed class Vehicle {
         Spec = Spec.Of(kind);
         Name = Spec.Name;
         Tag = kind == Kind.Booster ? "Б" : "К";
-        Dry = Spec.Dry + (kind == Kind.Ship ? payload : 0);
+        DryBase = Spec.Dry;
+        Dry = DryBase + (kind == Kind.Ship ? payload : 0);
         PropMax = Spec.Prop;
         Prop = Spec.Prop;
         Len = Spec.Len;
@@ -117,7 +118,7 @@ public sealed class Vehicle {
     public double Cm {
         get {
             double mp = Prop;
-            double pay = Math.Max(0, Dry - Spec.Dry);
+            double pay = Math.Max(0, Dry - DryBase);
             double md = Dry - pay;
             double dryF = DryF;
             double hd = Math.Min(HdrLeft, mp), mn = mp - hd;
@@ -154,7 +155,7 @@ public sealed class Vehicle {
     private double OwnInertia(double c) {
         double L = Len, R = Dia / 2, mp = Prop;
         bool b = Kind == Kind.Booster;
-        double pay = Math.Max(0, Dry - Spec.Dry), md = Dry - pay;
+        double pay = Math.Max(0, Dry - DryBase), md = Dry - pay;
         double dryF = DryF, zb = b ? 0.03 : 0.04, zt = b ? 0.93 : 0.85, ft = b ? 0.055 : 0.105;
         double fb = (0.5 - dryF + ft * (zt - 0.5)) / (0.5 - zb);
         double ms = md * (1 - fb - ft);

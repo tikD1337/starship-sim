@@ -513,6 +513,20 @@ internal static partial class Program {
               ("у каждого двигателя своя тяга в пределах ±2 %", sd > 0.003 && cf.Min() >= 0.98 && cf.Max() <= 1.02),
               ("плотность другая, но в пределах 5 %", on.RhoK != 1 && Math.Abs(on.RhoK - 1) <= 0.05),
               ("масса другая, но в пределах 1 %", on.Veh[0].Dry != Spec.Booster.Dry && Math.Abs(on.Veh[0].Dry / Spec.Booster.Dry - 1) < 0.01));
+        double Emptied(double k) {
+            SimState sm = Live(1, false);
+            var d = new Dispersion();
+            foreach (double[] e in d.EngK) Array.Fill(e, 1.0);
+            d.DryK[1] = k;
+            d.Apply(sm);
+            Vehicle sh = sm.Veh[1];
+            sh.BayS.Open = 1;
+            Physics.Sim.DeploySat(sm, sh, sh.BayS.Sats, true);
+            return sh.Dry / Spec.Ship.Dry;
+        }
+        double light = Emptied(0.99), heavy = Emptied(1.01);
+        Group("разброс сухой массы корабля переживает выпуск спутников", $"пустой корабль: ×{N(light)} при разбросе 0,99 и ×{N(heavy)} при 1,01",
+              ("лёгкий остаётся лёгким", Math.Abs(light - 0.99) < 1e-9), ("у тяжёлого не остаётся груза-призрака", Math.Abs(heavy - 1.01) < 1e-9));
         double gSd = Spread(Enumerable.Range(0, 1800).Select(i => on.Wind.At(8e3, i * 0.5)), out double gMean);
         Group("порывы", $"на 8 км СКО {N(gSd)} м/с, среднее {N(gMean)} против {N(on.Wind.At(8e3))}",
               ("на 8 км ветер меняется со временем", gSd > 0.3 && gSd < 5),

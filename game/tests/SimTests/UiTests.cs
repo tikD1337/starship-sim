@@ -278,6 +278,10 @@ internal static partial class Program {
         Head("Интерфейс: экраны");
         True("Tab ходит по кругу: сводка → эфир → пульт → сводка", Tabs.Next(1) == 2 && Tabs.Next(2) == 3 && Tabs.Next(3) == 1,
              $"{Tabs.Next(1)}, {Tabs.Next(2)}, {Tabs.Next(3)}");
+        Group("в меню отказов подсвечен выбранный сценарий — и только при включённых отказах", "",
+              ("«случайно» при включённых отказах", Tabs.ScriptLit(null, null, true)),
+              ("выбранный сценарий, а не «случайно»", Tabs.ScriptLit("engOut", "engOut", true) && !Tabs.ScriptLit(null, "engOut", true)),
+              ("отказы выключены — ничего не горит", !Tabs.ScriptLit(null, null, false) && !Tabs.ScriptLit("engOut", "engOut", false)));
     }
     private static void UiArmGeom() {
         Head("Руки башни: угол от зазора до обшивки");
@@ -347,10 +351,23 @@ internal static partial class Program {
         while (live.T < 60) Physics.Sim.Tick(live, Const.DT);
         rec.Rewind();
         while (play.T < 60) { rec.Apply(play); Physics.Sim.Tick(play, Const.DT); }
+        var file = Starship.Game.Replay.FromText(rec.Text().Split('\n'), keys);
+        var play2 = new SimState { Mission = "orbital", AnomOn = false };
+        Physics.Sim.Reset(play2, 12345);
+        while (play2.T < 60) { file.Apply(play2); Physics.Sim.Tick(play2, Const.DT); }
+        var acc = new Starship.Game.Replay();
+        acc.Head("orbital", 1, false, null, false);
+        double ta = -10;
+        for (int i = 0; i < 3000; i++) { ta += Const.DT; acc.Put(ta, "pitch", i % 2); }
+        var back = Starship.Game.Replay.FromText(acc.Text().Split('\n'), keys);
+        int drift = back.Ev.Count == acc.Ev.Count ? 0 : -1;
+        for (int i = 0; drift >= 0 && i < acc.Ev.Count; i++) if (back.Ev[i].T != acc.Ev[i].T) drift++;
         Group("повтор совпадает с живым полётом (пункты 52–53)", $"расхождение {N(Math.Abs(live.Veh[0].X - play.Veh[0].X))} м",
               ("ручной режим берёт тягу автомата", live.ManThr == thrAuto && thrAuto < 1 && play.ManThr == live.ManThr),
               ("правка параметра пульта повторена", play.Veh[0].Eng[5].P.RpmSet == 30000),
-              ("положение до бита", live.Veh[0].X == play.Veh[0].X && live.Veh[0].Y == play.Veh[0].Y));
+              ("положение до бита", live.Veh[0].X == play.Veh[0].X && live.Veh[0].Y == play.Veh[0].Y),
+              ($"время событий в файле записи — до бита (сдвинуто {drift} из {acc.Ev.Count})", drift == 0),
+              ("повтор из файла — тоже до бита", live.Veh[0].X == play2.Veh[0].X && live.Veh[0].Y == play2.Veh[0].Y));
         var recs = RecordsText.Parse("{\"orbital\": {\"s\": 1234, \"g\": \"A\", \"t\": \"16.09.2026\"}, \"trans\": 800}");
         string[] broken = {
             "{\"orbital\": {\"g\": \"A\"}, \"high\": {\"s\": 700}}", "{\"orbital\": {\"s\": \"много\"}, \"high\": {\"s\": 700, \"g\": 5}}",
