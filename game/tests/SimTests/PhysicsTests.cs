@@ -933,19 +933,20 @@ internal static partial class Program {
         Group("тяга трёх на минимальном дросселе больше веса — один гасится", $"при 3 МН и 10 т топлива {light}, при 45 т {heavy}",
               ("лёгкий гасит один", light == 2), ("тяжёлый остаётся на трёх", heavy == 3));
     }
-    private static double SeaTilt(double off) {
+    private static (double Tilt, double Acc) OverSea(double off, double h, double vd) {
         var sim = new SimState { T = 0, RhoK = 1 };
         var v = new Vehicle(Kind.Ship, 0) {
             Mode = "landS", SeekPad = true, Site = "sea", AimDr = Const.SEA_DR, Launched = true, Ign = true, IgnBurn = true, BurnLogged = true,
             NEng = 1, NRun = 1, Throttle = 0.45, Prop = 30e3, F = 1.1e6, ShipHold = true,
         };
-        double a = (Const.SEA_DR + off) / Const.RE, r = Const.RE - Const.DECK_H + 8;
+        double a = (Const.SEA_DR + off) / Const.RE, r = Const.RE - Const.DECK_H + h;
         v.X = -r * Math.Sin(a); v.Y = r * Math.Cos(a);
-        Vec2 e = v.East;
-        v.Vx = 5 * e.X - Const.W * v.Y; v.Vy = 5 * e.Y + Const.W * v.X;
+        Vec2 e = v.East, u = v.Up;
+        v.Vx = 5 * e.X - vd * u.X - Const.W * v.Y; v.Vy = 5 * e.Y - vd * u.Y + Const.W * v.X;
         sim.Veh.Add(v);
         Guidance.LandingBurn(sim, v, Const.DT, 3);
-        return v.ThCmd * Const.R2D;
+        double f1 = Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(v.Alt).P;
+        return (v.ThCmd * Const.R2D, v.Throttle * v.NEng * f1 * Math.Cos(v.Th) / v.Mass - Const.MU / (v.R * v.R));
     }
     private static double BandAcc(double dh) {
         var sim = new SimState { T = 0, RhoK = 1 };
@@ -969,11 +970,37 @@ internal static partial class Program {
               $"заказ ускорения в 2 м под верхом полосы {N(top)} м/с², в 10 м — {N(low)} м/с²",
               ("у верха полосы спуск продолжается", Math.Abs(top) < 1), ("ниже середины — торможение не слабее 2 м/с²", low > 2));
     }
+    private static (double H, double Vv, double MateH) NavAt(bool mateFlies, double step) {
+        var sim = new SimState { Mission = "orbital", Disperse = true };
+        Physics.Sim.Reset(sim, 5);
+        Vehicle b = sim.Veh[0], s = sim.Veh[1];
+        sim.T = 1000;
+        while (sim.T < 1060 - 1e-9) {
+            sim.T += step;
+            if (mateFlies) Nav.Step(sim, b, step);
+            Nav.Step(sim, s, step);
+        }
+        return (s.NzH, s.NzVv, b.NzH);
+    }
+    private static void NavNoise() {
+        Head("Шум навигации — функция времени");
+        var both = NavAt(true, Const.DT);
+        var alone = NavAt(false, Const.DT);
+        var coarse = NavAt(false, Const.DT_COAST);
+        Group("ошибка навигации корабля на 60-й секунде не зависит от того, летит ли ускоритель и каким шагом идёт счёт",
+              $"с ускорителем {N(both.H)} м, без него {N(alone.H)} м, крупным шагом {N(coarse.H)} м; у ускорителя {N(both.MateH)} м",
+              ("не зависит от соседней ступени", Math.Abs(both.H - alone.H) < 1e-9 && Math.Abs(both.Vv - alone.Vv) < 1e-9),
+              ("не зависит от шага", Math.Abs(coarse.H - alone.H) < 1e-6 && Math.Abs(coarse.Vv - alone.Vv) < 1e-6),
+              ("у ступеней шум свой", Math.Abs(both.H - both.MateH) > 1e-3),
+              ("в пределах пяти сигм и не ноль", Math.Abs(alone.H) < 5 * Const.NAV_POS_SIG && Math.Abs(alone.H) > 1e-6));
+    }
     private static void SeaDrift() {
         Head("Корабль у воды: снос ветром");
-        double near = SeaTilt(10), far = SeaTilt(40);
+        double near = OverSea(10, 8, 0).Tilt, far = OverSea(40, 8, 0).Tilt, drop = OverSea(10, 10, 1).Acc;
         Group("в 8 м над водой, снос 5 м/с: заказ наклона не растёт оттого, что унесло от точки", $"в 10 м от точки {N(near)}°, в 40 м {N(far)}°",
               ("гасит снос наклоном", Math.Abs(near) > 1), ("в 40 м наклон тот же", Math.Abs(far - near) < 1e-6));
+        Group("в 10 м над водой, снос 5 м/с: корабль садится, а не ждёт, пока ветер его разгонит", $"заказ вертикального ускорения {N(drop)} м/с²",
+              ("снижается быстрее 1 м/с²", drop < -1));
     }
     private static void BadNumbers() {
         Head("Негодные числа");

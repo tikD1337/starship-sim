@@ -3,12 +3,7 @@ namespace Starship.Physics;
 public static class Nav {
     public static void Step(SimState sim, Vehicle v, double dt) {
         if (sim.Disp == null) return;
-        double kp = Math.Exp(-dt / Const.NAV_POS_TAU), kv = Math.Exp(-dt / Const.NAV_VEL_TAU);
-        double sp = Const.NAV_POS_SIG * Math.Sqrt(1 - kp * kp), sv = Const.NAV_VEL_SIG * Math.Sqrt(1 - kv * kv);
-        v.NzH = v.NzH * kp + sp * Gauss(sim.NavRng);
-        v.NzX = v.NzX * kp + sp * Gauss(sim.NavRng);
-        v.NzVv = v.NzVv * kv + sv * Gauss(sim.NavRng);
-        v.NzVh = v.NzVh * kv + sv * Gauss(sim.NavRng);
+        Noise(sim, v);
         double alt = v.Alt, dr = sim.Downrange(v), vv = v.VVert, vh = v.VHor;
         int len = v.LagH.Length, i = v.LagI;
         v.LagH[i] = alt; v.LagX[i] = dr; v.LagVv[i] = vv; v.LagVh[i] = vh;
@@ -20,8 +15,30 @@ public static class Nav {
         v.LagI = (i + 1) % len;
         v.LagN = Math.Min(v.LagN + 1, len - 1);
     }
-    private static double Gauss(Rng r) {
-        double u = Math.Max(r.Next(), 1e-12), w = r.Next();
+    private static void Noise(SimState sim, Vehicle v) {
+        double at = sim.T / Const.NAV_NOISE_DT;
+        long k = (long)Math.Floor(at);
+        uint seed = sim.NavSeed ^ (v.Kind == Kind.Ship ? 0x9E3779B9u : 0u);
+        double[] a = v.NzA, b = v.NzB;
+        long warm = (long)(20 * Const.NAV_POS_TAU / Const.NAV_NOISE_DT);
+        if (k < v.NzK || k - v.NzK > warm) {
+            Array.Clear(b, 0, 4);
+            v.NzK = k - warm - 1;
+        }
+        for (; v.NzK < k; v.NzK++)
+            for (int c = 0; c < 4; c++) {
+                double keep = Math.Exp(-Const.NAV_NOISE_DT / (c < 2 ? Const.NAV_POS_TAU : Const.NAV_VEL_TAU));
+                a[c] = b[c];
+                b[c] = a[c] * keep + Sig(c) * Math.Sqrt(1 - keep * keep) * Gauss(seed, v.NzK + 2, c);
+            }
+        double f = at - k;
+        v.NzH = a[0] + (b[0] - a[0]) * f; v.NzX = a[1] + (b[1] - a[1]) * f;
+        v.NzVv = a[2] + (b[2] - a[2]) * f; v.NzVh = a[3] + (b[3] - a[3]) * f;
+    }
+    private static double Sig(int c) => c < 2 ? Const.NAV_POS_SIG : Const.NAV_VEL_SIG;
+    private static double Gauss(uint seed, long k, int c) {
+        uint h = Rng.Mix(unchecked(Rng.Mix(seed ^ unchecked((uint)(c + 1) * 0x85EBCA6Bu)) + (uint)k));
+        double u = Math.Max(h / 4294967296.0, 1e-12), w = Rng.Mix(unchecked(h + 0x6C8E9CF5u)) / 4294967296.0;
         return Math.Sqrt(-2 * Math.Log(u)) * Math.Cos(2 * Math.PI * w);
     }
     public static void Observe(SimState sim, Vehicle v, double fx, double fy, double drag, double h, double dt) {
