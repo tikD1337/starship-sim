@@ -186,7 +186,7 @@ public static class Sim {
         sim.SecoH = sim.Mission == "trans" ? double.NaN : Const.SECO_H;
         sim.Seed = seed;
         sim.Rng.Seed(Rng.Mix(seed));
-        sim.NavRng.Seed(unchecked(seed * 3266489917u + 374761393u));
+        sim.NavSeed = unchecked(seed * 3266489917u + 374761393u);
         sim.Anom = Anomalies.Roll(sim, sim.Rng);
         sim.RhoK = 1;
         var windRng = new Rng();

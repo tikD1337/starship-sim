@@ -26,7 +26,8 @@ public sealed class SimState {
     public double SecoH = double.NaN;
     public double TargetApo = 220e3, TargetPeri = 200e3, SecoPeri = 190e3, MecoFill = 0.19, MecoV = 1450;
     public Action OnSeparate;
-    public Rng Rng = new(), NavRng = new();
+    public Rng Rng = new();
+    public uint NavSeed;
     public Anomalies Anom;
     public Wind Wind = Wind.Calm();
     public double ArmDrop, ArmY = Const.ARM_PARK, ArmSag, ArmSagV, ArmHeldT = double.NaN, ArmShift, ArmShiftV, ArmGapL = Const.ARM_GAP_PARK, ArmGapR = Const.ARM_GAP_PARK;
