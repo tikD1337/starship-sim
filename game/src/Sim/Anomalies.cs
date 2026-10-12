@@ -9,6 +9,11 @@ public sealed class Rng {
         return _s / 4294967296.0;
     }
     public double About(double k) => 1 + (Next() * 2 - 1) * k;
+    public static double Gauss(uint seed, long k, int c) {
+        uint h = Mix(unchecked(Mix(seed ^ unchecked((uint)(c + 1) * 0x85EBCA6Bu)) + (uint)k));
+        double u = Math.Max(h / 4294967296.0, 1e-12), w = Mix(unchecked(h + 0x6C8E9CF5u)) / 4294967296.0;
+        return Math.Sqrt(-2 * Math.Log(u)) * Math.Cos(2 * Math.PI * w);
+    }
     public static uint Mix(uint x) {
         x ^= x >> 16; x = unchecked(x * 0x7feb352du);
         x ^= x >> 15; x = unchecked(x * 0x846ca68bu);

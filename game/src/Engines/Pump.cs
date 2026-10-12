@@ -8,7 +8,9 @@ public sealed class Pump {
     public const double RHO_F = 423, RHO_OX = 1141;
     public const double PVAP_F = 101e3, PVAP_OX = 105e3;
     public const double T_CRYO = 111, PC_NOM = 30.0, RPM_IDLE = 0.45;
-    public static double CmdFor(double chamber) => Const.Clamp((Math.Sqrt(Math.Max(chamber, 0)) - RPM_IDLE) / (1 - RPM_IDLE), 0, 1);
+    public const double RPM_OVER = 1.05;
+    public static readonly double CMD_TOP = (RPM_OVER - RPM_IDLE) / (1 - RPM_IDLE);
+    public static double CmdFor(double chamber) => Math.Max((Math.Sqrt(Math.Max(chamber, 0)) - RPM_IDLE) / (1 - RPM_IDLE), 0);
     public static readonly PumpNom NomF = new()
     { Rpm = 32394, DP = 65e6, Rho = RHO_F, Eta = 0.750, PIn = 350e3, PVap = PVAP_F, Npsh = 38 };
     public static readonly PumpNom NomO = new()
@@ -16,7 +18,7 @@ public sealed class Pump {
     public bool IsFuel;
     public Engine Eng;
     public PumpNom N;
-    public double Rpm, T = T_CRYO, Vib, Wear, Cav = 1;
+    public double Rpm, Rel, T = T_CRYO, Vib, Wear, Cav = 1;
     public double Head, Q, P, DP, Eta, NpshR;
     public double MdotNom, QNom, HeadNom, TqNom, J;
     public Pump(bool isFuel, Engine eng, double share) {
@@ -46,6 +48,7 @@ public sealed class Pump {
         double set = IsFuel ? p.RpmSet : p.RpmSet * N.Rpm / NomF.Rpm;
         double rpmSet = running ? set * (RPM_IDLE + (1 - RPM_IDLE) * thr) : 0;
         double rel = Rpm / N.Rpm;
+        Rel = rel;
         double npshA = (PIn - N.PVap) / (N.Rho * Const.G0);
         NpshR = N.Npsh * rel * rel * 1.02;
         Cav = NpshR > 0.1 ? Const.Clamp(npshA / NpshR, 0, 1) * (running ? Propellant.Feed(Eng.Veh) : 1) : 1;

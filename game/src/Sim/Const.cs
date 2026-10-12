@@ -27,6 +27,7 @@ public static class Const {
     public static readonly double[] GF_SWITCH = { 4, 5, 6, 7, 8, 9 };
     public static double ASC_CLEAR_H = 87, ASC_Q_IN = 25.5e3, ASC_Q_OUT = 24.5e3,
         HOT_IGN_F = 0.15, HOT_IGN_T = 1.5, HOT_PC = 0.85, HOT_SEP_T = 3.5;
+    public static double PC_NOISE = 0.003;
     public static double NAV_LAG = 0.1, NAV_NOISE_DT = 0.1, NAV_POS_SIG = 0.8, NAV_POS_TAU = 20, NAV_VEL_SIG = 0.08, NAV_VEL_TAU = 4,
         NAV_OBS_DT = 0.05, NAV_OBS_H = 5000, NAV_OBS_SMIN = 2e-3, NAV_WIND_TAU = 1.5, NAV_POLL_TAU = 10,
         NAV_RHO_H = 60e3, NAV_RHO_Q = 2000, NAV_RHO_TAU = 3;
