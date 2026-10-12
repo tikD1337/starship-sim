@@ -490,8 +490,9 @@ public static class Guidance {
             v.ShipHold = true;
             v.NEng = ShipEngines(v, e, e.G + aB, nEng, dt);
             double fn = v.NEng * e.FOne;
-            double vT = -Math.Sqrt(Const.SHIP_CATCH_V * Const.SHIP_CATCH_V + 2 * aB * Math.Max(e.DhS, 0));
-            double ff = aB * Const.Clamp(e.DhS / 2, 0, 1);
+            double hE = Math.Max(e.DhS + Math.Min(e.Vv, 0) * Const.SHIP_LEAD_T, 0);
+            double vT = -Math.Sqrt(Const.SHIP_CATCH_V * Const.SHIP_CATCH_V + 2 * aB * hE);
+            double ff = aB * Const.Clamp(hE / 2, 0, 1);
             bool canHover = Const.LAND_THR_MIN * fn / v.Mass < e.G - 0.3;
             if (canHover && e.DhS > 3 && e.DhS < Const.SHIP_HOLD_H && (Math.Abs(e.Dr) > Const.SHIP_HOLD_DR || Math.Abs(vx) > Const.SHIP_HOLD_VH)
                 && vT < -Const.LAND_VTD) { vT = -Const.LAND_VTD; ff = 0; }
