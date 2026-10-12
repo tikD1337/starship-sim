@@ -63,11 +63,16 @@ jobs:
           pattern: bench-*
           path: res
       - id: base
+        env:
+          RUN_ID: ${{ github.run_id }}
         run: |
-          id=$(gh run list -R "$REPO" -w bench -b main --status success -L 1 --json databaseId -q '.[0].databaseId')
-          if [ -n "$id" ] && [ "$id" != "${{ github.run_id }}" ] && gh run download "$id" -R "$REPO" -n bench-all -D base; then
-            echo "note=база — [прогон main $id](https://github.com/$REPO/actions/runs/$id)" >> "$GITHUB_OUTPUT"
-          fi
+          for id in $(gh run list -R "$REPO" -w bench -b main --status completed -L 10 --json databaseId,conclusion -q '.[] | select(.conclusion != "cancelled") | .databaseId'); do
+            [ "$id" = "$RUN_ID" ] && continue
+            if gh run download "$id" -R "$REPO" -n bench-all -D base; then
+              echo "note=база — [прогон main $id](https://github.com/$REPO/actions/runs/$id)" >> "$GITHUB_OUTPUT"
+              break
+            fi
+          done
       - id: rep
         run: |
           set +e
@@ -77,11 +82,14 @@ jobs:
           echo "[Прогон ${{ github.run_id }}](https://github.com/$REPO/actions/runs/${{ github.run_id }}) · ${GITHUB_SHA::7}" >> report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        if: needs.run.result == 'success'
         with:
           name: bench-all
           path: bench.json
-      - run: |
-          pr=$(gh pr list -R "$REPO" --head "${{ github.ref_name }}" --state open --json number -q '.[0].number')
+      - env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          pr=$(gh pr list -R "$REPO" --head "$BRANCH" --state open --json number -q '.[0].number')
           if [ -n "$pr" ]; then
             gh pr comment "$pr" -R "$REPO" --body-file report.md --edit-last --create-if-none || gh pr comment "$pr" -R "$REPO" --body-file report.md
           fi
