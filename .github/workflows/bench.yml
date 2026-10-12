@@ -82,6 +82,7 @@ jobs:
           echo "[Прогон ${{ github.run_id }}](https://github.com/$REPO/actions/runs/${{ github.run_id }}) · ${GITHUB_SHA::7}" >> report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        if: needs.run.result == 'success'
         with:
           name: bench-all
           path: bench.json
