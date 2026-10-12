@@ -72,12 +72,12 @@ public static class Sim {
         for (int i = 0; i < n && b.Sats > 0; i++) {
             Vec2 ax = v.Axis, sd = v.Side;
             double kick = 0.55 + 0.3 * (((b.Out.Count * 37) % 7) / 7.0);
-            double along = Const.BAY_Z0 + (Const.BAY_Z1 - Const.BAY_Z0) * ((i % 5) + 0.5) / 5.0;
-            double outR = 5.4 + 0.25 * (i % 3);
+            double along = Const.BAY_Z0 + (Const.BAY_Z1 - Const.BAY_Z0) * ((b.Out.Count % 5) + 0.5) / 5.0;
+            double outR = 5.4 + 0.25 * (b.Out.Count % 3);
             b.Out.Add(new Sat {
                 X = v.X + ax.X * along - sd.X * outR, Y = v.Y + ax.Y * along - sd.Y * outR,
                 Vx = v.Vx - sd.X * kick + ax.X * 0.05, Vy = v.Vy - sd.Y * kick + ax.Y * 0.05, T = 0,
-                Rot = (b.Out.Count * 0.7) % 6.28, Spin = 0.05 + 0.02 * (i % 3),
+                Rot = (b.Out.Count * 0.7) % 6.28, Spin = 0.05 + 0.02 * (b.Out.Count % 3),
             });
             b.Sats--;
             v.Dry = Math.Max(v.Dry - b.SatM, Spec.Of(Kind.Ship).Dry);
@@ -196,6 +196,7 @@ public static class Sim {
         sim.Disp = sim.Disperse || sim.AnomOn ? Dispersion.Roll(seed) : null;
         sim.Disp?.Apply(sim);
         sim.T = -10;
+        sim.LastStep = 0;
         sim.Log.Clear();
         sim.Marks.Clear();
         sim.Events.Clear();

@@ -12,6 +12,7 @@ public static class Look {
     private static readonly List<(WeakReference<Control> C, Action<Control> Paint)> Binds = new();
     private static readonly ConditionalWeakTable<Control, StrongBox<Color>> Inked = new();
     private static Theme _ui;
+    private static int _bindPruneTick;
     public static int Current { get; private set; }
     public static event Action Changed;
     public static Palette P => Themes.All[Current];
@@ -59,9 +60,16 @@ public static class Look {
         }
         Changed?.Invoke();
     }
+    private static void PruneDeadBinds() {
+        for (int k = Binds.Count - 1; k >= 0; k--) {
+            var e = Binds[k];
+            if (!e.C.TryGetTarget(out Control c) || !GodotObject.IsInstanceValid(c)) Binds.RemoveAt(k);
+        }
+    }
     public static T Bind<T>(T c, Action<T> paint) where T : Control {
         paint(c);
         Binds.Add((new WeakReference<Control>(c), x => paint((T)x)));
+        if (++_bindPruneTick % 32 == 0) PruneDeadBinds();
         return c;
     }
     public static StyleBoxFlat Box(Color fill, int radius, int padX, int padY) {

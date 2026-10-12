@@ -127,6 +127,7 @@ public partial class Main : Node {
         _ctl.Play = null;
         _saved = false;
         Physics.Sim.Reset(_sim, seed);
+        _tape.Reset();
         _mission = Mission.Start(key, anom, _script);
         _missionView.Reset(_mission);
         _eng.ClearTele();

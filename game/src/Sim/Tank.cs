@@ -9,8 +9,8 @@ public sealed class TankSet {
     public double Copv, Copv0;
     public string Src = "наддув";
     public static TankSet Make(Kind kind, double prop) {
-        double vf = prop / (1 + 3.6) / 423;
-        double vo = prop * 3.6 / (1 + 3.6) / 1141;
+        double vf = prop / (1 + Pump.MR) / 423;
+        double vo = prop * Pump.MR / (1 + Pump.MR) / 1141;
         var ts = new TankSet {
             F = new Tank { V = vf * 1.04, P = 350e3, P0 = 350e3, R = 518, G = 1.31, Name = "горючего" },
             O = new Tank { V = vo * 1.04, P = 380e3, P0 = 380e3, R = 260, G = 1.40, Name = "окислителя" },
@@ -32,7 +32,7 @@ public static class Pressurant {
         for (int i = 0; i < 2; i++) {
             Tank t = i == 0 ? v.Tanks.F : v.Tanks.O;
             double setK = i == 0 ? p0.PTankF : p0.PTankOx;
-            double frac = i == 0 ? 1.0 / (1 + 3.6) : 3.6 / (1 + 3.6);
+            double frac = i == 0 ? 1.0 / (1 + Pump.MR) : Pump.MR / (1 + Pump.MR);
             double vul = Math.Max(t.V * (1 - fill), t.V * 0.02);
             double target = setK * 1000;
             double need = target * vul / (t.R * T) - t.Mg;

@@ -28,6 +28,7 @@ public sealed class FlightTape {
         _bar.Feed(sim.Marks, sim.T, _span);
     }
     public void Widen(double span) => _span = Math.Max(span, 600);
+    public void Reset() => _span = 600;
     public static double? Step(SimState sim, int dir) {
         double best = double.NaN;
         foreach (LogEntry m in sim.Marks) {
