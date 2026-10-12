@@ -168,11 +168,12 @@ public static class Guidance {
         else aLat = -6 * (dr + vh * tgo) / (tgo * tgo) + 2 * vh / tgo;
         if (v.WindEst != 0 && dh < Const.LAND_WIND_H) {
             double rho = Atmosphere.At(h, v.RhoEst).Rho, u = v.WindEst - vh;
-            aLat -= Const.LAND_WIND_K * 0.5 * rho * u * Math.Abs(u) * v.Dia * v.FullLen / v.Mass;
+            aLat -= WindK(v) * 0.5 * rho * u * Math.Abs(u) * v.Dia * v.FullLen / v.Mass;
         }
         aLat = Const.Clamp(aLat, -lat, lat);
         return Steer(v, Const.Clamp(Math.Atan2(aLat, aVert) - GimTrim(v), -maxTilt, maxTilt));
     }
+    private static double WindK(Vehicle v) => v.Kind == Kind.Ship ? Const.SHIP_WIND_K : Const.LAND_WIND_K;
     private static bool GfoldBurn(SimState sim, Vehicle v, in Burn e, double gate, double vGate) {
         if (v.NRun == 0) return false;
         double baseH = e.HT + gate, x = e.Dr, y = e.H - baseH, vx = v.NVh, vy = v.NVv;
@@ -471,7 +472,7 @@ public static class Guidance {
         double aX = !v.Catch && e.DhS < Const.LAND_DH_END ? -Const.SHIP_KV * vx : Zem0(-e.Dr, vx, 0, Math.Max(T, 6 / Const.SHIP_POLE));
         if (v.WindEst != 0 && e.H < Const.LAND_WIND_H) {
             double rho = Atmosphere.At(e.H, v.RhoEst).Rho;
-            aX -= Const.LAND_WIND_K * 0.5 * rho * v.WindEst * Math.Abs(v.WindEst) * v.Dia * v.FullLen / v.Mass;
+            aX -= WindK(v) * 0.5 * rho * v.WindEst * Math.Abs(v.WindEst) * v.Dia * v.FullLen / v.Mass;
         }
         double aUp = T > tV + Const.SHIP_WAIT_T && dz < 0
             ? Const.Clamp((dz / T - e.Vv) * Const.SHIP_KV, -Const.SHIP_AD, Const.SHIP_AB)
@@ -504,7 +505,7 @@ public static class Guidance {
             v.Throttle = Const.Clamp(aZ * v.Mass / (v.NEng * e.FOne * Math.Max(Math.Cos(v.Th), 0.3)), Const.LAND_THR_MIN, 1);
             want = Math.Atan2(aX, aZ);
         }
-        double lim = (e.DhS < Const.LAND_DH_END && Math.Abs(e.Dr) < Const.SHIP_FREE_DR ? EndTilt(v) : Const.SHIP_TILT) * Const.D2R;
+        double lim = (e.DhS < Const.LAND_DH_END && (!v.Catch || Math.Abs(e.Dr) < Const.SHIP_FREE_DR) ? EndTilt(v) : Const.SHIP_TILT) * Const.D2R;
         v.ThCmd = Const.Clamp(SteerP(v, Const.Clamp(want - GimTrim(v), -lim, lim), Const.SHIP_POLE), -2 * lim, 2 * lim);
     }
     private static int Avail(Vehicle v) {

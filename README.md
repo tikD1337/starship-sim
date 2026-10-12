@@ -55,7 +55,7 @@ godot --path game
 **Проверить физику, не запуская игру:**
 
 ```bash
-dotnet run --project game/tests/SimTests -c Release                     # 160 проверок: физика, полёты, интерфейс
+dotnet run --project game/tests/SimTests -c Release                     # 162 проверки: физика, полёты, интерфейс
 dotnet run --project game/tests/SimCheck -c Release -- mission orbital  # полёт целиком, сводка чисел
 python game/tests/bench/bench.py run --seeds 20 -- --disp              # стенд: 40 полётов с разбросом (нужна сборка SimCheck)
 ```

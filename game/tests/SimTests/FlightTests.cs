@@ -801,6 +801,9 @@ internal static partial class Program {
             Group("ветер у допуска и выше: корабль пойман или приводнился, но не разбит (пункты 63–64)",
                   string.Join(", ", cases.Skip(3).Select(c => $"{c.Name}: {c.R.S.Mode}")),
                   cases.Skip(3).Select(c => (c.Name, !c.R.S.Crashed && (c.R.S.Caught || c.R.S.Splash))).ToArray());
+            Group("ветер 22 м/с: упреждение по ветру не жжёт лишнего топлива ускорителя",
+                  string.Join(", ", cases.Skip(3).Take(2).Select(c => $"{c.Name}: Б {c.R.B.Mode}, в баках {N(c.R.B.Prop / 1000)} т")),
+                  cases.Skip(3).Take(2).Select(c => (c.Name + ": пойман, в баках не меньше 47,5 т", c.R.B.Caught && c.R.B.Prop >= 47.5e3)).ToArray());
         });
     }
     private static void Fallbacks(List<Run> runs, List<Action> checks) {
