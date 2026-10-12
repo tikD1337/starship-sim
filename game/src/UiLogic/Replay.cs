@@ -59,7 +59,7 @@ public sealed class Replay {
         sb.Append("disp ").Append(Disp ? "1" : "0").Append('\n');
         sb.Append("script ").Append(Script ?? "-").Append('\n');
         foreach ((double t, string k, double a) in Ev)
-            sb.Append(string.Format(Inv, "{0:F2} {1} {2:R}", t, k, a)).Append('\n');
+            sb.Append(string.Format(Inv, "{0:R} {1} {2:R}", t, k, a)).Append('\n');
         return sb.ToString();
     }
     public static Replay FromText(IEnumerable<string> lines, string[] missions) {

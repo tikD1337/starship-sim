@@ -156,7 +156,7 @@ public sealed class MissionView {
     };
     public void Update(Mission m, bool anomOn) {
         for (int i = 0; i < _scriptTabs.Count; i++)
-            Look.Tint(_scriptTabs[i], Scripts[i].Key == Script ? Look.Accent : Look.Ink2);
+            Look.Tint(_scriptTabs[i], Tabs.ScriptLit(Scripts[i].Key, Script, anomOn) ? Look.Accent : Look.Ink2);
         for (int i = 0; i < _pick.Count; i++) {
             bool on = i < Mission.Keys.Length ? Mission.Keys[i] == m.Key : anomOn;
             Look.Tint(_pick[i], on ? (i < Mission.Keys.Length ? Look.Accent : Look.Warn) : Look.Ink2);

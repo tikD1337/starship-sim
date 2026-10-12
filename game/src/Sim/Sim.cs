@@ -80,7 +80,7 @@ public static class Sim {
                 Rot = (b.Out.Count * 0.7) % 6.28, Spin = 0.05 + 0.02 * (b.Out.Count % 3),
             });
             b.Sats--;
-            v.Dry = Math.Max(v.Dry - b.SatM, Spec.Of(Kind.Ship).Dry);
+            v.Dry = Math.Max(v.Dry - b.SatM, v.DryBase);
             k++;
         }
         if (k > 0 && !quiet) sim.LogMsg("К: отделено " + k + " Starlink V3, в отсеке осталось " + b.Sats, 1);

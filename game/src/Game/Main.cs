@@ -82,7 +82,7 @@ public partial class Main : Node {
         _missionView = MissionView.Build(_eng.MissionCard, _eng.MissionCaption, _scr,
             key => StartFlight(key, _anomOn, NewSeed()),
             () => StartFlight(_missionKey, !_anomOn, _seed),
-            key => { _script = key; StartFlight(_missionKey, key != null || _anomOn, _seed); });
+            key => { _script = key; StartFlight(_missionKey, true, _seed); });
         _tape = FlightTape.Build(_scr);
         _ctl.Rec = _rec;
         _eng.Record = (k, a) => _ctl.Rec?.Put(_sim.T, k, a);
