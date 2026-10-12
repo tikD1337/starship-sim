@@ -134,7 +134,7 @@ public static class Guidance {
             double fUse = Math.Clamp(aCap * m - d, Const.LAND_THR_MIN * f, f);
             double a = (fUse + d) / m - Const.MU / ((Const.RE + h) * (Const.RE + h));
             double share = f > 0 ? fUse / f : 0;
-            vv += a * dt; h += vv * dt; m -= share * spool * nEng * Spec.RaptorSL.Mdot * dt; t += dt;
+            vv += a * dt; h += vv * dt; m -= spool * nEng * Spec.RaptorSL.FlowFor(share, at.P) * dt; t += dt;
         }
         return h;
     }
@@ -261,9 +261,11 @@ public static class Guidance {
         return true;
     }
     public static GfoldSetup GfoldBase(Vehicle v, double x, double y, double vx, double vy, int n, double f1, double g, double vGate) {
+        double pa = Math.Max(0, (Spec.RaptorSL.Fv - f1) / Spec.RaptorSL.Ae), lo = Const.LAND_THR_MIN;
+        double qLo = Spec.RaptorSL.ChamberFor(lo, pa), slope = (Spec.RaptorSL.ChamberFor(1, pa) - qLo) / (1 - lo);
         var set = new GfoldSetup {
             X0 = x, Y0 = y, Vx0 = vx, Vy0 = vy, Mass0 = v.Mass, MassMin = v.Mass - v.Prop + Const.GF_RESERVE,
-            Alpha = Spec.RaptorSL.Mdot / f1, G = g, Tvy = -vGate, Rho1 = n * Const.LAND_THR_MIN * f1, Rho2 = n * Const.GF_MARGIN * f1,
+            Alpha = Spec.RaptorSL.Mdot * slope / f1, IdleK = Spec.RaptorSL.Mdot * (qLo - slope * lo) / (lo * f1), G = g, Tvy = -vGate, Rho1 = n * Const.LAND_THR_MIN * f1, Rho2 = n * Const.GF_MARGIN * f1,
             Rate = n * Const.GF_RATE * f1,
             ThetaMax = Const.GF_TILT * Const.D2R, Glide = Const.GF_GLIDE * Const.D2R };
         if (v.Kind == Kind.Booster) set.AccMax = (Const.LAND_B_GMAX - Const.GF_GSPARE) * Const.G0;
@@ -290,7 +292,7 @@ public static class Guidance {
         double g = Const.MU / (v.R * v.R);
         double fOne = Math.Max(1, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(v.Alt).P);
         double d = Math.Max(Const.COAST_DR + 200 - sim.Downrange(v), 0);
-        double burn = v.Mass * g * Spec.RaptorSL.Mdot / fOne * (d / Const.DIV_V + Const.DIV_T);
+        double burn = Spec.RaptorSL.FlowFor(v.Mass * g / fOne, Atmosphere.At(v.Alt).P) * (d / Const.DIV_V + Const.DIV_T);
         double light = Const.LAND_THR_MIN * fOne / g * Const.DIV_MARGIN;
         return burn < v.Prop - Const.DIV_RESERVE && v.Mass - burn > light;
     }
@@ -317,7 +319,7 @@ public static class Guidance {
             Air at = Atmosphere.At(H, v.RhoEst);
             G = Const.MU / (v.R * v.R);
             FOne = Math.Max(1, Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * at.P);
-            Drag = 0.5 * at.Rho * v.NVv * v.NVv * v.A * 0.75;
+            Drag = Nav.AeroUp(v, H, v.NVh, v.NVv);
             FNow0 = (v.Ign ? v.NEng : nEng) * FOne;
             HT = v.Catch ? CatchHT(v) : SimState.Surface(v.SeekPad ? v.AimDr : sim.Downrange(v));
             double f = (v.Kind == Kind.Booster ? Const.LAND_B_END : nEng)
@@ -518,6 +520,7 @@ public static class Guidance {
     public static void LandingBurn(SimState sim, Vehicle v, double dt, int nEng) {
         nEng = Math.Max(1, Math.Min(nEng, Avail(v)));
         var e = new Burn(sim, v, nEng);
+        v.DragEst = e.Drag;
         Ignite(sim, v, nEng, e);
         if (!v.Ign) return;
         if (v.Kind == Kind.Ship && v.SeekPad && (v.Mode == "landS" || v.Mode == "flipS")) {

@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 namespace Starship.Physics;
 public sealed class GfoldSetup {
-    public double X0, Y0, Vx0, Vy0, Mass0, MassMin, Alpha, Rho1, Rho2, G, Tvx, Tvy, Rate;
+    public double X0, Y0, Vx0, Vy0, Mass0, MassMin, Alpha, IdleK, Rho1, Rho2, G, Tvx, Tvy, Rate;
+    public double Idle(int k) => IdleK * R1(k);
     public (double At, double Rho1, double Rho2, double Rate)[] Stages = Array.Empty<(double, double, double, double)>();
     public double AccMax = double.PositiveInfinity;
     public int Stage(int k) {
@@ -62,6 +63,8 @@ public static class Gfold {
         var ax = new double[n + 1];
         var ay = new double[n + 1];
         var z0 = new double[n + 1];
+        var zc = new double[n + 1];
+        var idle = new double[n + 1];
         var mu1 = new double[n + 1];
         var mu2 = new double[n + 1];
         var cap = new double[n + 1];
@@ -69,12 +72,17 @@ public static class Gfold {
         for (int k = 0; k <= n; k++) {
             (double bx, double by) = s.Bias != null ? s.Bias(k * s.Step) : (0, 0);
             ax[k] = bx / acs; ay[k] = (by - s.G) / acs;
-            if (k > 0) mmin -= s.Alpha * Math.Max(s.R2(k - 1), s.R2(k)) * s.Step;
+            if (k > 0) mmin -= (s.Alpha * Math.Max(s.R2(k - 1), s.R2(k)) + Math.Max(s.Idle(k - 1), s.Idle(k))) * s.Step;
             double mk = Math.Max(mmin, 0.5 * s.MassMin);
             z0[k] = Math.Log(mk / ms);
+            idle[k] = s.Idle(k) / mk;
             double e = Math.Exp(-z0[k]) / (ms * acs);
             mu1[k] = s.R1(k) * e; mu2[k] = s.R2(k) * e;
             cap[k] = Math.Max(s.AccMax - Math.Sqrt(bx * bx + by * by), s.R1(k) / mk * 1.001) / acs;
+        }
+        for (int k = 0; k <= n; k++) {
+            for (int i = 0; i <= k; i++) zc[k] -= s.Step * wv[k, i] * idle[i];
+            z0[k] -= zc[k];
         }
         var rox = new double[n + 1];
         var roy = new double[n + 1];
@@ -127,7 +135,7 @@ public static class Gfold {
         }
         var fin = new Dictionary<int, double>();
         for (int i = 0; i <= n; i++) Acc(fin, SG(i), alpha * dt * wv[n, i]);
-        lin.Add((fin, -Math.Log(s.MassMin / ms)));
+        lin.Add((fin, zc[n] - Math.Log(s.MassMin / ms)));
         int ml = lin.Count, m = ml + 6 * (n + 1);
         var g = new double[m, nv];
         var h = new double[m];
@@ -177,7 +185,7 @@ public static class Gfold {
                 zk -= alpha * dt * wv[k, i] * xv[SG(i)];
             }
             plan.Vx[k] = vx * vs; plan.Vy[k] = vy * vs; plan.X[k] = px * len; plan.Y[k] = py * len;
-            plan.Mass[k] = ms * Math.Exp(zk);
+            plan.Mass[k] = ms * Math.Exp(zk + zc[k]);
         }
         Executable(plan, s);
         return plan;
@@ -204,7 +212,7 @@ public static class Gfold {
             double a0x = p.Ux[k] + b0x, a0y = p.Uy[k] + b0y - s.G, a1x = p.Ux[k + 1] + b1x, a1y = p.Uy[k + 1] + b1y - s.G;
             x += vx * dt + dt * dt * (a0x / 3 + a1x / 6); y += vy * dt + dt * dt * (a0y / 3 + a1y / 6);
             vx += dt * (a0x + a1x) / 2; vy += dt * (a0y + a1y) / 2;
-            m *= Math.Exp(-s.Alpha * dt * (p.Sigma[k] + p.Sigma[k + 1]) / 2);
+            m = m * Math.Exp(-s.Alpha * dt * (p.Sigma[k] + p.Sigma[k + 1]) / 2) - dt * (s.Idle(k) + s.Idle(k + 1)) / 2;
         }
         p.Miss = Math.Sqrt(p.X[n] * p.X[n] + p.Y[n] * p.Y[n]);
         p.Fuel = s.Mass0 - p.Mass[n];

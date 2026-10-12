@@ -479,14 +479,14 @@ internal static class Program {
                     + $" tc={(b.ThCmd*Const.R2D):F2} n={b.NRun} thr={b.Throttle:F2}"
                     + $" wind={b.WindE:F1} q={(b.Q/1000):F1} aoa={(b.AoaDev*Const.R2D):F1}"
                     + $" bank={(b.Bank*Const.R2D):F0} fin={b.Fin:F2} v={b.Speed:F0}"
-                    + $" sl={b.SloshY[0]:F2} st={(b.SloshT/1e6):F1} ax={b.AAx:F0} om={(b.Om*Const.R2D):F1} ct={b.CutT:F2} nvv={b.NVv:F1} lc={b.LandCut}");
+                    + $" sl={b.SloshY[0]:F2} st={(b.SloshT/1e6):F1} ax={b.AAx:F0} om={(b.Om*Const.R2D):F1} ct={b.CutT:F2} nvv={b.NVv:F1} lc={b.LandCut} drag={(b.Drag/1e3):F0} m={(b.Mass/1e3):F0}");
             if (lndDbg && (s.Mode == "entryS" && s.Alt < 6000 || s.Mode == "flipS" || s.Mode == "landS")
                 && i % (s.Mode == "flipS" ? 10 : 50) == 0)
                 Console.Error.WriteLine($"LND t={sim.T:F1} {s.Mode} h={s.Alt:F0} vv={s.VVert:F1}"
                     + $" vh={s.VHor:F1} dr={sim.Downrange(s):F0} th={(s.Th*Const.R2D):F1}"
                     + $" tc={(s.ThCmd*Const.R2D):F1} n={s.NRun} thr={s.Throttle:F2}"
                     + $" a={(s.Alpha*Const.R2D):F0} q={(s.Q/1000):F1} m={(s.Mass/1000):F0}"
-                    + $" om={(s.Om*Const.R2D):F0} gim={(s.Gimbal*Const.R2D):F1} F={(s.F/1e6):F2}");
+                    + $" om={(s.Om*Const.R2D):F0} gim={(s.Gimbal*Const.R2D):F1} F={(s.F/1e6):F2} drag={(s.Drag/1e3):F0}");
             if (i % 100 == 0)
                 foreach (Vehicle v in sim.Veh) {
                     if (v.Tanks == null) continue;
