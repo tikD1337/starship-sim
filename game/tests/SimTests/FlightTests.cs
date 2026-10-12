@@ -140,21 +140,23 @@ internal static partial class Program {
             ("довыведение и сход — один двигатель уровня моря", circMax == 1 && deoMax == 1 && !vac)));
     }
     private static void SecoCoast(Run n, List<Action> checks) {
-        double tSeco = double.NaN, hSeco = 0, pSeco = 0, tOrb = double.NaN, tMeco = double.NaN;
+        double tSeco = double.NaN, hSeco = 0, pSeco = 0, tOrb = double.NaN, tMeco = double.NaN, circ = 0;
         string prev = "";
         n.Each(() => {
             if (n.B.Mode == "meco" && double.IsNaN(tMeco)) tMeco = n.Sim.T;
             if (prev == "ascent2" && n.S.Mode == "coastS") { tSeco = n.Sim.T; hSeco = n.S.Alt; pSeco = Guidance.Orb(n.S).Peri; }
             if (n.S.Mode == "orbit" && double.IsNaN(tOrb)) tOrb = n.Sim.T;
+            if (n.S.Mode == "circ" && n.S.NRun > 0) circ += Const.DT;
             prev = n.S.Mode;
         });
         checks.Add(() => Group("выведение как у IFT-14: MECO и отсечка в срок, отсечка до апогея, долгий полёт к довыведению",
-            $"MECO T+{N(tMeco)}, отсечка T+{N(tSeco)} на {N(hSeco / 1000)} км, перигей {N(pSeco / 1000)} км; орбита через {N((tOrb - tSeco) / 60)} мин",
+            $"MECO T+{N(tMeco)}, отсечка T+{N(tSeco)} на {N(hSeco / 1000)} км, перигей {N(pSeco / 1000)} км; орбита через {N((tOrb - tSeco) / 60)} мин, импульс довыведения {N(circ)} с",
             ("MECO на 2:15…2:25 (IFT-13 — 2:18, IFT-14 — 2:20)", tMeco >= 135 && tMeco <= 145),
             ("отсечка на 8:00…8:20 (IFT-13 — 8:05, IFT-14 — 8:10)", tSeco >= 480 && tSeco <= 500),
             ("отсечка на 140…160 км", hSeco > 140e3 && hSeco < 160e3),
             ("перигей отсечки ниже 50 км — без довыведения корабль вернётся", pSeco < 50e3),
-            ("до орбиты 12…22 мин (IFT-14 — 17)", tOrb - tSeco > 12 * 60 && tOrb - tSeco < 22 * 60)));
+            ("до орбиты 15…20 мин (IFT-14 — 17,6)", tOrb - tSeco > 15 * 60 && tOrb - tSeco < 20 * 60),
+            ("импульс довыведения 15…22 с (IFT-14 — 19)", circ > 15 && circ < 22)));
     }
     private static void AscentG(Run n, List<Action> checks) {
         double bG = 0, sG = 0;
