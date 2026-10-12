@@ -633,6 +633,17 @@ internal static partial class Program {
         }
         return (sim.ArmGapL, sim.ArmGapR, Math.Abs(sim.ArmGapL - l0), Math.Abs(sim.ArmGapR - r0), touch, rate);
     }
+    private static (double Moved, double Back) ArmsOutside() {
+        double h = Const.CATCH_H - 3, ready = Const.ARM_GAP_READY;
+        SimState sim = ArmSim(-30, h, 0, out Vehicle s);
+        sim.ArmGapL = sim.ArmGapR = ready;
+        for (int i = 0; i < 250; i++) { Put(sim, s, -30, h, 0); sim.T += 0.02; Physics.Sim.ArmsTick(sim, 0.02); }
+        double moved = Math.Max(Math.Abs(sim.ArmGapL - ready), Math.Abs(sim.ArmGapR - ready)), back = 0;
+        for (; back < 12 && !(sim.ArmGapL - 4 < Const.CATCH_RAIL && sim.ArmGapR + 4 < Const.CATCH_RAIL); back += 0.02) {
+            Put(sim, s, -4, h, 0); sim.T += 0.02; Physics.Sim.ArmsTick(sim, 0.02);
+        }
+        return (moved, back);
+    }
     private static bool CaughtAt(double dr, bool closed, double omDeg) {
         SimState sim = ArmSim(dr, Const.CATCH_H - 0.5, 1, out Vehicle s);
         sim.ArmGapL = closed ? -dr : Const.ARM_GAP_READY;
@@ -677,6 +688,10 @@ internal static partial class Program {
                   ("по центру — поровну", Math.Abs(mid.TravL - mid.TravR) < 1e-6 && mid.TravL > 1),
                   ("по дороге корпус не задевают, даже на быстром спуске", left.Touch > -0.01 && fast.Touch > -0.01),
                   ("не быстрее 3 м/с: на спуске 8 м/с упираются в предел", fast.Rate <= 3 + 1e-9 && fast.Rate > 2.9));
+            var outside = ArmsOutside();
+            Group("корабль в 30 м от оси — за ходом рук: руки ждут раскрытыми, а не едут за ним",
+                  $"за 5 с сдвинулись на {N(outside.Moved)} м; корабль вернулся на 4 м от оси — сошлись за {N(outside.Back)} с",
+                  ("стоят раскрытыми", outside.Moved < 0.1), ("на вернувшемся сходятся за 5 с", outside.Back < 5));
             Group("захват — когда обе руки сошлись на корпусе", "",
                   ("промах 9 м, руки сошлись — пойман", CaughtAt(9, true, 0)),
                   ("руки ещё раскрыты — нет", !CaughtAt(0, false, 0)),

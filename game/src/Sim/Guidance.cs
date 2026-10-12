@@ -496,7 +496,8 @@ public static class Guidance {
             bool canHover = Const.LAND_THR_MIN * fn / v.Mass < e.G - 0.3;
             if (canHover && e.DhS > 3 && e.DhS < Const.SHIP_HOLD_H && (Math.Abs(e.Dr) > Const.SHIP_HOLD_DR || Math.Abs(vx) > Const.SHIP_HOLD_VH)
                 && vT < -Const.LAND_VTD) { vT = -Const.LAND_VTD; ff = 0; }
-            if (v.Retry && e.DhS < 2) { vT = Math.Min(2, 0.5 * (2 - e.DhS)); ff = 0; }
+            double hW = 2 - Const.CATCH_WIN / 2;
+            if (v.Catch && e.DhS < hW) { vT = Math.Min(2, 0.5 * (hW - e.DhS)); ff = 0; }
             double aCmd = e.G - e.Drag / v.Mass + ff + Const.Clamp((vT - e.Vv) * Const.SHIP_KV, -20, 20);
             v.Throttle = Const.Clamp(aCmd * v.Mass / (fn * Math.Max(Math.Cos(v.Th), 0.3)), Const.LAND_THR_MIN, 1);
             want = Math.Atan2(aX, e.G);
