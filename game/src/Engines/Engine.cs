@@ -58,6 +58,17 @@ public sealed class Engine {
         Failed = true; On = false; Reason = reason;
         Log.Msg(Veh.Tag + " · " + Name + ": аварийное выключение — " + reason, 3);
     }
+    private double ChamberFor(double thrust, double pa) {
+        EngineSpec noz = Nozzle();
+        double pc = EngineSpec.PC_PA, want = thrust * noz.CfAt(pc, pa) * pc;
+        double q = (want + pa * noz.Eps) / (noz.CfVac * noz.Real * pc);
+        for (int i = 0; i < 4 && q > 0; i++) {
+            double got = noz.CfAt(q * pc, pa) * q * pc;
+            if (got <= 0 || Math.Abs(got / want - 1) < 1e-4) break;
+            q *= want / got;
+        }
+        return q;
+    }
     public void Update(double dt, double pa, double thrCmd, bool want) {
         bool run = want && !Failed && Veh.Prop > 0;
         On = run;
@@ -65,8 +76,9 @@ public sealed class Engine {
         double tgt = run ? Math.Max(P.MinThr / 100, Thr) : 0;
         Spool += (tgt - Spool) * (1 - Math.Exp(-dt / Math.Max(0.05, P.Tau)));
         if (Spool < 0.005) Spool = 0;
-        Pf.Update(dt, Spool, run);
-        Po.Update(dt, Spool, run);
+        double cmd = Pump.CmdFor(ChamberFor(Spool, pa));
+        Pf.Update(dt, cmd, run);
+        Po.Update(dt, cmd, run);
         if (run && Spool > 0.2 && Propellant.Feed(Veh) < Const.SETTLE_TRIP) {
             GasT += dt;
             if (GasT > Const.GAS_TRIP_T) Fail("газ на входе насоса — топливо в баке не осело");

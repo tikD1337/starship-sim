@@ -7,6 +7,17 @@ public static class Surfaces {
         => -q * 3 * Const.FIN_S * Const.FIN_CD * v.FinDep * Math.Sign(va != 0 ? va : 1);
     public static double FinForce(Vehicle v, double q, double aLoc, double defl)
         => -q * Const.FIN_N * Const.FIN_S * Const.FIN_CN * Math.Sin(aLoc - defl) * v.FinDep;
+    public static AeroForce Total(Vehicle v, Vec2 vr, double q, double mach) {
+        AeroForce af = Aero.Compute(v, vr, q, mach);
+        Vec2 ax = v.Axis, sd = v.Side;
+        double va = vr.X * ax.X + vr.Y * ax.Y, vs = vr.X * sd.X + vr.Y * sd.Y, cm = v.Cm, fax = af.Fax, fsd = af.Fsd;
+        if (v.Kind == Kind.Booster) {
+            fax += FinDrag(v, q, va);
+            fsd += FinForce(v, q, FinLocal(vs, va, cm, v.Om), v.FinDefl);
+        }
+        else fsd += FlapForce(v, q, af.Alpha, cm, v.FlapFwd, v.FlapAft).F;
+        return new AeroForce(af.Alpha, af.CA, af.CN, fax, fsd, Math.Sqrt(fax * fax + fsd * fsd));
+    }
     public static double FinFor(Vehicle v, double q, double aLoc, double force) {
         double k = q * Const.FIN_N * Const.FIN_S * Const.FIN_CN * v.FinDep;
         if (k < 1) return 0;

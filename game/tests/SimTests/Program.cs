@@ -57,6 +57,8 @@ internal static partial class Program {
         Ullage();
         Slosh();
         LightHover();
+        SeaDrift();
+        BandWait();
         OpenLoop();
         RcsGas();
         SocpChecks();

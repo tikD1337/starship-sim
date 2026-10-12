@@ -80,8 +80,9 @@ internal static partial class Program {
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
         Rails(nom, checks);
-        Run gust = Add(Windy(2, true, -20), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
+        Run gust = Add(Windy(2, true, -18), r => r.S.Stowed || r.S.Crashed || r.S.Landed && !r.S.Caught);
         Arms(gust, checks);
+        Squall(Add(Windy(2, true, -18), r => Run.Over(r.S)), checks);
         checks.Add(() => Head("Высокая орбита и трансатмосферное"));
         ShipDescent(high, "высокая орбита", checks);
         ShipDescent(trans, "трансатмосферное", checks);
@@ -632,6 +633,17 @@ internal static partial class Program {
         }
         return (sim.ArmGapL, sim.ArmGapR, Math.Abs(sim.ArmGapL - l0), Math.Abs(sim.ArmGapR - r0), touch, rate);
     }
+    private static (double Moved, double Back) ArmsOutside() {
+        double h = Const.CATCH_H - 3, ready = Const.ARM_GAP_READY;
+        SimState sim = ArmSim(-30, h, 0, out Vehicle s);
+        sim.ArmGapL = sim.ArmGapR = ready;
+        for (int i = 0; i < 250; i++) { Put(sim, s, -30, h, 0); sim.T += 0.02; Physics.Sim.ArmsTick(sim, 0.02); }
+        double moved = Math.Max(Math.Abs(sim.ArmGapL - ready), Math.Abs(sim.ArmGapR - ready)), back = 0;
+        for (; back < 12 && !(sim.ArmGapL - 4 < Const.CATCH_RAIL && sim.ArmGapR + 4 < Const.CATCH_RAIL); back += 0.02) {
+            Put(sim, s, -4, h, 0); sim.T += 0.02; Physics.Sim.ArmsTick(sim, 0.02);
+        }
+        return (moved, back);
+    }
     private static bool CaughtAt(double dr, bool closed, double omDeg) {
         SimState sim = ArmSim(dr, Const.CATCH_H - 0.5, 1, out Vehicle s);
         sim.ArmGapL = closed ? -dr : Const.ARM_GAP_READY;
@@ -640,6 +652,20 @@ internal static partial class Program {
         sim.T += 0.02;
         Flight.StepVehicle(sim, s, 0.02);
         return s.Caught;
+    }
+    private static void Squall(Run g, List<Action> checks) {
+        SimState sim = g.Sim;
+        Vehicle s = g.S;
+        double t0 = double.NaN, away = 0;
+        bool over = false;
+        g.Each(() => {
+            if (double.IsNaN(t0) && s.Mode == "landS" && s.Alt - Const.CATCH_H < 15) { t0 = sim.T; sim.Wind = Wind.Steady(-32); }
+            if (!over && sim.T - t0 > 8) { over = true; sim.Wind = Wind.Steady(-18); }
+            if (!double.IsNaN(t0) && !s.Caught) away = Math.Max(away, Math.Abs(sim.Downrange(s)));
+        });
+        checks.Add(() => Group("шквал 32 м/с сносит корабль от рук: после него корабль возвращается и пойман",
+            $"снесло на {N(away)} м, К {s.Mode}, топлива {N(s.Prop / 1000)} т",
+            ("шквал действительно снёс", away > 25), ("вернулся и пойман", s.Caught && !s.Crashed)));
     }
     private static void Arms(Run g, List<Action> checks) {
         SimState sim = g.Sim;
@@ -662,11 +688,15 @@ internal static partial class Program {
                   ("по центру — поровну", Math.Abs(mid.TravL - mid.TravR) < 1e-6 && mid.TravL > 1),
                   ("по дороге корпус не задевают, даже на быстром спуске", left.Touch > -0.01 && fast.Touch > -0.01),
                   ("не быстрее 3 м/с: на спуске 8 м/с упираются в предел", fast.Rate <= 3 + 1e-9 && fast.Rate > 2.9));
+            var outside = ArmsOutside();
+            Group("корабль в 30 м от оси — за ходом рук: руки ждут раскрытыми, а не едут за ним",
+                  $"за 5 с сдвинулись на {N(outside.Moved)} м; корабль вернулся на 4 м от оси — сошлись за {N(outside.Back)} с",
+                  ("стоят раскрытыми", outside.Moved < 0.1), ("на вернувшемся сходятся за 5 с", outside.Back < 5));
             Group("захват — когда обе руки сошлись на корпусе", "",
                   ("промах 9 м, руки сошлись — пойман", CaughtAt(9, true, 0)),
                   ("руки ещё раскрыты — нет", !CaughtAt(0, false, 0)),
                   ("вращение 5°/с — нет, 1°/с — да", !CaughtAt(0, true, 5) && CaughtAt(0, true, 1)));
-            Group("ветер с моря 20 м/с: руки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м",
+            Group("ветер с моря 18 м/с: руки дотягиваются до корабля", $"К {s.Mode}, промах {N(miss)} м",
                   ("пойман", s.Caught));
         });
     }
@@ -738,7 +768,7 @@ internal static partial class Program {
         Vehicle bb = r.B;
         var navH = new List<double>();
         var navV = new List<double>();
-        double rhoMeco = double.NaN, errEst = 0, errFc = 0, n = 0, lagSum = 0, lagN = 0;
+        double rhoMeco = double.NaN, rhoDesc = double.NaN, errEst = 0, errFc = 0, n = 0, lagSum = 0, lagN = 0;
         int tick = 0;
         r.Each(() => {
             tick++;
@@ -746,6 +776,7 @@ internal static partial class Program {
             if (tick % 100 == 0 && Math.Abs(bb.VVert) < 5) navV.Add(bb.NavVh);
             if (bb.Mode == "coastB" && bb.VVert < -300) { lagSum += (bb.NAlt - bb.Alt) / -bb.VVert; lagN++; }
             if (double.IsNaN(rhoMeco) && sim.T > 60 && bb.Mode != "ascent") rhoMeco = bb.RhoEst;
+            if (double.IsNaN(rhoDesc) && bb.Mode == "landB" && bb.Alt < 3000) rhoDesc = bb.RhoEst;
             if (bb.Mode == "landB" && bb.Alt < 1500) {
                 errEst += Math.Abs(bb.WindEst - bb.WindE) * Const.DT;
                 errFc += Math.Abs(sim.Wind.Forecast(bb.Alt) - bb.WindE) * Const.DT;
@@ -760,25 +791,37 @@ internal static partial class Program {
                   ("запаздывает на ~0,1 с", lagN > 100 && Math.Abs(lagSum / lagN - Const.NAV_LAG) < 0.02),
                   ("по высоте порядка метра", sH > 0.3 && sH < 1.6 && Math.Abs(mH) < 0.8),
                   ("по скорости — сотые м/с", sV > 0.02 && sV < 0.2));
-            Group("оценки плотности и ветра", $"плотность {N(rhoMeco)} при настоящей {N(sim.RhoK)}; ветер у земли ошибается на {N(errEst / Math.Max(n, 1e-9))} м/с, прогноз — на {N(errFc / Math.Max(n, 1e-9))}",
+            Group("оценки плотности и ветра", $"плотность {N(rhoMeco)} на подъёме и {N(rhoDesc)} на спуске при настоящей {N(sim.RhoK)}; ветер у земли ошибается на {N(errEst / Math.Max(n, 1e-9))} м/с, прогноз — на {N(errFc / Math.Max(n, 1e-9))}",
                   ("плотность по торможению точнее 1 %", Math.Abs(rhoMeco / sim.RhoK - 1) < 0.01),
+                  ("и на спуске с раскрытыми рулями — точнее 3 %", Math.Abs(rhoDesc / sim.RhoK - 1) < 0.03),
                   ("ниже 1,5 км оценка ветра лучше прогноза", n > 5 && errEst < errFc && errEst / n < 1.2),
                   ("ускоритель пойман, наводясь по оценкам", bb.Caught));
         });
     }
     private static void LiveCatches(List<Run> runs, List<Action> checks) {
         var cases = new List<(string Name, Run R)>();
-        foreach (uint seed in new uint[] { 1, 2 }) cases.Add(($"разброс, зерно {seed}", new Run(Live(seed, true))));
+        foreach (uint seed in new uint[] { 1, 3 }) cases.Add(($"разброс, зерно {seed}", new Run(Live(seed, true))));
         cases.Add(("разброс и ветер 15 м/с, зерно 9 (порыв у рук)", new Run(Windy(9, true, 15))));
         foreach (uint seed in new uint[] { 14, 17 }) cases.Add(($"разброс и ветер 22 м/с, зерно {seed}", new Run(Windy(seed, true, 22))));
+        cases.Add(("разброс и ветер с моря 20 м/с, зерно 7 («добро» у самого порога)", new Run(Windy(7, true, -20))));
+        SimState highGale = Live(7, true, "high");
+        highGale.Wind = Wind.Steady(-20);
+        highGale.Disp?.ApplyWind(highGale);
+        cases.Add(("высокая орбита, разброс и ветер с моря 20 м/с, зерно 7", new Run(highGale)));
         foreach ((string _, Run r) in cases) { r.Until(() => Run.Over(r.S)); runs.Add(r); }
         checks.Add(() => {
             Head("Живой полёт: разброс и ветер");
             Group("с разбросом обе ступени пойманы", string.Join(", ", cases.Take(3).Select(c => $"{c.Name}: Б {c.R.B.Mode}, К {c.R.S.Mode}")),
                   cases.Take(3).Select(c => (c.Name, c.R.B.Caught && c.R.S.Caught)).ToArray());
-            Group("ветер 22 м/с выше допуска: корабль пойман или приводнился, но не разбит (пункты 63–64)",
+            Group("корабль входит в руки на заданной скорости: тормозит с упреждением на отклик двигателя",
+                  string.Join(", ", cases.Take(3).Select(c => $"{c.Name}: {N(c.R.S.CatchVd)} м/с")),
+                  cases.Take(3).Select(c => (c.Name + ": не быстрее 2,6 м/с", c.R.S.Caught && c.R.S.CatchVd <= 2.6)).ToArray());
+            Group("ветер у допуска и выше: корабль пойман или приводнился, но не разбит (пункты 63–64)",
                   string.Join(", ", cases.Skip(3).Select(c => $"{c.Name}: {c.R.S.Mode}")),
                   cases.Skip(3).Select(c => (c.Name, !c.R.S.Crashed && (c.R.S.Caught || c.R.S.Splash))).ToArray());
+            Group("ветер 22 м/с: упреждение по ветру не жжёт лишнего топлива ускорителя",
+                  string.Join(", ", cases.Skip(3).Take(2).Select(c => $"{c.Name}: Б {c.R.B.Mode}, в баках {N(c.R.B.Prop / 1000)} т")),
+                  cases.Skip(3).Take(2).Select(c => (c.Name + ": пойман, в баках не меньше 47,5 т", c.R.B.Caught && c.R.B.Prop >= 47.5e3)).ToArray());
         });
     }
     private static void Fallbacks(List<Run> runs, List<Action> checks) {

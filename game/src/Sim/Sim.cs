@@ -218,7 +218,8 @@ public static class Sim {
             if (v.Caught && v.SeekPad && !v.Stowed) { held = v; break; }
         if (held == null)
             foreach (Vehicle v in sim.Veh)
-                if (v.Catch && !v.Landed && !v.Crashed && v.Launched && v.Alt < Const.ARM_APPROACH_H && v.VVert < 0)
+                if (v.Catch && !v.Landed && !v.Crashed && v.Launched && v.Alt < Const.ARM_APPROACH_H
+                    && (v.VVert < 0 || v.Mode == "landB" || v.Mode == "landS"))
                 { serve = v; break; }
         Vehicle at = held ?? serve;
         double armWant = at == null && !b.Launched ? Const.ARM_PARK
@@ -235,9 +236,10 @@ public static class Sim {
         }
         else {
             double wantL = Const.ARM_GAP_PARK, wantR = Const.ARM_GAP_PARK;
-            if (serve != null) {
+            double x = serve == null ? 0 : SimState.DownrangeAt(serve, t0);
+            if (serve != null && Math.Abs(x) >= Const.ARM_GAP_READY) wantL = wantR = Const.ARM_GAP_READY;
+            else if (serve != null) {
                 double s = Const.Clamp((serve.Alt - Const.CATCH_H) / serve.CatchPinY, 0, 1), k = s * s * (3 - 2 * s);
-                double x = SimState.DownrangeAt(serve, t0);
                 wantL = k * Const.ARM_GAP_READY - (1 - k) * x;
                 wantR = k * Const.ARM_GAP_READY + (1 - k) * x;
             }

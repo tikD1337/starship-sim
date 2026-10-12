@@ -92,6 +92,15 @@ internal static partial class Program {
               ("вышел на режим", sea.Spool > 0.99 && sea.F > 1e6),
               ("прибавка в пустоте равна Ae·P₀", Math.Abs((vac.F - sea.F) / (sea.Spec.Ae * Const.P0) - 1) < 0.005),
               ("тяга в пустоте по паспорту", Math.Abs(vac.F / Spec.RaptorSL.Fv - 1) < 0.02));
+        double Off(double pa) {
+            double full = Burning(Kind.Booster, 12, pa).Eng[0].F, worst = 0;
+            foreach (double th in new[] { 0.4, 0.5, 0.6, 0.8 })
+                worst = Math.Max(worst, Math.Abs(Burning(Kind.Booster, 12, pa, 1, th).Eng[0].F / (th * full) - 1));
+            return worst;
+        }
+        double offSea = Off(Const.P0), offVac = Off(0);
+        Group("дроссель — доля тяги: регулятор держит её и у земли, и в пустоте", $"отклонение тяги от команды на 40…80 %: у земли до {N(offSea * 100)} %, в пустоте до {N(offVac * 100)} %",
+              ("у земли, с противодавлением и отрывом потока", offSea < 0.01), ("в пустоте", offVac < 0.01));
         EngineSpec sl = Spec.RaptorSL, vc = Spec.RaptorVac;
         double pc = EngineSpec.PC_PA;
         Group("геометрия из паспортных чисел", $"горловина {N(2 * Math.Sqrt(sl.At / Math.PI))} м, срез {N(2 * Math.Sqrt(sl.Ae / Math.PI))} м, ε {N(sl.Eps)} и {N(vc.Eps)}",
@@ -923,6 +932,48 @@ internal static partial class Program {
         int light = OverArms(10e3, 3e6), heavy = OverArms(45e3, 3e6);
         Group("тяга трёх на минимальном дросселе больше веса — один гасится", $"при 3 МН и 10 т топлива {light}, при 45 т {heavy}",
               ("лёгкий гасит один", light == 2), ("тяжёлый остаётся на трёх", heavy == 3));
+    }
+    private static double SeaTilt(double off) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Ship, 0) {
+            Mode = "landS", SeekPad = true, Site = "sea", AimDr = Const.SEA_DR, Launched = true, Ign = true, IgnBurn = true, BurnLogged = true,
+            NEng = 1, NRun = 1, Throttle = 0.45, Prop = 30e3, F = 1.1e6, ShipHold = true,
+        };
+        double a = (Const.SEA_DR + off) / Const.RE, r = Const.RE - Const.DECK_H + 8;
+        v.X = -r * Math.Sin(a); v.Y = r * Math.Cos(a);
+        Vec2 e = v.East;
+        v.Vx = 5 * e.X - Const.W * v.Y; v.Vy = 5 * e.Y + Const.W * v.X;
+        sim.Veh.Add(v);
+        Guidance.LandingBurn(sim, v, Const.DT, 3);
+        return v.ThCmd * Const.R2D;
+    }
+    private static double BandAcc(double dh) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Ship, 0) {
+            Mode = "landS", SeekPad = true, Launched = true, Ign = true, IgnBurn = true, BurnLogged = true,
+            NEng = 1, NRun = 1, Throttle = 0.45, Prop = 30e3, F = 1.1e6, ShipHold = true,
+        };
+        double a = 20 / Const.RE, r = Const.RE + Const.CATCH_H + dh;
+        v.X = -r * Math.Sin(a); v.Y = r * Math.Cos(a);
+        Vec2 u = v.Up;
+        v.Vx = -2 * u.X - Const.W * v.Y; v.Vy = -2 * u.Y + Const.W * v.X;
+        sim.Veh.Add(v);
+        Guidance.LandingBurn(sim, v, Const.DT, 3);
+        double f1 = Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(v.Alt).P;
+        return v.Throttle * v.NEng * f1 * Math.Cos(v.Th) / v.Mass - Const.MU / (v.R * v.R);
+    }
+    private static void BandWait() {
+        Head("Корабль в полосе захвата, руки не взяли");
+        double top = BandAcc(-2), low = BandAcc(-10);
+        Group("в 20 м от оси, спуск 2 м/с: ниже середины полосы корабль тормозит и ждёт рук, а не уходит под них",
+              $"заказ ускорения в 2 м под верхом полосы {N(top)} м/с², в 10 м — {N(low)} м/с²",
+              ("у верха полосы спуск продолжается", Math.Abs(top) < 1), ("ниже середины — торможение не слабее 2 м/с²", low > 2));
+    }
+    private static void SeaDrift() {
+        Head("Корабль у воды: снос ветром");
+        double near = SeaTilt(10), far = SeaTilt(40);
+        Group("в 8 м над водой, снос 5 м/с: заказ наклона не растёт оттого, что унесло от точки", $"в 10 м от точки {N(near)}°, в 40 м {N(far)}°",
+              ("гасит снос наклоном", Math.Abs(near) > 1), ("в 40 м наклон тот же", Math.Abs(far - near) < 1e-6));
     }
     private static void BadNumbers() {
         Head("Негодные числа");

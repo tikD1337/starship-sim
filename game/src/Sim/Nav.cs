@@ -37,7 +37,7 @@ public static class Nav {
             Vec2 vr = Rel(vn, wf + v.WindBias, e);
             double q = 0.5 * std.Rho * vr.Len * vr.Len;
             if (q > Const.NAV_RHO_Q) {
-                double dm = Aero.Compute(v, vr, q, vr.Len / std.A).Drag;
+                double dm = Surfaces.Total(v, vr, q, vr.Len / std.A).Drag;
                 if (dm > 1) v.RhoEst += (Const.Clamp(drag / dm, 0.7, 1.3) - v.RhoEst) * Math.Min(odt / Const.NAV_RHO_TAU, 1);
             }
         }
@@ -56,7 +56,7 @@ public static class Nav {
     private static double HorForce(Vehicle v, Vec2 vn, double w, Vec2 e, Air at, double rhoK) {
         Vec2 vr = Rel(vn, w, e);
         double sp = vr.Len, q = 0.5 * at.Rho * rhoK * sp * sp;
-        Vec2 f = Aero.World(v, Aero.Compute(v, vr, q, sp / at.A), vr);
+        Vec2 f = Aero.World(v, Surfaces.Total(v, vr, q, sp / at.A), vr);
         return f.X * e.X + f.Y * e.Y;
     }
 }
