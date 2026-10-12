@@ -933,6 +933,26 @@ internal static partial class Program {
         Group("тяга трёх на минимальном дросселе больше веса — один гасится", $"при 3 МН и 10 т топлива {light}, при 45 т {heavy}",
               ("лёгкий гасит один", light == 2), ("тяжёлый остаётся на трёх", heavy == 3));
     }
+    private static double SeaTilt(double off) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Ship, 0) {
+            Mode = "landS", SeekPad = true, Site = "sea", AimDr = Const.SEA_DR, Launched = true, Ign = true, IgnBurn = true, BurnLogged = true,
+            NEng = 1, NRun = 1, Throttle = 0.45, Prop = 30e3, F = 1.1e6, ShipHold = true,
+        };
+        double a = (Const.SEA_DR + off) / Const.RE, r = Const.RE - Const.DECK_H + 8;
+        v.X = -r * Math.Sin(a); v.Y = r * Math.Cos(a);
+        Vec2 e = v.East;
+        v.Vx = 5 * e.X - Const.W * v.Y; v.Vy = 5 * e.Y + Const.W * v.X;
+        sim.Veh.Add(v);
+        Guidance.LandingBurn(sim, v, Const.DT, 3);
+        return v.ThCmd * Const.R2D;
+    }
+    private static void SeaDrift() {
+        Head("Корабль у воды: снос ветром");
+        double near = SeaTilt(10), far = SeaTilt(40);
+        Group("в 8 м над водой, снос 5 м/с: заказ наклона не растёт оттого, что унесло от точки", $"в 10 м от точки {N(near)}°, в 40 м {N(far)}°",
+              ("гасит снос наклоном", Math.Abs(near) > 1), ("в 40 м наклон тот же", Math.Abs(far - near) < 1e-6));
+    }
     private static void BadNumbers() {
         Head("Негодные числа");
         Air bad = Atmosphere.At(double.NaN);
