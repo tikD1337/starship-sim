@@ -947,6 +947,28 @@ internal static partial class Program {
         Guidance.LandingBurn(sim, v, Const.DT, 3);
         return v.ThCmd * Const.R2D;
     }
+    private static double BandAcc(double dh) {
+        var sim = new SimState { T = 0, RhoK = 1 };
+        var v = new Vehicle(Kind.Ship, 0) {
+            Mode = "landS", SeekPad = true, Launched = true, Ign = true, IgnBurn = true, BurnLogged = true,
+            NEng = 1, NRun = 1, Throttle = 0.45, Prop = 30e3, F = 1.1e6, ShipHold = true,
+        };
+        double a = 20 / Const.RE, r = Const.RE + Const.CATCH_H + dh;
+        v.X = -r * Math.Sin(a); v.Y = r * Math.Cos(a);
+        Vec2 u = v.Up;
+        v.Vx = -2 * u.X - Const.W * v.Y; v.Vy = -2 * u.Y + Const.W * v.X;
+        sim.Veh.Add(v);
+        Guidance.LandingBurn(sim, v, Const.DT, 3);
+        double f1 = Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(v.Alt).P;
+        return v.Throttle * v.NEng * f1 * Math.Cos(v.Th) / v.Mass - Const.MU / (v.R * v.R);
+    }
+    private static void BandWait() {
+        Head("Корабль в полосе захвата, руки не взяли");
+        double top = BandAcc(-2), low = BandAcc(-10);
+        Group("в 20 м от оси, спуск 2 м/с: ниже середины полосы корабль тормозит и ждёт рук, а не уходит под них",
+              $"заказ ускорения в 2 м под верхом полосы {N(top)} м/с², в 10 м — {N(low)} м/с²",
+              ("у верха полосы спуск продолжается", Math.Abs(top) < 1), ("ниже середины — торможение не слабее 2 м/с²", low > 2));
+    }
     private static void SeaDrift() {
         Head("Корабль у воды: снос ветром");
         double near = SeaTilt(10), far = SeaTilt(40);
