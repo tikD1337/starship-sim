@@ -4,7 +4,8 @@ public sealed class EngineParams {
         FEff = 1, OHead = 1, OEff = 1;
     public double? RpmDirect = null, TDirect = null;
     public double ValveF = 1, ValveOx = 1, PTankF = 350, PTankOx = 380, MinThr = 40, Cf = 1, AeK = 1,
-        Tau = 0.28, IgnDelay = 0, Cool = 1;
+        Tau = 0.28, IgnDelay = 0, Cool = 1, PcNoise = 0;
+    public uint Seed = 1;
 }
 public static class Log {
     public static System.Action<string, int> Sink;

@@ -52,6 +52,7 @@ internal static partial class Program {
         AeroForces();
         EngineThrust();
         ChamberCooling();
+        Governor();
         PumpCavitation();
         Settling();
         Ullage();

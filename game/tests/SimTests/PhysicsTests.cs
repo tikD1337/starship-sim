@@ -164,6 +164,37 @@ internal static partial class Program {
         True("после выключения стенка остывает, а не прогорает", !idle.Eng[0].Failed && idle.Eng[0].TWall < 900,
              $"{N(idle.Eng[0].TWall)} К, повреждение {N(idle.Eng[0].Burn)}");
     }
+    private static (double Thrust, double Rpm, double Heat) Weak(double head, double throttle) {
+        var v = new Vehicle(Kind.Booster, 60e3) { Ign = true, NEng = 33, Throttle = throttle };
+        Engine weak = v.Eng[0], good = v.Eng[1];
+        weak.P.FHead = head; weak.P.OHead = head;
+        const double dt = 0.02;
+        for (int i = 0; i * dt < 12; i++) {
+            Pressurant.Step(v, dt);
+            EngineSet.Update(v, dt, Const.P0);
+            EngStats st = EngineSet.Stats(v);
+            v.F = st.F; v.Mdot = st.Md;
+            v.Prop = Math.Max(0, v.Prop - st.Md * dt);
+        }
+        return (weak.F / good.F, weak.Pf.Rpm / good.Pf.Rpm, weak.Pf.T - good.Pf.T);
+    }
+    private static void Governor() {
+        Head("Регулятор двигателя по давлению в камере");
+        var part = Weak(0.85, 0.6);
+        var full = Weak(0.85, 1);
+        var fine = Weak(1, 0.6);
+        Group("насос просел на 15 %: на дросселе 60 % регулятор поднимает обороты и возвращает тягу",
+              $"тяга {N(part.Thrust * 100)} % от исправного соседа, обороты {N(part.Rpm * 100)} %, подшипники горячее на {N(part.Heat)} К",
+              ("тяга возвращена до 1 %", Math.Abs(part.Thrust - 1) < 0.01),
+              ("обороты выше на 7…10 %", part.Rpm > 1.07 && part.Rpm < 1.10),
+              ("насос греется сильнее", part.Heat > 5));
+        Group("на полной тяге запаса оборотов 5 % не хватает: регулятор на упоре, тяга недобрана",
+              $"тяга {N(full.Thrust * 100)} %, обороты {N(full.Rpm * 100)} %",
+              ("обороты на упоре 105 %", Math.Abs(full.Rpm - 1.05) < 0.005),
+              ("тяга 90…96 %", full.Thrust > 0.90 && full.Thrust < 0.96));
+        Group("исправный двигатель регулятор не трогает", $"тяга {N(fine.Thrust * 100)} %, обороты {N(fine.Rpm * 100)} %",
+              ("как у соседа", Math.Abs(fine.Thrust - 1) < 1e-6 && Math.Abs(fine.Rpm - 1) < 1e-6));
+    }
     private static void PumpCavitation() {
         Head("Турбонасос");
         Vehicle v = Burning(Kind.Booster, 8);

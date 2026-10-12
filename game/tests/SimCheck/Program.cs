@@ -525,6 +525,8 @@ internal static class Program {
                                 $"bIgnH={bIgnH:F0}m bIgnV={bIgnV:F0}kmh b13={b13T:F1}s bBurnG={bBurnG:F1}");
         Console.Error.WriteLine($"FLIP sVhMax={sVhFlip:F1}m/s sHover={sHoverT:F1}s sTiltMax={sTiltMax:F1}deg sFlipMiss={sDrFlip:F0}m sFlipVh={sVhFlip0:F1}m/s");
         Console.Error.WriteLine($"MET sGas={s.RcsGas:F0}kg bGas={b.RcsGas:F0}kg sPf={sPf / 1000:F1}kPa sPo={sPo / 1000:F1}kPa cpu={System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime.TotalSeconds:F2}s");
+        Console.Error.WriteLine($"GOV bGov={b.Eng.Min(e => e.Gov):F4}..{b.Eng.Max(e => e.Gov):F4} sGov={s.Eng.Min(e => e.Gov):F4}..{s.Eng.Max(e => e.Gov):F4} " +
+                                $"bWear={b.Eng.Max(e => Math.Max(e.Pf.Wear, e.Po.Wear)):F4} sWear={s.Eng.Max(e => Math.Max(e.Pf.Wear, e.Po.Wear)):F4} sat={b.Eng.Count(e => e.GovT > 0) + s.Eng.Count(e => e.GovT > 0)}");
         if (steerCsv != null) System.IO.File.WriteAllText(steerPath, steerCsv.ToString());
         if (landCsv != null) System.IO.File.WriteAllText(landPath, landCsv.ToString());
         Console.Error.WriteLine($"STEER bTiltRms={Math.Sqrt(stSq[0] / Math.Max(stT[0], 1e-9)):F2} bRate={stVar[0] / Math.Max(stT[0], 1e-9):F2} bRev={stRev[0]} bT={stT[0]:F1} " +

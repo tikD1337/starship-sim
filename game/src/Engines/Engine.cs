@@ -14,6 +14,11 @@ public sealed class Engine {
     public bool On, Failed, Sep;
     public string Reason = "";
     public double Spool, Pc, F, Md, Thr, Arm;
+    public double Gov = 1, PcSense, PcModel, GovT;
+    public bool GovSat;
+    private double _clock;
+    private bool _satSaid;
+    private const double SENSE_TAU = 0.02, GOV_TAU = 0.4, GOV_MIN = 0.5, GOV_MAX = 1.1, NOISE_DT = 0.02;
     public double TWall = 290, QWall, Burn, GasT;
     private const double CHAN_AREA = 0.003, CHAN_DH = 0.0025, COOL_T = 150;
     private const double WALL_LIMIT = 950, BURN_ENG = 2.0e-7;
@@ -69,6 +74,21 @@ public sealed class Engine {
         }
         return q;
     }
+    private void Govern(double dt, bool run, double q, double need) {
+        _clock += dt;
+        double rf = Pf.Rel, model = Math.Min(rf * rf, Po.Rel * Po.Rel);
+        double seen = P.PcNoise > 0 ? q * (1 + P.PcNoise * Rng.Gauss(P.Seed, (long)(_clock / NOISE_DT), 0)) : q;
+        double k = 1 - Math.Exp(-dt / SENSE_TAU);
+        PcSense += (seen - PcSense) * k;
+        PcModel += (model - PcModel) * k;
+        if (run && PcModel > 0.2 && Pf.Cav > 0.999 && Po.Cav > 0.999)
+            Gov += (Const.Clamp(PcSense / PcModel, GOV_MIN, GOV_MAX) - Gov) * (1 - Math.Exp(-dt / GOV_TAU));
+        GovT = GovSat ? GovT + dt : 0;
+        if (GovT > 1 && !_satSaid && need > 0) {
+            _satSaid = true;
+            Log.Msg($"{Veh.Tag} · {Name}: регулятор тяги на упоре — обороты {rf * 100:F0} %, давление в камере {q / need * 100:F0} % от заданного", 2);
+        }
+    }
     public void Update(double dt, double pa, double thrCmd, bool want) {
         bool run = want && !Failed && Veh.Prop > 0;
         On = run;
@@ -76,7 +96,9 @@ public sealed class Engine {
         double tgt = run ? Math.Max(P.MinThr / 100, Thr) : 0;
         Spool += (tgt - Spool) * (1 - Math.Exp(-dt / Math.Max(0.05, P.Tau)));
         if (Spool < 0.005) Spool = 0;
-        double cmd = Pump.CmdFor(ChamberFor(Spool, pa));
+        double need = ChamberFor(Spool, pa), ask = Pump.CmdFor(need / Gov);
+        GovSat = run && ask > Pump.CMD_TOP + 1e-9;
+        double cmd = Math.Min(ask, Pump.CMD_TOP);
         Pf.Update(dt, cmd, run);
         Po.Update(dt, cmd, run);
         if (run && Spool > 0.2 && Propellant.Feed(Veh) < Const.SETTLE_TRIP) {
@@ -87,6 +109,7 @@ public sealed class Engine {
         double rf = Pf.DP / Pump.NomF.DP, ro = Po.DP / Pump.NomO.DP;
         double q = Const.Clamp(Math.Min(rf, ro), 0, 1.25);
         Pc = Pump.PC_NOM * q;
+        Govern(dt, run, q, need);
         double gate = (run || Spool > 0) ? 1 : 0;
         double pcPa = Pc * 1e6;
         EngineSpec noz = Nozzle();

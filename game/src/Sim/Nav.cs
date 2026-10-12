@@ -29,18 +29,13 @@ public static class Nav {
             for (int c = 0; c < 4; c++) {
                 double keep = Math.Exp(-Const.NAV_NOISE_DT / (c < 2 ? Const.NAV_POS_TAU : Const.NAV_VEL_TAU));
                 a[c] = b[c];
-                b[c] = a[c] * keep + Sig(c) * Math.Sqrt(1 - keep * keep) * Gauss(seed, v.NzK + 2, c);
+                b[c] = a[c] * keep + Sig(c) * Math.Sqrt(1 - keep * keep) * Rng.Gauss(seed, v.NzK + 2, c);
             }
         double f = at - k;
         v.NzH = a[0] + (b[0] - a[0]) * f; v.NzX = a[1] + (b[1] - a[1]) * f;
         v.NzVv = a[2] + (b[2] - a[2]) * f; v.NzVh = a[3] + (b[3] - a[3]) * f;
     }
     private static double Sig(int c) => c < 2 ? Const.NAV_POS_SIG : Const.NAV_VEL_SIG;
-    private static double Gauss(uint seed, long k, int c) {
-        uint h = Rng.Mix(unchecked(Rng.Mix(seed ^ unchecked((uint)(c + 1) * 0x85EBCA6Bu)) + (uint)k));
-        double u = Math.Max(h / 4294967296.0, 1e-12), w = Rng.Mix(unchecked(h + 0x6C8E9CF5u)) / 4294967296.0;
-        return Math.Sqrt(-2 * Math.Log(u)) * Math.Cos(2 * Math.PI * w);
-    }
     public static void Observe(SimState sim, Vehicle v, double fx, double fy, double drag, double h, double dt) {
         v.ObsAcc += dt;
         if (v.ObsAcc < Const.NAV_OBS_DT) return;

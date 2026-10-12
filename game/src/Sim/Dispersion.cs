@@ -31,7 +31,12 @@ public sealed class Dispersion {
             v.DryBase *= DryK[i];
             v.Prop *= PropK[i];
             v.PropMax = v.Prop;
-            for (int j = 0; j < v.Eng.Count; j++) v.Eng[j].P.Cf *= EngK[i][j % EngK[i].Length];
+            for (int j = 0; j < v.Eng.Count; j++) {
+                EngineParams p = v.Eng[j].P;
+                p.Cf *= EngK[i][j % EngK[i].Length];
+                p.PcNoise = Const.PC_NOISE;
+                p.Seed = Rng.Mix(unchecked(sim.Seed * 2246822519u + (uint)(i * 64 + j + 1)));
+            }
         }
         sim.RhoK = RhoK;
         ApplyWind(sim);
