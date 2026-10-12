@@ -32,6 +32,7 @@ public sealed class Vehicle {
     public double RcsK = 1, RcsUse, AoaDev, Tmr, HoldT, CutT, SatAcc, HeldVh, HeldOm, CatchH = Const.CATCH_H;
     public double NavH, NavX, NavVv, NavVh, WindBias, WindBiasAvg, WindEst, RhoEst = 1, ObsAcc, FRef;
     public double NzH, NzX, NzVv, NzVh;
+    public double AeroUp, DragEst;
     public long NzK = long.MinValue / 2;
     public readonly double[] NzA = new double[4], NzB = new double[4];
     public readonly double[] LagH = new double[32], LagX = new double[32], LagVv = new double[32], LagVh = new double[32];

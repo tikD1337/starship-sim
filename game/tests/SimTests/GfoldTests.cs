@@ -104,11 +104,12 @@ internal static partial class Program {
         GfoldSetup set = Guidance.GfoldBase(b, sim.Downrange(b), b.Alt - gateH, b.VHor, b.VVert, ne, fOne, g, 13.6);
         set.Step = 0.25;
         GfoldPlan p = Gfold.Plan(set, 6, 80), dry = p;
+        if (p.Status == SocpStatus.Optimal) p = Gfold.Solve(set.With(p.Nodes + 1));
         for (int pass = 0; pass < 2 && p.Status == SocpStatus.Optimal; pass++) {
             set.Bias = Guidance.GfoldDrag(b, p, gateH);
-            p = Gfold.Replan(set, p.Nodes, 6, 80);
+            p = Gfold.Solve(set.With(p.Nodes));
         }
-        double t0 = sim.T, h0 = b.Alt, v0 = b.VVert, servo = 0;
+        double t0 = sim.T, h0 = b.Alt, v0 = b.VVert, servo = 0, m0 = b.Mass;
         while (p.Status == SocpStatus.Optimal && sim.T - t0 < p.Time) {
             var c = p.At(sim.T - t0 + Const.GF_LEAD);
             double f1 = Spec.RaptorSL.Fv - Spec.RaptorSL.Ae * Atmosphere.At(b.Alt).P;
@@ -121,6 +122,10 @@ internal static partial class Program {
             sim.T += Const.DT;
         }
         double ex = sim.Downrange(b), ey = b.Alt - gateH, dv = Math.Sqrt(b.VHor * b.VHor + (b.VVert + 13.6) * (b.VVert + 13.6));
+        double burnt = m0 - b.Mass;
+        True("план G-FOLD считает расход по давлению в камере: топливо плана равно сожжённому",
+             p.Status == SocpStatus.Optimal && Math.Abs(p.Fuel / burnt - 1) < 0.03,
+             $"по плану {N(p.Fuel)} кг, сожжено {N(burnt)} кг, расхождение {N((p.Fuel / burnt - 1) * 100)} %");
         True("план G-FOLD, исполненный без обратной связи, приводит ускоритель к воротам",
              p.Status == SocpStatus.Optimal && Math.Sqrt(ex * ex + ey * ey) < 30 && dv < 5,
              $"с {N(h0)} м, {N(v0)} м/с, {ne} двигателей: {p.Status}, {p.Nodes} узлов по {N(p.Step)} с, топливо {N(p.Fuel)} кг (без сопротивления {N(dry.Fuel)}); у ворот {N(ex)}/{N(ey)} м, {N(b.VHor)}/{N(b.VVert)} м/с (цель 0/−13,6)");

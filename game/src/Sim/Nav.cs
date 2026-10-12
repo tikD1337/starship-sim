@@ -64,6 +64,14 @@ public static class Nav {
         }
         v.WindEst = wf + v.WindBias;
     }
+    public static double AeroUp(Vehicle v, double h, double vh, double vv) {
+        Vec2 e = v.East, u = v.Up;
+        Vec2 vr = Rel(new Vec2(e.X * vh + u.X * vv, e.Y * vh + u.Y * vv), v.WindEst, e);
+        Air at = Atmosphere.At(h);
+        double sp = vr.Len, q = 0.5 * at.Rho * v.RhoEst * sp * sp;
+        Vec2 f = Aero.World(v, Surfaces.Total(v, vr, q, sp / at.A), vr);
+        return f.X * u.X + f.Y * u.Y;
+    }
     private static Vec2 Rel(Vec2 vn, double w, Vec2 e) => new(vn.X - w * e.X, vn.Y - w * e.Y);
     private static double HorForce(Vehicle v, Vec2 vn, double w, Vec2 e, Air at, double rhoK) {
         Vec2 vr = Rel(vn, w, e);

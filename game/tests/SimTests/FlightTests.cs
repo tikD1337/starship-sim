@@ -76,6 +76,7 @@ internal static partial class Program {
         GfoldLanding(new[] { ("орбитальное", nom), ("высокая орбита", high), ("трансатмосферное", trans) }, checks);
         FlapsIntact(new[] { ("орбитальное", nom) }, checks);
         GasBudget(nom, checks);
+        DragEstimate(nom, checks);
         VacTurns(nom, checks);
         ShipDescent(nom, "орбитальное", checks);
         ArmsAndCatch(nom, checks);
@@ -499,6 +500,23 @@ internal static partial class Program {
                   ("через 1000 с стоит на месте относительно Земли", v1000 < 0.5),
                   ("двигатели не числятся работающими", b.NRun == 0));
         });
+    }
+    private static void DragEstimate(Run r, List<Action> checks) {
+        Vehicle b = r.B, s = r.S;
+        double worstB = 0, worstS = 0, atB = 0, atS = 0;
+        r.Each(() => {
+            if (b.Mode == "landB" && b.NRun > 0 && b.VVert < -40 && b.AeroUp > 1e5) {
+                double err = Math.Abs(b.DragEst / b.AeroUp - 1);
+                if (err > worstB) { worstB = err; atB = b.VVert; }
+            }
+            if (s.Mode == "landS" && s.NRun > 0 && s.VVert < -15 && s.AeroUp > 3e4) {
+                double err = Math.Abs(s.DragEst / s.AeroUp - 1);
+                if (err > worstS) { worstS = err; atS = s.VVert; }
+            }
+        });
+        checks.Add(() => Group("закон посадки знает настоящее сопротивление, а не грубую оценку",
+            $"худшая ошибка: ускоритель {N(worstB * 100)} % при {N(atB)} м/с, корабль {N(worstS * 100)} % при {N(atS)} м/с",
+            ("ускоритель на жиге — точнее 15 %", worstB > 0 && worstB < 0.15), ("корабль на жиге — точнее 25 %", worstS > 0 && worstS < 0.25)));
     }
     private static void ShipDescent(Run r, string name, List<Action> checks) {
         Vehicle s = r.S;

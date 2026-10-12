@@ -54,6 +54,17 @@ public sealed class EngineSpec {
                        + pSep / pc * epsSep;
         return cfSep * Real - pa * epsSep / pc;
     }
+    public double ChamberFor(double thrust, double pa) {
+        double pc = PC_PA, want = thrust * CfAt(pc, pa) * pc;
+        double q = (want + pa * Eps) / (CfVac * Real * pc);
+        for (int i = 0; i < 4 && q > 0; i++) {
+            double got = CfAt(q * pc, pa) * q * pc;
+            if (got <= 0 || Math.Abs(got / want - 1) < 1e-4) break;
+            q *= want / got;
+        }
+        return q;
+    }
+    public double FlowFor(double thrust, double pa) => Mdot * ChamberFor(thrust, pa);
     public const double SEP_PR = 0.4;
     public bool Separated(double pcPa, double pa) => pa > 1 && Pe * (pcPa / PC_PA) < SEP_PR * pa;
 }

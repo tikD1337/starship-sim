@@ -121,6 +121,7 @@ public static class Flight {
         v.Drag = Math.Sqrt(Fax * Fax + fsdAll * fsdAll);
         Vec2 fa = Aero.World(v, new AeroForce(af.Alpha, af.CA, af.CN, Fax, fsdAll, v.Drag), vr);
         double FaX = fa.X, FaY = fa.Y;
+        v.AeroUp = FaX * up.X + FaY * up.Y;
         Nav.Observe(sim, v, FaX, FaY, v.Drag, h, dt);
         double ull = v.Ullage ? Propellant.UllageThrust(v, m) : 0;
         Rcs.Draw(v, rcsT, ull, dt);
